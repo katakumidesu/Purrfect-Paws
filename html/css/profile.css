@@ -1,0 +1,169 @@
+/* General Reset */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f5f5f5;
+  margin: 0;
+  padding: 0;
+}
+
+/* Main Container */
+.profile-container {
+  max-width: 1000px;
+  margin: 30px auto;
+  background: #fff;
+  border-radius: 6px;
+  padding: 40px;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+/* Left side form */
+.profile-left {
+  flex: 2;
+  min-width: 300px;
+  margin-right: 30px;
+}
+
+.profile-left h2 {
+  font-size: 20px;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.profile-left p {
+  color: #777;
+  font-size: 14px;
+  margin-bottom: 30px;
+}
+
+/* Form styles */
+form label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 5px;
+  color: #333;
+}
+
+form input[type="text"],
+form input[type="email"],
+form input[type="tel"],
+form input[type="date"] {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+
+form small {
+  color: #888;
+  display: block;
+  margin-top: -10px;
+  margin-bottom: 15px;
+  font-size: 12px;
+}
+
+.gender-options {
+  margin-bottom: 20px;
+}
+
+.gender-options label {
+  font-weight: normal;
+  margin-right: 15px;
+}
+
+.save-btn {
+  background-color: #ee4d2d;
+  color: #fff;
+  padding: 10px 25px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 15px;
+  transition: background 0.3s ease;
+}
+
+.save-btn:hover {
+  background-color: #d84315;
+}
+
+/* Right side photo */
+.profile-right {
+  flex: 1;
+  min-width: 220px;
+  text-align: center;
+}
+
+.profile-right img {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 15px;
+  border: 1px solid #ddd;
+}
+
+.upload-btn {
+  display: inline-block;
+  padding: 8px 16px;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.upload-btn:hover {
+  background-color: #f5f5f5;
+}
+
+.profile-right p {
+  color: #999;
+  font-size: 13px;
+  margin-top: 10px;
+}
+
+/* ✅ Toast Notification (Shopee-style success pop-up) */
+.toast {
+  position: fixed;
+  bottom: 25px;
+  right: 25px;
+  background: #4caf50;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 6px;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.toast.error {
+  background: #e74c3c;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .profile-container {
+    flex-direction: column;
+    padding: 20px;
+  }
+  .profile-right {
+    margin-top: 30px;
+  }
+}

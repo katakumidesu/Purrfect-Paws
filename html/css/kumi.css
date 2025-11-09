@@ -1,0 +1,748 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Basic Styles ni sya */
+body {
+
+    font-family: 'Merriweather', serif;
+    line-height: 1.6;
+    color: #333;
+}
+
+/* mao kini ang Navbar */
+.navbar {
+    height: 100px;
+    background-color: #E3F2F8;
+    box-shadow: 0 4px 10px rgba(248, 4, 4, 0.1);
+    position: sticky;
+    top: 0px;
+    left: 0px;
+    z-index: 1000;
+}
+
+/* Flexbox for nav items */
+.navdiv {
+     display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 40px;
+  position: relative;
+}
+
+/* Logo Styles */ 
+.logo a {
+    font-size: 3rem;
+    font-weight: bold;
+    color: black;
+    font-family: "Kaushan Script", cursive;
+    text-decoration: none;
+}
+
+/* Navigation Links Styles */
+.navbar ul {
+     position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 30px;
+  list-style: none;
+}
+
+.navbar ul li {
+  display: inline-block;
+}
+
+.navbar ul li a {
+  text-decoration: none;
+  font-size: 1.2rem;
+  color: #000000;
+  font-family: 'Merriweather', serif;
+  transition: color 0.3s ease, border-bottom 0.3s ease;
+}
+
+/* Hover Effect for Navigation Links */
+.navbar ul li a:hover {
+  color: #ff0505;
+  border-bottom: 2px solid #000000;
+  padding-bottom: 3px;
+}
+
+.negrobanner img{
+  width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-bottom: 5px solid #ffffff;
+}
+
+/* mao kini ang about About */
+.about {
+    padding: 60px 40px;
+    background: #FAF9F6;
+    text-align: center;
+}
+
+.about-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 50px;
+    flex-wrap: wrap;
+}
+
+.about-img img {
+    width: 500px;
+    height: 350px;
+    object-fit: cover;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.about-text {
+    max-width: 500px;
+}
+
+.about-text h2 {
+    font-family: 'Merriweather', serif;
+    font-size: 2rem;
+    margin-bottom: 15px;
+}
+
+.about-text p {
+    font-size: 1rem;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+/* mao kini ang Shop */
+
+.shop {
+    padding: 60px 40px;
+    text-align: center;
+}
+
+.shop h2 {
+    font-size: 2.5rem;
+    margin-bottom: 20px;
+}
+
+/* mao kini ang grid para sa shop */
+.shop-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));  
+    gap: 20px;
+    justify-items: center; 
+    max-width: 1100px;
+    margin: auto;
+    transition: transform 0.5s;
+
+}
+
+.shop-container img {
+    width: 200px;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+
+.shop-container, .purchase-btn, .rating, .shop-container :hover{
+   transform: translateY(-5px);
+}
+
+.rating .fa-solid {
+    color: #FFD700; 
+    
+}
+
+.purchase-btn {
+    padding: 5px;
+    background-color: #000000;
+    color: white;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.3s;
+    width: 50%;
+}
+
+/*mao kini ang Gallery */
+.gallery {
+    padding: 60px 40px;
+    text-align: center;
+}
+
+.gallery h2 {
+    font-size: 2.5rem;
+    margin-bottom: 20px;
+}
+
+.gallery-container {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 15px;
+    justify-items: center; 
+    max-width: 1400px; 
+    margin: auto;
+}
+
+.gallery img {
+    width: 200px; 
+    height: 200px;
+    object-fit: cover;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.gallery img:hover {
+    transform: scale(1.05);
+    transition: transform 0.3s;
+}
+
+
+
+button {
+        font-size: 1.2rem;
+        position: relative;
+        padding: 5px 6px;
+        border-radius: 5px;
+        background-color: rgb(0, 0, 0);
+        color: rgb(255, 255, 255);
+        border: none;
+        
+    }
+
+button:hover {
+        background-color: #FFD700;
+        color: white;
+        cursor: pointer;
+        transition: 0.3s;
+    }
+    
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.cart-icon {
+  font-size: 1.4rem;
+  color: #000;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.cart-icon:hover {
+  color: #ff0505;  
+}
+
+
+/* Account icon inside navbar */
+.account-icon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-family: 'Merriweather', serif;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #1a1a1a;
+}
+
+.account-icon img {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+.account-icon:hover {
+  color: #ff0505;
+}
+
+
+
+
+/*-------Testimonial-------*/
+
+.testimonial {
+  padding: 80px 40px;
+  text-align: center;
+}
+
+.testimonial h2 {
+  font-size: 2.5rem;
+  margin-bottom: 40px;
+}
+
+.testimonial-container {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  flex-wrap: wrap;
+}
+
+.testimonial-card {
+  background: #fff;
+  padding: 30px 20px;
+  border-radius: 10px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  max-width: 300px;
+  text-align: center;
+  transition: transform 0.3s ease;
+}
+
+.testimonial-card:hover {
+  transform: translateY(-10px);
+}
+
+/*for quote */
+
+.testimonial-card i.fa-quote-left {
+  font-size: 1.5rem;
+  color: #FFD700;
+  margin-bottom: 15px;
+}
+
+.testimonial-card p {
+  font-size: 13.5px;
+  color: #333;
+  margin-bottom: 12px 0;
+  min-height: 80px;
+}
+
+.testimonial-card img {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  margin-top: 15px;
+  object-fit: cover;
+}
+
+.testimonial-card h3 {
+  margin-top: 10px;
+  font-weight: bold;
+}
+
+
+/*----footer----*/
+
+body {
+
+  overflow-x: hidden; /* prevents side scrolling */
+}
+
+
+.footer {
+  background-color: #cde7e3;
+  padding: 40px 0;
+  font-family: Arial, sans-serif;
+  width: 100vw;          /* Full viewport width */
+  position: relative;
+  left: 50%;              /* Prevent centering offset issues */
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+  box-sizing: border-box;
+  top: 120px; 
+ 
+}
+
+
+.footer-logo {
+    position: absolute;
+    top: -125px;            
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.footer-logo img {
+     width: 250px;
+     max-width: 450px;
+     height: auto;
+}
+
+/* Columns */
+.footer-container {
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    text-align: left;
+    max-width: 1200px;
+    margin: 0 auto;
+    gap: 30px;
+}
+
+.footer-col {
+    flex: 1;
+    min-width: 200px;
+}
+
+.footer-col h4 {
+    font-weight: bold;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+.footer-col ul {
+    list-style: none;
+    padding: 0;
+}
+
+.footer-col ul li {
+    margin-bottom: 8px;
+}
+
+.footer-col ul li a {
+    color: #0077b6;
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.footer-col ul li a:hover {
+    text-decoration: underline;
+}
+
+.footer-col p {
+    font-size: 14px;
+    color: #333;
+    line-height: 1.6;
+}
+
+.social-icons a {
+    margin: 0 8px;
+    font-size: 18px;
+    color: #333;
+    text-decoration: none;
+}
+
+.social-icons a:hover {
+    color: #0077b6;
+}   
+
+/*----- Product Row -----*/
+
+.row-2 {
+  display: flex;
+  justify-content: space-between; /* pushes them to opposite sides */
+  align-items: center;
+  margin: 50px auto 20px;
+  max-width: 1100px; /*  keeps layout consistent with your product grid */
+  padding: 0 40px; /* adds some horizontal spacing */
+}
+
+.row-2 h2 {
+  font-size: 2rem;
+}
+
+select {
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+}
+
+select:focus{
+  outline: none;
+
+}
+
+/*-----page btn-----*/
+
+.page-btn{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin: 20px auto 80px;
+}
+
+.page-btn span,
+.page-btn a span{
+  display: inline-block;
+  border: 1px solid;
+  width: 40px;
+  height: 40px;
+  text-align: center;
+  line-height: 40px;
+  cursor: pointer;
+}
+
+.page-btn span:hover,
+.page-btn a span:hover {
+    background: gold;
+    color: white;
+}
+
+.row{
+  display: flex;
+  justify-content: space-between; /* pushes them to opposite sides */
+  margin: 50px auto 20px;
+  
+
+}
+
+.product-container {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 30px;
+    margin: 80px auto;
+    max-width: 1000px;
+    padding: 0 40px;
+}
+
+.product-image img {
+    width: 350px;
+}
+
+.product-details {
+    max-width: 500px;
+}
+
+.product-details p {
+    font-size: 1rem;
+    color: #555;
+    margin-bottom: 15px;
+}
+
+.product-details h1 {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+.product-details h3 {
+  margin-top: 15px;
+}
+
+.product-details h4 {
+  
+   margin: 20px 0;
+   font-size: 22px;
+   font-weight: bold;
+}
+
+.purchase-btn-2 {
+    background-color: #000;
+    color: #fff;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s; 
+    text-decoration: none;
+}
+
+.purchase-btn-2:hover {
+    background-color: #FFD700;
+    color: #000;
+}
+.single-product{
+  margin-top: 80px;
+}
+
+.single-product input{
+  width: 50px;
+  height: 40px;
+  padding-left: 10px;
+  font-size: 20px;
+  margin-right: 10px;
+  border: 1px solid black;
+}
+
+input:focus{
+  outline: none;
+}
+
+.single-product .fa{
+  color: black;
+  margin-left: 10px;
+}
+
+.related-section {
+  margin-top: 80px;
+  padding: 0 40px;
+}
+
+/* ----- Related Products Section Style Update ----- */
+
+.related-section {
+  margin-top: 80px;
+  padding: 0 60px;
+}
+
+/* Title + View More Row */
+.row-4 {
+  display: flex;
+  justify-content: space-between;
+}
+
+.row-4 h2 {
+  font-size: 1.5rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/*----cart items ----*/
+
+.cart-page {
+  margin: 80px auto;
+  max-width: 800px;
+  background-color: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.cart-page table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cart-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+th {
+  text-align: left;
+  padding: 5px;
+  color: black;
+  background: #E3F2F8;
+  font-weight: normal;
+}
+
+td {
+  padding: 10px 5px;
+}
+
+td input{
+  width: 40px;
+  height: 30px;
+  padding: 5px;
+}
+
+td a{
+  color: #FFD700;
+  font-size: 15px;
+}
+
+td img{
+  width: 80px;
+  height: 80px;
+  margin-right: 10px;
+}
+
+.total-price {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+
+.total-price table {
+  width: 50%;
+  border-top: 3px solid #E3F2F8;
+}
+
+td:last-child{
+  text-align: right;
+}
+
+th:last-child{
+  text-align: right;
+}
+/* user-menu */
+
+.user-menu {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+}
+
+.user-menu .user-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-right: 8px;
+  object-fit: cover;
+  object-position: center;
+  display: inline-block;
+  border: 2px solid #e4e6eb;
+}
+
+.user-menu .username {
+  color: #333;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.user-menu .dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  min-width: 160px;
+  z-index: 10;
+}
+
+.user-menu .dropdown a {
+  display: block;
+  padding: 10px;
+  color: #333;
+  text-decoration: none;
+}
+
+.user-menu .dropdown a:hover {
+  background: #f4f4f4;
+}
+
+/* Show dropdown on hover */
+.user-menu:hover .dropdown {
+  display: block;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 15px; /* space between user/login and cart */
+}
+
+
+.card-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px,1fr));
+  gap: 20px;
+  margin-bottom: 25px;
+}
+.card {
+  background: #222;
+  border-radius: 8px;
+  padding: 20px;
+  color: #fff;
+}
+.card h3 {
+  margin: 0 0 10px 0;
+  font-size: 18px;
+}
+.card p {
+  font-size: 28px;
+  margin: 0;
+}
+
+/* style Inventory Table actions buttons distinct */
+.table .btn {
+  padding: 4px 8px;
+  font-size: 14px;
+  margin: 0 2px;
+}

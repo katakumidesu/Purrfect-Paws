@@ -1,0 +1,387 @@
+<?php
+session_start();
+require_once '../HTML/config.php'; // DB connection
+
+header('Content-Type: application/json');
+
+// Allow GET requests for categories (temporary - remove session check for testing)
+// Uncomment below when session is properly set up
+// if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+//     echo json_encode(['error' => 'Unauthorized']);
+//     exit;
+// }
+
+// Handle both GET and POST requests
+$action = $_GET['action'] ?? '';
+$data = [];
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    $action = $data['action'] ?? '';
+}
+
+switch ($action) {
+
+    // ===== CATEGORIES =====
+    case 'get_categories':
+        try {
+            // Check if categories table exists
+            $checkTable = $conn->query("SHOW TABLES LIKE 'categories'");
+            if ($checkTable && $checkTable->num_rows > 0) {
+                // Try category_name first (most common)
+                $sql = "SELECT category_id, category_name FROM categories ORDER BY category_name ASC";
+                $res = $conn->query($sql);
+                
+                // If that fails, try with just checking what columns exist
+                if (!$res) {
+                    // Try alternative column name
+                    $sql = "SELECT category_id, name AS category_name FROM categories ORDER BY name ASC";
+                    $res = $conn->query($sql);
+                }
+                
+                if ($res && $res->num_rows > 0) {
+                    $categories = [];
+                    while($row=$res->fetch_assoc()) {
+                        $categories[] = $row;
+                    }
+                    echo json_encode($categories);
+                } else {
+                    echo json_encode([]);
+                }
+            } else {
+                // Table doesn't exist
+                echo json_encode([]);
+            }
+        } catch (Exception $e) {
+            // If any error occurs, return empty array
+            echo json_encode([]);
+        }
+        break;
+
+    // ===== PRODUCTS =====
+    case 'get_products':
+        try {
+            // Use category_name as that's what exists in the database
+            $sql = "SELECT p.product_id, p.name, p.description, p.price, p.stock, 
+                           COALESCE(p.image_url, '') AS image_url,
+                           COALESCE(c.category_name, 'Uncategorized') AS category_name, 
+                           p.category_id
+                    FROM products p
+                    LEFT JOIN categories c ON p.category_id = c.category_id
+                    ORDER BY p.product_id DESC";
+            
+            $res = $conn->query($sql);
+            
+            if (!$res) {
+                echo json_encode(['error' => 'Database query failed: ' . $conn->error]);
+                break;
+            }
+            
+            $products = [];
+            while($row=$res->fetch_assoc()) {
+                // Ensure all fields have default values
+                $row['category_name'] = $row['category_name'] ?? 'Uncategorized';
+                $row['image_url'] = $row['image_url'] ?? '';
+                $products[] = $row;
+            }
+            echo json_encode($products);
+        } catch (Exception $e) {
+            echo json_encode(['error' => 'Error fetching products: ' . $e->getMessage()]);
+        }
+        break;
+
+    case 'add_product':
+        $category_id = !empty($data['category_id']) ? $data['category_id'] : null;
+        $name = $data['name'] ?? '';
+        $description = $data['description'] ?? '';
+        $price = $data['price'] ?? 0;
+        $stock = $data['stock'] ?? 0;
+        $image_url = $data['image_url'] ?? '';
+        
+        $stmt = $conn->prepare("INSERT INTO products (category_id, name, description, price, stock, image_url) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("issdis", $category_id, $name, $description, $price, $stock, $image_url);
+        if ($stmt->execute()) {
+            echo json_encode(['success'=>true,'product_id'=>$stmt->insert_id]);
+        } else {
+            echo json_encode(['error' => 'Failed to add product: ' . $stmt->error]);
+        }
+        $stmt->close();
+        break;
+
+    case 'edit_product':
+        $product_id = $data['product_id'] ?? 0;
+        $category_id = !empty($data['category_id']) ? $data['category_id'] : null;
+        $name = $data['name'] ?? '';
+        $description = $data['description'] ?? '';
+        $price = $data['price'] ?? 0;
+        $stock = $data['stock'] ?? 0;
+        $image_url = $data['image_url'] ?? '';
+        
+        $stmt = $conn->prepare("UPDATE products SET category_id=?, name=?, description=?, price=?, stock=?, image_url=? WHERE product_id=?");
+        $stmt->bind_param("issdisi", $category_id, $name, $description, $price, $stock, $image_url, $product_id);
+        if ($stmt->execute()) {
+            echo json_encode(['success'=>true]);
+        } else {
+            echo json_encode(['error' => 'Failed to update product: ' . $stmt->error]);
+        }
+        $stmt->close();
+        break;
+
+    case 'delete_product':
+        $product_id = $data['product_id'] ?? 0;
+        $stmt = $conn->prepare("DELETE FROM products WHERE product_id=?");
+        $stmt->bind_param("i", $product_id);
+        if ($stmt->execute()) {
+            echo json_encode(['success'=>true]);
+        } else {
+            echo json_encode(['error' => 'Failed to delete product: ' . $stmt->error]);
+        }
+        $stmt->close();
+        break;
+
+    // ===== USERS =====
+    case 'get_users':
+        try {
+            // Try to get username and phone columns, fallback if they don't exist
+            $sql = "SELECT user_id, name, COALESCE(username, '') AS username, email, COALESCE(phone, '') AS phone, role, created_at 
+                    FROM users 
+                    ORDER BY user_id ASC";
+            $res = $conn->query($sql);
+            if (!$res) {
+                // If columns don't exist, try without them
+                $sql = "SELECT user_id, name, email, role, created_at 
+                        FROM users 
+                        ORDER BY user_id ASC";
+                $res = $conn->query($sql);
+            }
+            $users = [];
+            if ($res) {
+                while($row=$res->fetch_assoc()) {
+                    $row['username'] = $row['username'] ?? '';
+                    $row['phone'] = $row['phone'] ?? '';
+                    $users[] = $row;
+                }
+            }
+            echo json_encode($users);
+        } catch (Exception $e) {
+            echo json_encode(['error' => 'Error fetching users: ' . $e->getMessage()]);
+        }
+        break;
+
+    case 'add_user':
+        try {
+            $name = $data['name'] ?? '';
+            $username = $data['username'] ?? '';
+            $email = $data['email'] ?? '';
+            $phone = $data['phone'] ?? '';
+            $password = $data['password'] ?? '';
+            // Force role to 'user' - admin role is only for hardcoded admin
+            $role = 'user';
+            
+            if (empty($name) || empty($email) || empty($password)) {
+                echo json_encode(['error' => 'Name, email, and password are required']);
+                break;
+            }
+            
+            // Check if email already exists
+            $checkEmail = $conn->prepare("SELECT email FROM users WHERE email = ?");
+            $checkEmail->bind_param("s", $email);
+            $checkEmail->execute();
+            $result = $checkEmail->get_result();
+            if ($result->num_rows > 0) {
+                echo json_encode(['error' => 'Email already exists']);
+                $checkEmail->close();
+                break;
+            }
+            $checkEmail->close();
+            
+            // Check if username already exists (if username is provided and column exists)
+            if (!empty($username)) {
+                $checkUsername = $conn->prepare("SELECT username FROM users WHERE username = ?");
+                if ($checkUsername) {
+                    $checkUsername->bind_param("s", $username);
+                    $checkUsername->execute();
+                    $result = $checkUsername->get_result();
+                    if ($result->num_rows > 0) {
+                        echo json_encode(['error' => 'Username already exists']);
+                        $checkUsername->close();
+                        break;
+                    }
+                    $checkUsername->close();
+                }
+            }
+            
+            $password_hash = password_hash($password, PASSWORD_DEFAULT);
+            
+            // Check which columns exist
+            $checkUsername = $conn->query("SHOW COLUMNS FROM users LIKE 'username'");
+            $hasUsername = $checkUsername && $checkUsername->num_rows > 0;
+            
+            $checkPhone = $conn->query("SHOW COLUMNS FROM users LIKE 'phone'");
+            $hasPhone = $checkPhone && $checkPhone->num_rows > 0;
+            
+            // Build query based on available columns
+            if ($hasUsername && $hasPhone) {
+                $stmt = $conn->prepare("INSERT INTO users (name, username, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param("ssssss", $name, $username, $email, $phone, $password_hash, $role);
+            } else if ($hasUsername) {
+                $stmt = $conn->prepare("INSERT INTO users (name, username, email, password_hash, role) VALUES (?, ?, ?, ?, ?)");
+                $stmt->bind_param("sssss", $name, $username, $email, $password_hash, $role);
+            } else if ($hasPhone) {
+                $stmt = $conn->prepare("INSERT INTO users (name, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?)");
+                $stmt->bind_param("sssss", $name, $email, $phone, $password_hash, $role);
+            } else {
+                $stmt = $conn->prepare("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)");
+                $stmt->bind_param("ssss", $name, $email, $password_hash, $role);
+            }
+            
+            if ($stmt->execute()) {
+                echo json_encode(['success'=>true,'user_id'=>$stmt->insert_id]);
+            } else {
+                echo json_encode(['error' => 'Failed to add user: ' . $stmt->error]);
+            }
+            $stmt->close();
+        } catch (Exception $e) {
+            echo json_encode(['error' => 'Error adding user: ' . $e->getMessage()]);
+        }
+        break;
+
+    case 'edit_user':
+        try {
+            $user_id = $data['user_id'] ?? 0;
+            $name = $data['name'] ?? '';
+            $username = $data['username'] ?? '';
+            $email = $data['email'] ?? '';
+            $phone = $data['phone'] ?? '';
+            $password = $data['password'] ?? '';
+            // Force role to 'user' - admin role is only for hardcoded admin
+            // Get current role from database to prevent changing it
+            $getCurrentUser = $conn->prepare("SELECT role FROM users WHERE user_id = ?");
+            $getCurrentUser->bind_param("i", $user_id);
+            $getCurrentUser->execute();
+            $currentUser = $getCurrentUser->get_result()->fetch_assoc();
+            $getCurrentUser->close();
+            // Keep existing role (should always be 'user', but preserve it just in case)
+            $role = $currentUser['role'] ?? 'user';
+            // Prevent changing to admin role
+            if ($role === 'admin') {
+                // Don't allow editing the hardcoded admin through this interface
+                echo json_encode(['error' => 'Cannot modify admin account through this interface']);
+                break;
+            }
+            
+            if (empty($name) || empty($email)) {
+                echo json_encode(['error' => 'Name and email are required']);
+                break;
+            }
+            
+            // Check if email is taken by another user
+            $checkEmail = $conn->prepare("SELECT user_id FROM users WHERE email = ? AND user_id != ?");
+            $checkEmail->bind_param("si", $email, $user_id);
+            $checkEmail->execute();
+            $result = $checkEmail->get_result();
+            if ($result->num_rows > 0) {
+                echo json_encode(['error' => 'Email already taken by another user']);
+                $checkEmail->close();
+                break;
+            }
+            $checkEmail->close();
+            
+            // Check if username is taken by another user (if username is provided and column exists)
+            if (!empty($username)) {
+                $checkUsername = $conn->prepare("SELECT user_id FROM users WHERE username = ? AND user_id != ?");
+                if ($checkUsername) {
+                    $checkUsername->bind_param("si", $username, $user_id);
+                    $checkUsername->execute();
+                    $result = $checkUsername->get_result();
+                    if ($result->num_rows > 0) {
+                        echo json_encode(['error' => 'Username already taken by another user']);
+                        $checkUsername->close();
+                        break;
+                    }
+                    $checkUsername->close();
+                }
+            }
+            
+            // Check which columns exist
+            $checkUsername = $conn->query("SHOW COLUMNS FROM users LIKE 'username'");
+            $hasUsername = $checkUsername && $checkUsername->num_rows > 0;
+            
+            $checkPhone = $conn->query("SHOW COLUMNS FROM users LIKE 'phone'");
+            $hasPhone = $checkPhone && $checkPhone->num_rows > 0;
+            
+            if (!empty($password)) {
+                $password_hash = password_hash($password, PASSWORD_DEFAULT);
+                // Update with password
+                if ($hasUsername && $hasPhone) {
+                    $stmt = $conn->prepare("UPDATE users SET name=?, username=?, email=?, phone=?, role=?, password_hash=? WHERE user_id=?");
+                    $stmt->bind_param("ssssssi", $name, $username, $email, $phone, $role, $password_hash, $user_id);
+                } else if ($hasUsername) {
+                    $stmt = $conn->prepare("UPDATE users SET name=?, username=?, email=?, role=?, password_hash=? WHERE user_id=?");
+                    $stmt->bind_param("sssssi", $name, $username, $email, $role, $password_hash, $user_id);
+                } else if ($hasPhone) {
+                    $stmt = $conn->prepare("UPDATE users SET name=?, email=?, phone=?, role=?, password_hash=? WHERE user_id=?");
+                    $stmt->bind_param("sssssi", $name, $email, $phone, $role, $password_hash, $user_id);
+                } else {
+                    $stmt = $conn->prepare("UPDATE users SET name=?, email=?, role=?, password_hash=? WHERE user_id=?");
+                    $stmt->bind_param("ssssi", $name, $email, $role, $password_hash, $user_id);
+                }
+            } else {
+                // Update without password
+                if ($hasUsername && $hasPhone) {
+                    $stmt = $conn->prepare("UPDATE users SET name=?, username=?, email=?, phone=?, role=? WHERE user_id=?");
+                    $stmt->bind_param("sssssi", $name, $username, $email, $phone, $role, $user_id);
+                } else if ($hasUsername) {
+                    $stmt = $conn->prepare("UPDATE users SET name=?, username=?, email=?, role=? WHERE user_id=?");
+                    $stmt->bind_param("ssssi", $name, $username, $email, $role, $user_id);
+                } else if ($hasPhone) {
+                    $stmt = $conn->prepare("UPDATE users SET name=?, email=?, phone=?, role=? WHERE user_id=?");
+                    $stmt->bind_param("ssssi", $name, $email, $phone, $role, $user_id);
+                } else {
+                    $stmt = $conn->prepare("UPDATE users SET name=?, email=?, role=? WHERE user_id=?");
+                    $stmt->bind_param("sssi", $name, $email, $role, $user_id);
+                }
+            }
+            
+            if ($stmt->execute()) {
+                echo json_encode(['success'=>true]);
+            } else {
+                echo json_encode(['error' => 'Failed to update user: ' . $stmt->error]);
+            }
+            $stmt->close();
+        } catch (Exception $e) {
+            echo json_encode(['error' => 'Error updating user: ' . $e->getMessage()]);
+        }
+        break;
+
+    case 'delete_user':
+        try {
+            $user_id = $data['user_id'] ?? 0;
+            
+            // Check if user is admin - prevent deletion
+            $checkUser = $conn->prepare("SELECT role FROM users WHERE user_id = ?");
+            $checkUser->bind_param("i", $user_id);
+            $checkUser->execute();
+            $user = $checkUser->get_result()->fetch_assoc();
+            $checkUser->close();
+            
+            if ($user && $user['role'] === 'admin') {
+                echo json_encode(['error' => 'Cannot delete admin account']);
+                break;
+            }
+            
+            $stmt = $conn->prepare("DELETE FROM users WHERE user_id=?");
+            $stmt->bind_param("i", $user_id);
+            if ($stmt->execute()) {
+                echo json_encode(['success'=>true]);
+            } else {
+                echo json_encode(['error' => 'Failed to delete user: ' . $stmt->error]);
+            }
+            $stmt->close();
+        } catch (Exception $e) {
+            echo json_encode(['error' => 'Error deleting user: ' . $e->getMessage()]);
+        }
+        break;
+
+    default:
+        echo json_encode(['error'=>'Invalid action']);
+}
