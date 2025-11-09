@@ -28,7 +28,7 @@ function isActiveForm($formName, $activeForm) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login & Register | Purrfect Paws</title>
-    <link rel="stylesheet" href="../css/login_style.css">
+    <link rel="stylesheet" href="../HTML/css/login_style.css">
 </head>
 <body>
     <div class="container">

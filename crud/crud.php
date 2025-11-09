@@ -60,27 +60,41 @@ switch ($action) {
     // ===== PRODUCTS =====
     case 'get_products':
         try {
-            // Use category_name as that's what exists in the database
-            $sql = "SELECT p.product_id, p.name, p.description, p.price, p.stock, 
+            // Check if 'rating' column exists first to avoid exceptions on strict mysqli
+            $col = $conn->query("SHOW COLUMNS FROM products LIKE 'rating'");
+            $hasRating = $col && $col->num_rows > 0;
+            if ($col) { $col->close(); }
+
+            $selectRating = $hasRating ? ', p.rating' : '';
+            $sql = "SELECT p.product_id, p.name, p.description, p.price, p.stock,
                            COALESCE(p.image_url, '') AS image_url,
-                           COALESCE(c.category_name, 'Uncategorized') AS category_name, 
-                           p.category_id
+                           COALESCE(c.category_name, 'Uncategorized') AS category_name,
+                           p.category_id" . $selectRating . "
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.category_id
                     ORDER BY p.product_id DESC";
-            
+
             $res = $conn->query($sql);
-            
             if (!$res) {
                 echo json_encode(['error' => 'Database query failed: ' . $conn->error]);
                 break;
             }
-            
+
             $products = [];
-            while($row=$res->fetch_assoc()) {
-                // Ensure all fields have default values
+            while ($row = $res->fetch_assoc()) {
                 $row['category_name'] = $row['category_name'] ?? 'Uncategorized';
                 $row['image_url'] = $row['image_url'] ?? '';
+                if ($hasRating) {
+                    if (isset($row['rating']) && $row['rating'] !== null && $row['rating'] !== '') {
+                        $r = floatval($row['rating']);
+                        $r = max(0, min(5, round($r * 2) / 2));
+                        $row['rating'] = $r;
+                    } else {
+                        $row['rating'] = null;
+                    }
+                } else {
+                    $row['rating'] = null;
+                }
                 $products[] = $row;
             }
             echo json_encode($products);
@@ -96,15 +110,30 @@ switch ($action) {
         $price = $data['price'] ?? 0;
         $stock = $data['stock'] ?? 0;
         $image_url = $data['image_url'] ?? '';
+        $rating = isset($data['rating']) && $data['rating'] !== '' ? floatval($data['rating']) : null;
         
         $stmt = $conn->prepare("INSERT INTO products (category_id, name, description, price, stock, image_url) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->bind_param("issdis", $category_id, $name, $description, $price, $stock, $image_url);
         if ($stmt->execute()) {
-            echo json_encode(['success'=>true,'product_id'=>$stmt->insert_id]);
+            $newId = $stmt->insert_id;
+            $stmt->close();
+            // If rating provided and column exists, update it separately to be schema-safe
+            if ($rating !== null) {
+                $col = $conn->query("SHOW COLUMNS FROM products LIKE 'rating'");
+                if ($col && $col->num_rows > 0) {
+                    $rating = max(0, min(5, round($rating * 2) / 2));
+                    $upd = $conn->prepare("UPDATE products SET rating=? WHERE product_id=?");
+                    $upd->bind_param("di", $rating, $newId);
+                    $upd->execute();
+                    $upd->close();
+                }
+            }
+            echo json_encode(['success'=>true,'product_id'=>$newId]);
         } else {
-            echo json_encode(['error' => 'Failed to add product: ' . $stmt->error]);
+            $err = $stmt->error;
+            $stmt->close();
+            echo json_encode(['error' => 'Failed to add product: ' . $err]);
         }
-        $stmt->close();
         break;
 
     case 'edit_product':
@@ -115,15 +144,30 @@ switch ($action) {
         $price = $data['price'] ?? 0;
         $stock = $data['stock'] ?? 0;
         $image_url = $data['image_url'] ?? '';
+        $rating = isset($data['rating']) && $data['rating'] !== '' ? floatval($data['rating']) : null;
         
         $stmt = $conn->prepare("UPDATE products SET category_id=?, name=?, description=?, price=?, stock=?, image_url=? WHERE product_id=?");
         $stmt->bind_param("issdisi", $category_id, $name, $description, $price, $stock, $image_url, $product_id);
-        if ($stmt->execute()) {
+        $ok = $stmt->execute();
+        $err = $stmt->error;
+        $stmt->close();
+        
+        if ($ok) {
+            // Update rating if provided and column exists
+            if ($rating !== null) {
+                $col = $conn->query("SHOW COLUMNS FROM products LIKE 'rating'");
+                if ($col && $col->num_rows > 0) {
+                    $rating = max(0, min(5, round($rating * 2) / 2));
+                    $upd = $conn->prepare("UPDATE products SET rating=? WHERE product_id=?");
+                    $upd->bind_param("di", $rating, $product_id);
+                    $upd->execute();
+                    $upd->close();
+                }
+            }
             echo json_encode(['success'=>true]);
         } else {
-            echo json_encode(['error' => 'Failed to update product: ' . $stmt->error]);
+            echo json_encode(['error' => 'Failed to update product: ' . $err]);
         }
-        $stmt->close();
         break;
 
     case 'delete_product':

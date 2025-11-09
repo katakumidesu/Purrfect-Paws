@@ -2,7 +2,7 @@
 session_start();
 // Uncomment below when session is properly set up
 // if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-//     header('Location: ../login_register/login_register.php');
+//     header('Location: ../login_register/purdex.php');
 //     exit;
 // }
 ?>
@@ -12,7 +12,7 @@ session_start();
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin Panel - Purrfect Paws</title>
-<link rel="stylesheet" href="../css/admin.css">
+<link rel="stylesheet" href="../HTML/css/admin.css">
 <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://kit.fontawesome.com/df5d6157cf.js" crossorigin="anonymous"></script>
 </head>
@@ -23,7 +23,7 @@ session_start();
     <aside class="sidebar">
         <h2 class="logo">Purrfect Paws</h2>
         <div class="profile">
-            <img src="../HTML/images/mwehehehe.jpg" alt="Admin User" onerror="this.src='../HTML/images/mwehehehe.jpg'>
+            <img src="../HTML/images/mwehehehe.jpg" alt="Admin User" onerror="this.onerror=null; this.src='../HTML/images/mwehehehe.jpg'">
             <span>Admin</span>
         </div>
         <ul class="menu">

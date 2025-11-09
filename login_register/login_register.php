@@ -57,7 +57,7 @@ if (isset($_POST['login'])) {
         $_SESSION['name'] = 'Administrator';
         $_SESSION['email'] = $adminEmail;
         $_SESSION['role'] = 'admin';
-        header('Location: ../admins/admin_page.php');
+        header('Location: ../admin/admin_page.php');
         exit();
     }
 
@@ -81,7 +81,7 @@ if (isset($_POST['login'])) {
             $_SESSION['profile_image'] = $user['profile_image'] ?? '';
 
             if ($user['role'] === 'admin') {
-                header('Location: ../admins/admin_page.php');
+                header('Location: ../admin/admin_page.php');
             } else {
                 header('Location: ../HTML/index.php');
             }

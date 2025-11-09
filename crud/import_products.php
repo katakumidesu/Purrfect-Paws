@@ -95,7 +95,7 @@ if (!empty($errors)) {
     echo "</ul>";
 }
 
-echo "<p><a href='../admins/admin_page.php'>Go to Admin Panel</a></p>";
+echo "<p><a href='../admin/admin_page.php'>Go to Admin Panel</a></p>";
 ?>
 </body>
 </html>

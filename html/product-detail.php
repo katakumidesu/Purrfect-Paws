@@ -6,12 +6,13 @@ session_start();
 <html lang="en">
 
 <head>
+   
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="keywords" content="Purrfect cats, cats, Cagayan de Oro City">
     <meta name="description" content="Purrfect Paws - Your one-stop shop for all things cat-related in Cagayan de Oro City.">
-    <title>Shop Products - Purrfect Paws</title>
+    <title>Product Details - Purrfect Paws</title>
     <link rel="stylesheet" href="css/kumi.css">
     <script src="https://kit.fontawesome.com/df5d6157cf.js" crossorigin="anonymous"></script>
     <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
@@ -19,8 +20,10 @@ session_start();
     lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+ 
 
-
+  
+   
 
     <style>
         img {
@@ -36,23 +39,22 @@ session_start();
     </style>
 </head>
 
-
+   <!-- Home Section -->
+    <section class="hero" id="home">
+    </section>
 
 <body>
 
-      <!-- Home Section -->
-    <section class="hero" id="home">
-    </section>
 
     <!-- Navigation Bar -->
     <nav class="navbar">
     <div class="navdiv">
-        <div class="logo"><a href="index.php">Purrfect Paws</a></div>  
+        <div class="logo"><a href="index.php">Purrfect Paws</a></div>
         <ul>
             <li><a href="index.php">Home</a></li>
             <li><a href="product.php">Shop</a></li>
-            <li><a href="#gallery">Gallery</a></li>
-            <li><a href="#contact">Contact Us</a></li>
+            <li><a href="index.php#gallery">Gallery</a></li>
+            <li><a href="index.php#contact">Contact Us</a></li>
         </ul>
         
 <div class="nav-right">
@@ -79,83 +81,22 @@ session_start();
     <!-- 🛒 Cart icon -->
     <a href="cart.php" class="cart-icon"><i class="fa-solid fa-cart-shopping"></i></a>
 </div>
-        </div>
     </div>
 </nav>
 
-<!----cart---->
 
-<div class="small-container cart-page">
-    <table>
-        <tr>
-            <th>Product</th>
-            <th>Quantity</th>
-            <th>Subtotal</th>
-        </tr>
-        <tr>
-            <td>
-                <div class="cart-info">
-                    <img src="images/scratchcat.jpg" >
-                    <div>
-                        <p>Cat Scratch Post</p>
-                        <small>Price: $100.00</small>
-                        <br>
-                        <a href="">Remove</a>
-                    </div>
-                </div>
-            </td>
-            <td><input type="number" value="1"></td>
-            <td>$100.00</td>
-        </tr>
-        <tr>
-            <td>
-                <div class="cart-info">
-                    <img src="images/catmouse.jpg" >
-                    <div>
-                        <p>Cat Mouse Toy</p>
-                        <small>Price: $10.00</small>
-                        <br>
-                        <a href="">Remove</a>
-                    </div>
-                </div>
-            </td>
-            <td><input type="number" value="1"></td>
-            <td>$10.00</td>
-        </tr>
-        <tr>
-            <td>
-                <div class="cart-info">
-                    <img src="images/catbed.jpg" >
-                    <div>
-                        <p>Cat Bed</p>
-                        <small>Price: $45.00</small>
-                        <br>
-                        <a href="">Remove</a>
-                    </div>
-                </div>
-            </td>
-            <td><input type="number" value="1"></td>
-            <td>$45.00</td>
-        </tr>
-    </table>
-    <div class="total-price">
-        <table>
-            <tr>
-                <td>Subtotal</td>
-                <td>$155.00</td>
-            </tr>
-            <tr>
-                <td>Tax</td>
-                <td>$15.00</td>
-            </tr>
-            <tr>
-                <td>Total</td>
-                <td>$170.00</td>
-            </tr>
-        </table>
-</div>
+    <!-------- single product details -------->
+<div id="product-details"></div>
+   <a href="product-detail.html?name=${encodeURIComponent(prod.name)}"></a> <section class="related-section">
+
+<!-----title----->
  
-    
+  <h2>Related Products</h2>
+  <div id="related-container" 
+    class="shop-container">
+    </div>
+</section>
+   
 <!-----footer----->
 <footer class="footer">
     <div class="footer-logo">
@@ -184,12 +125,12 @@ session_start();
             </ul>
         </div>
 
-          <div class="footer-col">
-          <h4>Contact</h4>
-          <p>431 Captain E. Jabulin St<br>
-              ppaws1027@gmail.com<br>
-              0961 9400 663<br>
-          </p>
+        <div class="footer-col">
+            <h4>Contact</h4>
+            <p>431 Captain E. Jabulin St<br>
+                ppaws1027@gmail.com<br>
+                0961 9400 663<br>
+            </p>
         </div>
 
        <div class="footer-col">
@@ -202,6 +143,8 @@ session_start();
         </div>
     </div>
 </footer>
+
+<script src="../js/product-details.js"></script>
 
 </body>
 

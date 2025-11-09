@@ -4,12 +4,6 @@ require_once '../HTML/config.php';
 
 header('Content-Type: application/json');
 
-// Allow uploads (temporary - add session check when ready)
-// if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-//     echo json_encode(['error' => 'Unauthorized']);
-//     exit;
-// }
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['error' => 'Invalid request method']);
     exit;

@@ -10,10 +10,6 @@ const mainContent = document.getElementById("mainContent");
 // API endpoint
 const API_URL = '../crud/crud.php';
 
-// Default load dashboard
-if (document.querySelector(".menu li.active")) {
-document.querySelector(".menu li.active").click();
-}
 
 menuItems.forEach(item => {
     item.addEventListener("click", () => {
@@ -29,8 +25,11 @@ menuItems.forEach(item => {
             case "analytics": loadAnalytics(); break;
             case "reports": loadReports(); break;
         }
-    });
 });
+});
+
+// Default load after listeners
+try { document.querySelector('.menu li.active')?.click(); } catch (e) { loadDashboard(); }
 
 // ---------------- API HELPER FUNCTIONS ----------------
 async function fetchAPI(action, method = 'GET', data = null) {
@@ -302,6 +301,12 @@ function getProductModal() {
                     </div>
                     
                     <div class="form-group">
+                        <label for="productRating">Rating</label>
+                        <input type="number" id="productRating" name="rating" min="0" max="5" step="0.5" placeholder="0 - 5 (optional)">
+                        <small>Optional: 0 to 5 in 0.5 steps. Used for stars on product pages.</small>
+                    </div>
+                    
+                    <div class="form-group">
                         <label for="productImage">Image URL</label>
                         <input type="text" id="productImage" name="image_url" placeholder="Enter image URL or path">
                         <small>Example: ../HTML/images/product.jpg</small>
@@ -347,6 +352,7 @@ function openEditProductModal(productId) {
     document.getElementById('productDescription').value = product.description || '';
     document.getElementById('productPrice').value = product.price || 0;
     document.getElementById('productStock').value = product.stock || 0;
+    document.getElementById('productRating').value = (product.rating != null && product.rating !== '') ? product.rating : '';
     document.getElementById('productImage').value = product.image_url || '';
     document.getElementById('uploadStatus').innerHTML = '';
 }
@@ -366,7 +372,8 @@ async function saveProduct(event) {
         description: document.getElementById('productDescription').value,
         price: parseFloat(document.getElementById('productPrice').value),
         stock: parseInt(document.getElementById('productStock').value),
-        image_url: document.getElementById('productImage').value || ''
+        image_url: document.getElementById('productImage').value || '',
+        rating: (document.getElementById('productRating').value !== '') ? parseFloat(document.getElementById('productRating').value) : ''
     };
     
     if (formData.product_id) {
@@ -382,6 +389,8 @@ async function saveProduct(event) {
         }
         
         if (result.success) {
+            // Notify other tabs (e.g., product listing) to refresh
+            try { localStorage.setItem('pp_products_updated', Date.now().toString()); } catch (e) {}
             closeProductModal();
             loadInventory(); // Reload inventory
             loadDashboard(); // Update dashboard stats
@@ -410,6 +419,8 @@ async function deleteProduct(productId) {
         }
         
         if (result.success) {
+            // Notify other tabs (e.g., product listing) to refresh
+            try { localStorage.setItem('pp_products_updated', Date.now().toString()); } catch (e) {}
             loadInventory(); // Reload inventory
             loadDashboard(); // Update dashboard stats
         } else {

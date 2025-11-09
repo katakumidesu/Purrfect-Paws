@@ -4,7 +4,7 @@ require_once '../HTML/config.php';
 
 // Check if logged in
 if (!isset($_SESSION['user_id'])) {
-    header('Location: ../HTML/purdex.php');
+    header('Location: ../login_register/purdex.php');
     exit();
 }
 
@@ -37,8 +37,8 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
   <meta name="keywords" content="Purrfect Paws, cats, Cagayan de Oro City">
   <meta name="description" content="Purrfect Paws - Your one-stop shop for all things cat-related in Cagayan de Oro City.">
   <title>Purrfect Paws | Profile</title>
-  <link rel="stylesheet" href="../css/kumi.css">
-  <link rel="stylesheet" href="../css/profile.css">
+  <link rel="stylesheet" href="../HTML/css/kumi.css">
+  <link rel="stylesheet" href="../HTML/css/profile.css">
   <script src="https://kit.fontawesome.com/df5d6157cf.js" crossorigin="anonymous"></script>
   <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
@@ -58,7 +58,7 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
 <!-- 🐾 Navigation Bar -->
 <nav class="navbar">
   <div class="navdiv">
-      <div class="logo"><a href="index.php">Purrfect Paws</a></div>
+      <div class="logo"><a href="../HTML/index.php">Purrfect Paws</a></div>
       <ul>
           <li><a href="../HTML/index.php">Home</a></li>
           <li><a href="../HTML/product.php">Shop</a></li>
@@ -79,7 +79,7 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
                   </div>
               </div>
           <?php else: ?>
-              <a href="purdex.php"><button><i class="fa-solid fa-cat"></i> Login</button></a>
+              <a href="../login_register/purdex.php"><button><i class="fa-solid fa-cat"></i> Login</button></a>
           <?php endif; ?>
 
           <!-- 🛒 Cart icon -->
