@@ -98,7 +98,15 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
 
 <!-- 🐾 Profile Section -->
 <div class="profile-container">
-  <div class="profile-left">
+  <aside class="account-sidebar">
+    <button class="account-toggle"><i class="fa-regular fa-user"></i> <span>My Account</span> <i class="fa fa-chevron-down chevron"></i></button>
+    <ul class="account-submenu open">
+      <li><a href="#profile">Profile</a></li>
+      <li><a href="#addresses">Addresses</a></li>
+    </ul>
+  </aside>
+  <div class="profile-content">
+    <div class="profile-left" id="profile">
     <h2>My Profile</h2>
     <p>Manage and protect your account</p>
 
@@ -137,8 +145,8 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
       <button type="submit" class="save-btn">Save Changes</button>
     </form>
   </div>
-</div>
 
+<
 
 <!-- ✅ Toast -->
 <div id="toast" class="toast">

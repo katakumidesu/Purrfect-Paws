@@ -92,6 +92,16 @@ async function displayProductDetails() {
                 </div>
             </div>
         `;
+        // Wire up "Add To Cart"
+        const addBtn = document.querySelector('.purchase-btn-2');
+        const qtyInput = document.querySelector('.single-product input');
+        if (addBtn) {
+            addBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const qty = Math.max(1, parseInt(qtyInput?.value || '1', 10));
+                addToCart({ name: product.name, price: product.price, image: product.img }, qty);
+            });
+        }
     } else {
         productContainer.innerHTML = `<p>Product not found.</p>`;
     }

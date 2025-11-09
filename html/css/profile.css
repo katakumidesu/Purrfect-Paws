@@ -16,18 +16,17 @@ body {
   margin: 30px auto;
   background: #fff;
   border-radius: 6px;
-  padding: 40px;
+  padding: 20px 24px;
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.05);
   display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
+  gap: 24px;
 }
 
 /* Left side form */
+.profile-content{flex:1 1 0}
 .profile-left {
   flex: 2;
   min-width: 300px;
-  margin-right: 30px;
 }
 
 .profile-left h2 {
@@ -157,13 +156,70 @@ form small {
   transform: translateY(0);
 }
 
+:root{--brand:#9bd8f7;--brand-strong:#5cbfef;--brand-text:#003a57}
+.btn-primary{background:var(--brand-strong);color:#003044;border:none;border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:700}
+.btn-primary:hover{background:#3fb2ea}
+.btn-secondary{background:#333;color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer}
+.btn-danger{background:#e74c3c;color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer}
+
+.address-book{margin-top:30px}
+.ab-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.address-subtitle{font-weight:600;color:#6b8897;margin:8px 0 4px}
+/* Row list like Shopee */
+.address-list.rows{display:block;background:#fff;border:1px solid #e5f1f7;border-radius:8px}
+.address-row{display:flex;justify-content:space-between;gap:12px;padding:14px 16px;border-top:1px solid #eef6fb}
+.address-row:first-child{border-top:none}
+.addr-left{max-width:70%}
+.address-row .name{font-weight:700;color:#222}
+.address-row .phone{color:#6b8897;font-weight:500;margin-left:8px}
+.address-row .addr-lines{color:#334;margin-top:6px}
+.name-line .divider{color:#c7d6df;margin:0 8px}
+.addr-actions{display:flex;align-items:flex-start;gap:10px}
+.link-btn{background:none;border:none;color:#2a7db1;cursor:pointer}
+.link-btn.danger{color:#e74c3c}
+.btn-outline{background:#fff;color:#3b5160;border:1px solid #d8e5ec;border-radius:8px;padding:6px 10px;cursor:pointer}
+.badge{display:inline-block;background:#fff0f0;color:#c92a2a;border:1px solid #ff6b6b;padding:2px 8px;border-radius:6px;font-size:12px;margin-top:6px}
+
+/* Old card styles (kept if needed elsewhere) */
+.address-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.address-card{background:#fff;border:2px solid #e1eef5;border-radius:12px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,0.05)}
+.address-card .name{font-weight:700;color:#222}
+.address-card .meta{color:#6b8897;font-size:13px;margin-bottom:8px}
+.address-card .addr{color:#334;text-wrap:pretty}
+.address-card .actions{display:flex;gap:8px;margin-top:10px}
+.address-card .badge{display:inline-block;background:rgba(92,191,239,.18);color:var(--brand-text);border:1px solid var(--brand-strong);padding:2px 8px;border-radius:999px;font-size:12px;margin-left:6px}
+
+/* Modal */
+.ab-modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:2000}
+.ab-modal .panel{background:#1a1a1a;color:#fff;border-radius:12px;max-width:640px;width:92%;padding:20px}
+.ab-modal .panel h3{margin-top:0;color:var(--brand-strong)}
+.ab-modal .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ab-modal .grid .full{grid-column:1/-1}
+.ab-modal .panel label{display:block;color:var(--brand-strong);font-weight:600;margin:6px 0 4px}
+.ab-modal .panel input,.ab-modal .panel textarea,.ab-modal .panel select{width:100%;padding:10px;border:1px solid #444;border-radius:8px;background:#2a2a2a;color:#fff}
+.ab-modal .map-placeholder{height:180px;border:1px dashed #2e4450;border-radius:8px;background:rgba(155,216,247,0.05);display:flex;align-items:center;justify-content:center;color:#a9c6d6;margin-top:8px}
+.ab-modal .label-pills{display:flex;gap:8px;margin-top:8px}
+.ab-modal .label-pill{border:1px solid #2e4450;background:rgba(155,216,247,0.05);padding:6px 10px;border-radius:999px;color:#e9f7ff;cursor:pointer}
+.ab-modal .label-pill.active{border-color:var(--brand-strong);background:rgba(92,191,239,0.15);color:#fff}
+.ab-modal .panel footer{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+
+/* Sidebar (Shopee-like) */
+.account-sidebar{flex:0 0 220px;background:#f8fafc;border:1px solid #e7f1f7;border-radius:8px;padding:14px;height:max-content}
+.account-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;background:none;border:none;font-weight:700;color:#003a57;cursor:pointer}
+.account-submenu{list-style:none;margin:8px 0 12px 0;padding-left:10px;max-height:0;overflow:hidden;transition:max-height .2s ease}
+.account-submenu.open{max-height:300px}
+.account-submenu li{margin:8px 0}
+.account-submenu a{color:#2a7db1;text-decoration:none}
+.account-submenu a:hover{text-decoration:underline}
+.account-link{display:block;margin-top:6px;color:#2a7db1;text-decoration:none}
+.account-link:hover{text-decoration:underline}
+.account-toggle .chevron{transition:transform .2s ease}
+.account-submenu.open ~ .chevron{transform:rotate(180deg)}
+
 /* Responsive */
 @media (max-width: 768px) {
-  .profile-container {
-    flex-direction: column;
-    padding: 20px;
-  }
-  .profile-right {
-    margin-top: 30px;
-  }
+  .profile-container { flex-direction: column; padding: 16px; }
+  .account-sidebar{width:100%}
+  .profile-right { margin-top: 12px; }
+  .ab-modal .grid{grid-template-columns:1fr}
 }

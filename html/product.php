@@ -80,7 +80,10 @@ session_start();
     <?php endif; ?>
 
     <!-- 🛒 Cart icon -->
-    <a href="cart.php" class="cart-icon"><i class="fa-solid fa-cart-shopping"></i></a>
+    <a href="cart.php" class="cart-icon" style="position:relative;">
+        <i class="fa-solid fa-cart-shopping"></i>
+        <span class="cart-badge" style="display:none;">0</span>
+    </a>
 </div>
     </div>
 </nav>
@@ -152,7 +155,8 @@ session_start();
     </div>
 </footer>
 
-<script src ="../js/product.js"></script>
+<script src="../js/cart.js"></script>
+<script src="../js/product.js"></script>
 </body>
 
 </html>

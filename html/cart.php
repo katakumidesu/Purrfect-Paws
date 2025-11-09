@@ -77,7 +77,10 @@ session_start();
     <?php endif; ?>
 
     <!-- 🛒 Cart icon -->
-    <a href="cart.php" class="cart-icon"><i class="fa-solid fa-cart-shopping"></i></a>
+    <a href="cart.php" class="cart-icon" style="position:relative;">
+        <i class="fa-solid fa-cart-shopping"></i>
+        <span class="cart-badge" style="display:none;">0</span>
+    </a>
 </div>
         </div>
     </div>
@@ -86,73 +89,28 @@ session_start();
 <!----cart---->
 
 <div class="small-container cart-page">
+    <h2 style="text-align: center; margin: 30px 0;">Shopping Cart</h2>
     <table>
         <tr>
             <th>Product</th>
             <th>Quantity</th>
             <th>Subtotal</th>
         </tr>
-        <tr>
-            <td>
-                <div class="cart-info">
-                    <img src="images/scratchcat.jpg" >
-                    <div>
-                        <p>Cat Scratch Post</p>
-                        <small>Price: $100.00</small>
-                        <br>
-                        <a href="">Remove</a>
-                    </div>
-                </div>
-            </td>
-            <td><input type="number" value="1"></td>
-            <td>$100.00</td>
-        </tr>
-        <tr>
-            <td>
-                <div class="cart-info">
-                    <img src="images/catmouse.jpg" >
-                    <div>
-                        <p>Cat Mouse Toy</p>
-                        <small>Price: $10.00</small>
-                        <br>
-                        <a href="">Remove</a>
-                    </div>
-                </div>
-            </td>
-            <td><input type="number" value="1"></td>
-            <td>$10.00</td>
-        </tr>
-        <tr>
-            <td>
-                <div class="cart-info">
-                    <img src="images/catbed.jpg" >
-                    <div>
-                        <p>Cat Bed</p>
-                        <small>Price: $45.00</small>
-                        <br>
-                        <a href="">Remove</a>
-                    </div>
-                </div>
-            </td>
-            <td><input type="number" value="1"></td>
-            <td>$45.00</td>
-        </tr>
+        <tbody id="cartItems">
+            <!-- Cart items loaded dynamically via JavaScript -->
+            <tr>
+                <td colspan="3" style="text-align: center; padding: 40px; color: #aaa;">
+                    <i class="fa fa-spinner fa-spin" style="font-size: 48px;"></i>
+                    <p style="margin-top: 20px;">Loading cart...</p>
+                </td>
+            </tr>
+        </tbody>
     </table>
-    <div class="total-price">
-        <table>
-            <tr>
-                <td>Subtotal</td>
-                <td>$155.00</td>
-            </tr>
-            <tr>
-                <td>Tax</td>
-                <td>$15.00</td>
-            </tr>
-            <tr>
-                <td>Total</td>
-                <td>$170.00</td>
-            </tr>
-        </table>
+    <div class="total-price" id="cartTotals">
+        <!-- Totals calculated dynamically via JavaScript -->
+    </div>
+    <!-- Sticky checkout bar like Shopee -->
+    <div id="checkoutBar" class="checkout-bar" style="display:none;"></div>
 </div>
  
     
@@ -202,6 +160,8 @@ session_start();
         </div>
     </div>
 </footer>
+
+<script src="../js/cart.js"></script>
 
 </body>
 
