@@ -24,6 +24,19 @@ if (isset($_POST['register'])) {
         exit();
     }
 
+    // Check if username already exists
+    $checkUsername = $conn->prepare("SELECT username FROM users WHERE username = ?");
+    $checkUsername->bind_param("s", $username);
+    $checkUsername->execute();
+    $resultUsername = $checkUsername->get_result();
+
+    if ($resultUsername->num_rows > 0) {
+        $_SESSION['register_error'] = 'Username is already taken!';
+        $_SESSION['active_form'] = 'register';
+        header('Location: purdex.php');
+        exit();
+    }
+
     // Insert new user into database (✅ includes username + phone)
     $insert = $conn->prepare("INSERT INTO users (name, username, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)");
     $insert->bind_param("ssssss", $name, $username, $email, $phone, $password, $role);

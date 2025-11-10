@@ -63,11 +63,21 @@ function isActiveForm($formName, $activeForm) {
                     name="phone" 
                     class="phone" 
                     placeholder="09xxxxxxxxx" 
-                    pattern="^(09|\+639)\d{9}$" 
-                    title="Enter a valid PH number (e.g., 09123456789 or +639123456789)"
+                    pattern="\d{11}" 
+                    title="Enter an 11-digit phone number"
+                    maxlength="11"
+                    oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11)"
                     required>
 
-                <input type="password" name="password" class="password" placeholder="Password" required>
+                <input 
+                    type="password" 
+                    name="password" 
+                    class="password" 
+                    placeholder="Password" 
+                    minlength="6" 
+                    maxlength="30" 
+                    title="Password must be 6-30 characters"
+                    required>
                 
                 <button type="submit" name="register" class="register">Register</button>
                 <p>Already have an Account? <a href="#" onclick="showForm('login-form')">Login</a></p>
