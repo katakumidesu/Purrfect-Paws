@@ -46,13 +46,12 @@ if (isset($_POST['register'])) {
 if (isset($_POST['login'])) {
     $email = trim($_POST['email']);
     $password = $_POST['password'];
-    $role = $_POST['role'];
 
     // Hardcoded Admin Account
     $adminEmail = 'admin@gmail.com';
     $adminPassword = 'Katakumi123';
 
-    if ($email === $adminEmail && $password === $adminPassword && $role === 'admin') {
+    if ($email === $adminEmail && $password === $adminPassword) {
         $_SESSION['user_id'] = 0;
         $_SESSION['name'] = 'Administrator';
         $_SESSION['email'] = $adminEmail;
@@ -62,8 +61,8 @@ if (isset($_POST['login'])) {
     }
 
     // Regular user login
-    $stmt = $conn->prepare("SELECT * FROM users WHERE email = ? AND role = ?");
-    $stmt->bind_param("ss", $email, $role);
+    $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
+    $stmt->bind_param("s", $email);
     $stmt->execute();
     $result = $stmt->get_result();
 
@@ -90,7 +89,7 @@ if (isset($_POST['login'])) {
             $_SESSION['login_error'] = 'Incorrect password!';
         }
     } else {
-        $_SESSION['login_error'] = 'Email or role not found!';
+        $_SESSION['login_error'] = 'Email not found!';
     }
 
     $_SESSION['active_form'] = 'login';
