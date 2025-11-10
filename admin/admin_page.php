@@ -1,10 +1,9 @@
 <?php
 session_start();
-// Uncomment below when session is properly set up
-// if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-//     header('Location: ../login_register/purdex.php');
-//     exit;
-// }
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    header('Location: ../login_register/purdex.php');
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">

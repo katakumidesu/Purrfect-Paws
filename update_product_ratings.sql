@@ -9,7 +9,7 @@ USE katakumi;
 -- ========== PAGE 1 PRODUCTS ==========
 
 -- Row 1
-UPDATE products SET rating = 4.5 WHERE name = 'Cat Scratch Post';
+UPDATE products SET rating = 4.0 WHERE name = 'Cat Scratch Post';
 UPDATE products SET rating = 4.0 WHERE name = 'Cat Mouse Toy';
 UPDATE products SET rating = 4.5 WHERE name = 'Cat Bed';
 UPDATE products SET rating = 4.0 WHERE name = 'Cat Tree';

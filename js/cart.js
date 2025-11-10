@@ -1,5 +1,5 @@
 // Shopping Cart Functionality
-const TAX_RATE = 0.12; // 12% VAT (Philippines standard)
+const TAX_RATE = 0.06; // 6% VAT
 
 // Get cart from localStorage
 function getCart() {
@@ -78,7 +78,7 @@ function renderCart() {
                 <td colspan="3" style="text-align: center; padding: 40px;">
                     <i class="fa fa-shopping-cart" style="font-size: 48px; color: #aaa;"></i>
                     <p style="color: #aaa; margin-top: 20px;">Your cart is empty</p>
-                    <a href="product.php" class="btn-primary" style="display: inline-block; margin-top: 20px;">Continue Shopping</a>
+                    <a href="product.php" class="btn-primary" style="display: inline-block; margin-top: 20px;">Go Shopping Now</a>
                 </td>
             </tr>
         `;
@@ -121,7 +121,7 @@ function renderCart() {
                 <td>$${subtotal.toFixed(2)}</td>
             </tr>
             <tr>
-                <td>Tax (12% VAT)</td>
+                <td>Tax (6% VAT)</td>
                 <td>$${tax.toFixed(2)}</td>
             </tr>
             <tr style="font-weight: bold; font-size: 18px;">
@@ -188,7 +188,7 @@ function showCheckoutModal() {
             <div class="checkout-summary">
                 <h3>Order Summary</h3>
                 <p><strong>Subtotal:</strong> $${subtotal.toFixed(2)}</p>
-                <p><strong>Tax (12% VAT):</strong> $${tax.toFixed(2)}</p>
+                <p><strong>Tax (6% VAT):</strong> $${tax.toFixed(2)}</p>
                 <p class="brand-accent" style="font-size: 20px;"><strong>Total:</strong> $${total.toFixed(2)}</p>
             </div>
             
@@ -291,7 +291,7 @@ function submitOrder(event) {
             <p style="color: #aaa;">Thank you for your order. We'll contact you shortly.</p>
             <p><strong>Order Total: $${total.toFixed(2)}</strong></p>
             <button onclick="window.location.href='product.php'" class="btn-primary" style="margin: 20px 10px;">
-                Continue Shopping
+                Go Shopping Now
             </button>
             <button onclick="window.location.href='cart.php'" class="btn-secondary" style="margin: 20px 10px;">
                 View Cart

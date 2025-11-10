@@ -7,7 +7,7 @@ Based on the screenshots provided, here are the ratings for each product:
 ### Row 1
 | Product | Rating | Stars |
 |---------|--------|-------|
-| Cat Scratch Post | 4.5 | ⭐⭐⭐⭐✨ |
+| Cat Scratch Post | 4.0 | ⭐⭐⭐⭐✨ |
 | Cat Mouse Toy | 4.0 | ⭐⭐⭐⭐☆ |
 | Cat Bed | 4.5 | ⭐⭐⭐⭐✨ |
 | Cat Tree | 4.0 | ⭐⭐⭐⭐☆ |
