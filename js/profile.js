@@ -110,15 +110,33 @@ function setActiveMenu(id){
   });
 }
 
+const sectionPurchases = document.getElementById('purchases');
+let purchasesInit = false;
+function setSectionClass(id){
+  document.body.classList.remove('section-profile','section-addresses','section-purchases');
+  document.body.classList.add(`section-${id}`);
+}
 function showSectionById(id){
   if(id==='addresses'){
     if(sectionProfile) sectionProfile.style.display = 'none';
     if(sectionAddresses) sectionAddresses.style.display = '';
+    if(sectionPurchases) sectionPurchases.style.display = 'none';
+    setSectionClass('addresses');
     setActiveMenu('addresses');
     loadAddresses();
+  }else if(id==='purchases'){
+    if(sectionProfile) sectionProfile.style.display = 'none';
+    if(sectionAddresses) sectionAddresses.style.display = 'none';
+    if(sectionPurchases) sectionPurchases.style.display = '';
+    setSectionClass('purchases');
+    setActiveMenu('purchases');
+    if(!purchasesInit){ initPurchases(); purchasesInit = true; }
+    renderPurchases('all');
   }else{ // default to profile
     if(sectionProfile) sectionProfile.style.display = '';
     if(sectionAddresses) sectionAddresses.style.display = 'none';
+    if(sectionPurchases) sectionPurchases.style.display = 'none';
+    setSectionClass('profile');
     setActiveMenu('profile');
   }
 }
@@ -289,15 +307,91 @@ document.querySelectorAll('.account-sidebar a[href^="#"]').forEach(a=>{
   });
 });
 
-// Sidebar dropdown toggle and initial section
- document.addEventListener('DOMContentLoaded', () => {
-  const toggle = document.querySelector('.account-toggle');
-  const submenu = document.querySelector('.account-submenu');
-  if (toggle && submenu) {
-    toggle.addEventListener('click', () => {
-      submenu.classList.toggle('open');
+// Toggle dropdown for My Account in sidebar
+(function(){
+  const toggle = document.getElementById('toggle-account');
+  const menu = document.getElementById('submenu-account');
+  if(toggle && menu){
+    toggle.addEventListener('click', ()=>{ 
+      const open = menu.classList.toggle('open'); 
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
   }
+  document.querySelectorAll('#submenu-account a').forEach(a=>{
+    a.addEventListener('click', (e)=>{
+      e.preventDefault();
+      const id = a.getAttribute('href').slice(1);
+      showSectionById(id);
+      if(history && history.pushState){ history.pushState(null,'',`#${id}`);} else { location.hash = `#${id}`; }
+    });
+  });
+})();
+// Explicit binding for purchases link (single link)
+const purchasesLink = document.getElementById('link-purchases');
+if(purchasesLink){
+  purchasesLink.addEventListener('click', (e)=>{
+    e.preventDefault();
+    showSectionById('purchases');
+    if(history&&history.pushState){history.pushState(null,'','#purchases');} else { location.hash='#purchases'; }
+  });
+}
+
+// ===== Purchases (Simple history like Shopee) =====
+function getOrders(){
+  try { return JSON.parse(sessionStorage.getItem('purrfectOrders')||'[]'); } catch(e){ return []; }
+}
+function money(n){ return '₱'+Number(n||0).toFixed(2); }
+function initPurchases(){
+  const tabs = document.querySelectorAll('.p-head .tabs a');
+  tabs.forEach(a=>a.addEventListener('click', (e)=>{
+    e.preventDefault();
+    tabs.forEach(x=>x.classList.remove('active'));
+    a.classList.add('active');
+    renderPurchases(a.dataset.tab);
+  }));
+  const search = document.getElementById('p-search');
+  if(search){ search.addEventListener('input', ()=>{
+    const current = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
+    renderPurchases(current);
+  }); }
+}
+function renderPurchases(tab){
+  const wrap = document.getElementById('p-orders');
+  if(!wrap) return;
+  const q = (document.getElementById('p-search')?.value||'').toLowerCase();
+  let orders = getOrders().map(o=> ({...o, status: o.status || 'completed'}));
+  if(tab==='completed') orders = orders.filter(o=>o.status==='completed');
+  if(tab==='cancelled') orders = orders.filter(o=>o.status==='cancelled');
+  if(q) orders = orders.filter(o => (o.items||[]).some(it => (it.name||'').toLowerCase().includes(q)) );
+  if(!orders.length){ wrap.innerHTML = '<div class="address-empty" style="display:flex"><div class="empty-inner"><p class="empty-main">No orders yet.</p></div></div>'; return; }
+  wrap.innerHTML = orders.map((o,idx)=>`
+    <div class="order">
+      <div class="order-h">
+        <div><strong>Order #${idx+1}</strong> <span style="color:#9ab0bd;margin-left:8px">${new Date(o.date||Date.now()).toLocaleString()}</span></div>
+        <div class="status">${(o.status||'completed').toUpperCase()}</div>
+      </div>
+      <div class="order-items">
+        ${(o.items||[]).map(it=>`
+          <div class="oi">
+            <img src="${it.image||'../HTML/images/catbed.jpg'}" onerror="this.src='../HTML/images/catbed.jpg'" alt="">
+            <div style="flex:1">
+              <div class="name">${escapeHtml(it.name)}</div>
+              <div class="meta">Qty: ${it.quantity||1} • Price: ${money(it.price||0)}</div>
+            </div>
+            <button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(it.name)}'">Buy Again</button>
+          </div>
+        `).join('')}
+      </div>
+      <div class="order-f">
+        <div>Total: <strong>${money(o.total||0)}</strong></div>
+        <div><a class="btn-outline" href="../HTML/product.php">Continue Shopping</a></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Initial section on load
+ document.addEventListener('DOMContentLoaded', () => {
   const initial = (location.hash||'#profile').replace('#','');
   showSectionById(initial);
 });

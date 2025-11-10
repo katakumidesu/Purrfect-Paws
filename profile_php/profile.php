@@ -74,7 +74,7 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
                   <span class="username"><?= htmlspecialchars($_SESSION['name'] ?? 'User'); ?></span>
                   <div class="dropdown">
                       <a href="profile.php">My Account</a>
-                      <a href="my_purchases.php">My Purchase</a>
+                      <a href="../HTML/my_purchases.php">My Purchase</a>
                       <a href="../login_register/logout.php">Logout</a>
                   </div>
               </div>
@@ -110,10 +110,26 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
       </div>
     </div>
 
-    <div class="account-heading"><i class="fa-regular fa-user"></i> <span>My Account</span></div>
     <ul class="account-menu">
-      <li><a href="#profile">Profile</a></li>
-      <li><a href="#addresses">Addresses</a></li>
+      <li class="account-section">
+        <button type="button" class="account-toggle" id="toggle-account" aria-expanded="true">
+          <span class="link-with-icon"><i class="fa-regular fa-user icon"></i><span>My Account</span></span>
+          <span class="chevron">▾</span>
+        </button>
+        <ul class="account-submenu open" id="submenu-account">
+          <li><a href="#profile">Profile</a></li>
+          <li><a href="#addresses">Addresses</a></li>
+        </ul>
+      </li>
+    </ul>
+
+    <ul class="account-menu">
+      <li>
+        <a href="#purchases" id="link-purchases" class="link-with-icon">
+          <i class="fa-regular fa-clipboard icon"></i>
+          <span>My Purchase</span>
+        </a>
+      </li>
     </ul>
   </aside>
   <div class="profile-content">
@@ -196,7 +212,22 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
         <p class="empty-main">You don't have addresses yet.</p>
       </div>
     </div>
-    <div id="addressList" class="address-list"></div>
+    <div id="addressList" class="address-list rows"></div>
+  </div>
+
+  <!-- Purchases Section (history) -->
+  <div class="purchases" id="purchases" style="display:none;">
+    <div class="p-head">
+      <div class="tabs">
+        <a href="#" data-tab="all" class="active">All</a>
+        <a href="#" data-tab="completed">Completed</a>
+        <a href="#" data-tab="cancelled">Cancelled</a>
+      </div>
+      <div class="p-search">
+        <input id="p-search" placeholder="Search your orders...">
+      </div>
+    </div>
+    <div id="p-orders" class="orders"></div>
   </div>
   </div>
 </div>
@@ -256,7 +287,7 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
   </div>
 </footer>
 
-<script src="../js/profile.js"></script>
+<script src="../HTML/js/profile.js"></script>
 
 </body>
 </html>
