@@ -162,7 +162,15 @@ session_start();
 </footer>
 
 <script src="../js/cart.js"></script>
-
+<script>
+  // Hide cart icon on cart page
+  document.addEventListener('DOMContentLoaded', () => {
+    const cartIcon = document.querySelector('.cart-icon');
+    if (cartIcon) {
+      cartIcon.style.display = 'none';
+    }
+  });
+</script>
 </body>
 
 </html>
