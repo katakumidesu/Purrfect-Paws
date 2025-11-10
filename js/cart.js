@@ -1,20 +1,28 @@
 // Shopping Cart Functionality
 const TAX_RATE = 0.06; // 6% VAT
 
-// Get cart from localStorage
+// Get cart from sessionStorage
 function getCart() {
-    const cart = localStorage.getItem('purrfectCart');
+    const cart = sessionStorage.getItem('purrfectCart');
     return cart ? JSON.parse(cart) : [];
 }
 
-// Save cart to localStorage
+// Save cart to sessionStorage
 function saveCart(cart) {
-    localStorage.setItem('purrfectCart', JSON.stringify(cart));
+    sessionStorage.setItem('purrfectCart', JSON.stringify(cart));
     updateCartBadge();
 }
 
 // Add item to cart (supports optional quantity)
 function addToCart(product, qty = 1) {
+    // Check if user is logged in by checking for user menu
+    const isLoggedIn = document.querySelector('.user-menu') !== null;
+    
+    if (!isLoggedIn) {
+        window.location.href = '../login_register/purdex.php';
+        return;
+    }
+    
     const cart = getCart();
     const existingItem = cart.find(item => item.name === product.name);
 
@@ -141,9 +149,19 @@ function renderCart() {
 
 // Update cart badge count
 function updateCartBadge() {
+    // Check if user is logged in
+    const isLoggedIn = document.querySelector('.user-menu') !== null;
+    const badges = document.querySelectorAll('.cart-badge');
+    
+    if (!isLoggedIn) {
+        badges.forEach(badge => {
+            badge.style.display = 'none';
+        });
+        return;
+    }
+    
     const cart = getCart();
     const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-    const badges = document.querySelectorAll('.cart-badge');
     
     badges.forEach(badge => {
         if (totalItems > 0) {
@@ -278,13 +296,13 @@ function submitOrder(event) {
         date: new Date().toISOString()
     };
     
-    // Save order to localStorage (in real app, send to server)
-    const orders = JSON.parse(localStorage.getItem('purrfectOrders') || '[]');
+    // Save order to sessionStorage (in real app, send to server)
+    const orders = JSON.parse(sessionStorage.getItem('purrfectOrders') || '[]');
     orders.push(orderData);
-    localStorage.setItem('purrfectOrders', JSON.stringify(orders));
+    sessionStorage.setItem('purrfectOrders', JSON.stringify(orders));
     
     // Clear cart
-    localStorage.removeItem('purrfectCart');
+    sessionStorage.removeItem('purrfectCart');
     updateCartBadge();
     
     // Show success message
