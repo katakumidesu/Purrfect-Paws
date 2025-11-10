@@ -474,20 +474,5 @@ style.textContent = `
 .payment-card .desc{font-size:12px;color:#a9c6d6;margin-top:4px}
 .payment-card input:checked + .content{border-color:var(--brand-strong);background:rgba(92,191,239,0.15)}
 .payment-card.gcash .title i{color:var(--brand-strong)}
-.cart-badge {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    background: #ff6b6b;
-    color: white;
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: bold;
-}
 `;
 document.head.appendChild(style);
