@@ -86,14 +86,18 @@ function renderCart() {
         return;
     }
     
-    // Render cart items
+    // Render cart items (make image and name clickable to product details)
     cartTable.innerHTML = cart.map(item => `
         <tr data-product="${escapeHtml(item.name)}">
             <td>
                 <div class="cart-info">
-                    <img src="${item.image}" alt="${escapeHtml(item.name)}" onerror="this.src='images/catbed.jpg'">
+                    <a class="cart-link" href="product-detail.php?name=${encodeURIComponent(item.name)}" title="View ${escapeHtml(item.name)}">
+                        <img src="${item.image}" alt="${escapeHtml(item.name)}" onerror="this.src='images/catbed.jpg'">
+                    </a>
                     <div>
-                        <p>${escapeHtml(item.name)}</p>
+                        <a class="cart-link" href="product-detail.php?name=${encodeURIComponent(item.name)}" style="text-decoration: none; color: inherit;">
+                            <p>${escapeHtml(item.name)}</p>
+                        </a>
                         <small>Price: $${item.price.toFixed(2)}</small>
                         <br>
                         <a href="#" onclick="removeFromCart('${escapeHtml(item.name)}'); return false;" style="color: #ff6b6b;">Remove</a>
