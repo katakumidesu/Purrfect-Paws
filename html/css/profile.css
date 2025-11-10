@@ -41,40 +41,75 @@ body {
   margin-bottom: 30px;
 }
 
-/* Form styles */
-form label {
-  display: block;
-  font-weight: 600;
-  margin-bottom: 5px;
-  color: #333;
+/* Profile Layout - Side by side */
+.profile-layout {
+  display: flex;
+  gap: 40px;
+  margin-bottom: 25px;
+  padding-bottom: 25px;
+  border-bottom: 1px solid #e5e5e5;
 }
 
-form input[type="text"],
-form input[type="email"],
-form input[type="tel"],
-form input[type="date"] {
-  width: 100%;
-  padding: 10px;
-  margin-bottom: 15px;
-  border: 1px solid #ccc;
-  border-radius: 3px;
+.profile-form-fields {
+  flex: 1;
 }
 
-form small {
-  color: #888;
-  display: block;
-  margin-top: -10px;
-  margin-bottom: 15px;
-  font-size: 12px;
+.profile-picture-section {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-left: 1px solid #e5e5e5;
+  padding-left: 40px;
 }
 
-.gender-options {
+/* Form Group */
+.form-group {
   margin-bottom: 20px;
 }
 
-.gender-options label {
+.form-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #555;
+  font-size: 14px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="email"],
+.form-group input[type="tel"],
+.form-group input[type="date"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d1d1;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: border-color 0.3s ease;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #5cbfef;
+  box-shadow: 0 0 0 2px rgba(92, 191, 239, 0.1);
+}
+
+/* Gender Options */
+.gender-options {
+  display: flex;
+  gap: 20px;
+}
+
+.gender-options .radio-label {
   font-weight: normal;
-  margin-right: 15px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.gender-options input[type="radio"] {
+  cursor: pointer;
 }
 
 .save-btn {
@@ -92,40 +127,53 @@ form small {
   background-color: #d84315;
 }
 
-/* Right side photo */
-.profile-right {
-  flex: 1;
-  min-width: 220px;
-  text-align: center;
+/* Profile Picture Section */
+.profile-img-container {
+  width: 120px; /* was 150px */
+  height: 120px; /* was 150px */
+  margin-bottom: 20px;
+  position: relative;
 }
 
-.profile-right img {
-  width: 150px;
-  height: 150px;
+.profile-preview {
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   object-fit: cover;
-  margin-bottom: 15px;
-  border: 1px solid #ddd;
+  border: 2px solid #e5e5e5;
+  transition: border-color 0.3s ease;
+  cursor: pointer;
+}
+
+.profile-preview:hover {
+  border-color: #5cbfef;
 }
 
 .upload-btn {
   display: inline-block;
   padding: 8px 16px;
   background-color: #fff;
-  border: 1px solid #ccc;
-  border-radius: 3px;
+  border: 1px solid #d1d1d1;
+  border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
+  color: #333; /* override global button color */
+  font-weight: 600;
+  transition: all 0.3s ease;
+  margin-bottom: 10px;
 }
 
 .upload-btn:hover {
-  background-color: #f5f5f5;
+  background-color: #f8f8f8;
+  border-color: #5cbfef;
 }
 
-.profile-right p {
+.img-hint {
   color: #999;
-  font-size: 13px;
-  margin-top: 10px;
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.5;
+  margin: 0;
 }
 
 /* ✅ Toast Notification (Shopee-style success pop-up) */
@@ -159,12 +207,21 @@ form small {
 :root{--brand:#9bd8f7;--brand-strong:#5cbfef;--brand-text:#003a57}
 .btn-primary{background:var(--brand-strong);color:#003044;border:none;border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:700}
 .btn-primary:hover{background:#3fb2ea}
+.btn-accent{background:#ee4d2d;color:#fff;border:none;border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:700}
+.btn-accent:hover{background:#d84315}
+.btn-sm{padding:6px 10px;font-size:13px;border-radius:6px}
 .btn-secondary{background:#333;color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer}
 .btn-danger{background:#e74c3c;color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer}
 
-.address-book{margin-top:30px}
-.ab-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-.address-subtitle{font-weight:600;color:#6b8897;margin:8px 0 4px}
+.address-book{margin-top:40px;padding-top:30px;border-top:1px solid #e5e5e5}
+.ab-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.address-subtitle{font-weight:600;color:#333;margin:0;font-size:18px}
+/* Empty state */
+.address-empty{display:none;align-items:center;justify-content:center;background:#fff;border:1px solid #e5f1f7;border-radius:8px;min-height:360px}
+.address-empty .empty-inner{color:#6b8897;text-align:center}
+.address-empty .empty-main{color:#6b8897;font-size:16px;margin-top:8px}
+.address-empty .empty-tip{color:#9ab0bd;font-size:13px;margin-top:6px}
+.address-empty svg{opacity:.7;margin-bottom:12px}
 /* Row list like Shopee */
 .address-list.rows{display:block;background:#fff;border:1px solid #e5f1f7;border-radius:8px}
 .address-row{display:flex;justify-content:space-between;gap:12px;padding:14px 16px;border-top:1px solid #eef6fb}
@@ -216,10 +273,36 @@ form small {
 .account-toggle .chevron{transition:transform .2s ease}
 .account-submenu.open ~ .chevron{transform:rotate(180deg)}
 
+/* Profile card at top of sidebar */
+.account-user{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-bottom:12px;border-bottom:1px solid #e5e5e5}
+.account-user .au-avatar{width:48px;height:48px;border-radius:50%;object-fit:cover;border:1px solid #e5e5e5}
+.account-user .au-name{font-weight:700;color:#222}
+.account-user .au-text{display:flex;flex-direction:column}
+.account-user .au-edit{font-size:13px;color:#6b8897;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.account-user .au-edit:hover{color:#2a7db1;text-decoration:underline}
+.account-user .au-link{display:inline-block;border-radius:50%}
+.account-user .au-link:focus{outline:none}
+.account-user .au-link:focus-visible{outline:none}
+
+/* Static heading + menu (no dropdown) */
+.account-heading{width:100%;display:flex;align-items:center;gap:6px;font-weight:700;color:#003a57;margin-bottom:6px}
+.account-menu{list-style:none;margin:8px 0 12px 0;padding-left:10px}
+.account-menu li{margin:8px 0}
+.account-menu a{color:#2a7db1;text-decoration:none}
+.account-menu a:hover{text-decoration:underline}
+.account-menu a.active{color:#003a57;font-weight:700}
+
 /* Responsive */
 @media (max-width: 768px) {
   .profile-container { flex-direction: column; padding: 16px; }
-  .account-sidebar{width:100%}
-  .profile-right { margin-top: 12px; }
+  .account-sidebar{width:100%; margin-bottom: 20px;}
+  .profile-layout { flex-direction: column; gap: 30px; }
+  .profile-picture-section { 
+    border-left: none; 
+    padding-left: 0; 
+    border-top: 1px solid #e5e5e5; 
+    padding-top: 30px; 
+  }
   .ab-modal .grid{grid-template-columns:1fr}
+  .ab-header{flex-direction:column;align-items:flex-start;gap:10px}
 }

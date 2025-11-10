@@ -83,20 +83,56 @@ document.getElementById('upload').addEventListener('change', function (e) {
   if (file) document.getElementById('preview').src = URL.createObjectURL(file);
 });
 
+// Make the image itself open the file picker
+const previewImg = document.getElementById('preview');
+if (previewImg) {
+  previewImg.addEventListener('click', function(){
+    const up = document.getElementById('upload');
+    if (up) up.click();
+  });
+}
+
 // ===== Address Book (Shopee-like) =====
 const addressListEl = document.getElementById('addressList');
+const addressEmptyEl = document.getElementById('addressEmpty');
 const modalEl = document.getElementById('addressModal');
 const addBtn = document.getElementById('addAddressBtn');
 const API = '../profile_php/addresses.php';
 
+// Sections
+const sectionProfile = document.getElementById('profile');
+const sectionAddresses = document.getElementById('addresses');
+
+function setActiveMenu(id){
+  document.querySelectorAll('.account-menu a').forEach(a=>{
+    const hash = a.getAttribute('href');
+    if(hash===`#${id}`){ a.classList.add('active'); } else { a.classList.remove('active'); }
+  });
+}
+
+function showSectionById(id){
+  if(id==='addresses'){
+    if(sectionProfile) sectionProfile.style.display = 'none';
+    if(sectionAddresses) sectionAddresses.style.display = '';
+    setActiveMenu('addresses');
+    loadAddresses();
+  }else{ // default to profile
+    if(sectionProfile) sectionProfile.style.display = '';
+    if(sectionAddresses) sectionAddresses.style.display = 'none';
+    setActiveMenu('profile');
+  }
+}
+
 function renderAddresses(items){
   if(!Array.isArray(items) || !items.length){
-    // hide container and remove border when empty
+    // show empty state
+    if(addressEmptyEl){ addressEmptyEl.style.display = 'flex'; }
     addressListEl.innerHTML = '';
     addressListEl.style.display = 'none';
     addressListEl.classList.remove('rows');
     return;
   }
+  if(addressEmptyEl){ addressEmptyEl.style.display = 'none'; }
   addressListEl.style.display = '';
   addressListEl.classList.add('rows');
   addressListEl.innerHTML = items.map(a => `
@@ -116,9 +152,16 @@ function renderAddresses(items){
 }
 
 function loadAddresses(){
-  addressListEl.innerHTML = '<div class="loading">Loading addresses...</div>';
-  fetch(`${API}?action=list`).then(r=>r.json()).then(renderAddresses).catch(()=>{
-    addressListEl.innerHTML = '<div class="empty">Failed to load addresses.</div>';
+  if(addressEmptyEl){ addressEmptyEl.style.display = 'none'; }
+  addressListEl.style.display = '';
+  addressListEl.classList.remove('rows');
+  addressListEl.innerHTML = '<div class="loading" style="padding:16px">Loading addresses...</div>';
+  fetch(`${API}?action=list`).then(r=>r.json()).then(renderAddresses).catch((err)=>{
+    // Fallback to empty-state UI if API fails
+    if(addressEmptyEl){ addressEmptyEl.style.display = 'flex'; }
+    addressListEl.innerHTML = '';
+    addressListEl.style.display = 'none';
+    console.error('Failed to load addresses', err);
   });
 }
 
@@ -236,8 +279,18 @@ function setDefaultAddress(id){
 
 if(addBtn){ addBtn.addEventListener('click', openAddAddress); }
 
-// Sidebar dropdown toggle
-document.addEventListener('DOMContentLoaded', () => {
+// Sidebar links (including avatar/edit link) toggle between sections
+document.querySelectorAll('.account-sidebar a[href^="#"]').forEach(a=>{
+  a.addEventListener('click', (e)=>{
+    e.preventDefault();
+    const id = a.getAttribute('href').slice(1);
+    showSectionById(id);
+    if(history && history.pushState){ history.pushState(null,'',`#${id}`);} else { location.hash = `#${id}`; }
+  });
+});
+
+// Sidebar dropdown toggle and initial section
+ document.addEventListener('DOMContentLoaded', () => {
   const toggle = document.querySelector('.account-toggle');
   const submenu = document.querySelector('.account-submenu');
   if (toggle && submenu) {
@@ -245,7 +298,13 @@ document.addEventListener('DOMContentLoaded', () => {
       submenu.classList.toggle('open');
     });
   }
-  loadAddresses();
+  const initial = (location.hash||'#profile').replace('#','');
+  showSectionById(initial);
+});
+
+window.addEventListener('hashchange', ()=>{
+  const id = (location.hash||'#profile').replace('#','');
+  showSectionById(id);
 });
 
 // small helper already available above

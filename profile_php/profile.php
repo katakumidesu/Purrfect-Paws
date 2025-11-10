@@ -99,8 +99,19 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
 <!-- 🐾 Profile Section -->
 <div class="profile-container">
   <aside class="account-sidebar">
-    <button class="account-toggle"><i class="fa-regular fa-user"></i> <span>My Account</span> <i class="fa fa-chevron-down chevron"></i></button>
-    <ul class="account-submenu open">
+    <!-- Avatar + username like Shopee -->
+    <div class="account-user">
+      <a href="#profile" class="au-link" aria-label="Go to profile">
+        <img src="<?= $profileImage ?>" alt="Avatar" class="au-avatar">
+      </a>
+      <div class="au-text">
+        <div class="au-name"><?= htmlspecialchars($user['username'] ?? ($user['name'] ?? 'User')) ?></div>
+        <a href="#profile" class="au-edit"><i class="fa-solid fa-pen"></i> Edit Profile</a>
+      </div>
+    </div>
+
+    <div class="account-heading"><i class="fa-regular fa-user"></i> <span>My Account</span></div>
+    <ul class="account-menu">
       <li><a href="#profile">Profile</a></li>
       <li><a href="#addresses">Addresses</a></li>
     </ul>
@@ -111,42 +122,87 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
     <p>Manage and protect your account</p>
 
     <form id="profileForm" enctype="multipart/form-data">
-      <label>Full Name</label>
-      <input type="text" name="name" value="<?= htmlspecialchars($user['name']) ?>" required>
+      <div class="profile-layout">
+        <!-- Left side - Form fields -->
+        <div class="profile-form-fields">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" name="name" value="<?= htmlspecialchars($user['name']) ?>" required>
+          </div>
 
-      <label>Username</label>
-      <input type="text" name="username" value="<?= htmlspecialchars($user['username'] ?? '') ?>" required>
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" name="username" value="<?= htmlspecialchars($user['username'] ?? '') ?>" required>
+          </div>
 
-      <label>Email</label>
-      <input type="email" name="email" value="<?= htmlspecialchars($user['email']) ?>" required>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="email" value="<?= htmlspecialchars($user['email']) ?>" required>
+          </div>
 
-      <label>Phone Number</label>
-      <input type="tel" id="phone" name="phone"
-             value="<?= htmlspecialchars($user['phone'] ?? '') ?>"
-             pattern="^(09\d{9}|\+639\d{9})$"
-             title="Please enter a valid PH number (e.g. 09171234567 or +639171234567)" required>
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input type="tel" id="phone" name="phone"
+                   value="<?= htmlspecialchars($user['phone'] ?? '') ?>"
+                   pattern="^(09\d{9}|\+639\d{9})$"
+                   title="Please enter a valid PH number (e.g. 09171234567 or +639171234567)" required>
+          </div>
 
-      <label>Gender</label>
-      <div class="gender-options">
-        <label><input type="radio" name="gender" value="Male" <?= ($user['gender'] ?? '') === 'Male' ? 'checked' : '' ?>> Male</label>
-        <label><input type="radio" name="gender" value="Female" <?= ($user['gender'] ?? '') === 'Female' ? 'checked' : '' ?>> Female</label>
-        <label><input type="radio" name="gender" value="Other" <?= ($user['gender'] ?? '') === 'Other' ? 'checked' : '' ?>> Other</label>
-      </div>
+          <div class="form-group">
+            <label>Gender</label>
+            <div class="gender-options">
+              <label class="radio-label"><input type="radio" name="gender" value="Male" <?= ($user['gender'] ?? '') === 'Male' ? 'checked' : '' ?>> Male</label>
+              <label class="radio-label"><input type="radio" name="gender" value="Female" <?= ($user['gender'] ?? '') === 'Female' ? 'checked' : '' ?>> Female</label>
+              <label class="radio-label"><input type="radio" name="gender" value="Other" <?= ($user['gender'] ?? '') === 'Other' ? 'checked' : '' ?>> Other</label>
+            </div>
+          </div>
 
-      <label>Date of Birth</label>
-      <input type="date" name="birthdate" value="<?= htmlspecialchars($user['birthdate'] ?? '') ?>">
+          <div class="form-group">
+            <label>Date of Birth</label>
+            <input type="date" name="birthdate" value="<?= htmlspecialchars($user['birthdate'] ?? '') ?>">
+          </div>
+        </div>
 
-      <label>Profile Picture</label>
-      <div class="profile-img-container">
-        <img id="preview" src="<?= $profileImage ?>" alt="Profile Picture" class="profile-preview" width="150">
-        <input type="file" name="profile_image" id="upload" accept="image/*">
+        <!-- Right side - Profile Picture -->
+        <div class="profile-picture-section">
+          <div class="profile-img-container">
+            <img id="preview" src="<?= $profileImage ?>" alt="Profile Picture" class="profile-preview" role="button" aria-label="Upload profile image">
+          </div>
+          <input type="file" name="profile_image" id="upload" accept="image/*" style="display:none;">
+          <button type="button" class="upload-btn" onclick="document.getElementById('upload').click();">Select Image</button>
+          <p class="img-hint">File size: maximum 1 MB<br>File extension: .JPEG, .PNG</p>
+        </div>
       </div>
 
       <button type="submit" class="save-btn">Save Changes</button>
     </form>
   </div>
 
-<
+  <!-- Address Book Section -->
+  <div class="address-book" id="addresses" style="display:none;">
+    <div class="ab-header">
+      <h3 class="address-subtitle">My Addresses</h3>
+      <button id="addAddressBtn" class="btn-accent btn-sm"><i class="fa-solid fa-plus"></i> Add New Address</button>
+    </div>
+    <div id="addressEmpty" class="address-empty">
+      <div class="empty-inner">
+        <svg viewBox="0 0 64 64" width="80" height="80" aria-hidden="true">
+          <g stroke="#cfdbe3" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M32 6c9 0 16 7 16 16 0 11-16 30-16 30S16 33 16 22c0-9 7-16 16-16z"/>
+            <circle cx="32" cy="24" r="6"/>
+            <path d="M8 54h48"/>
+          </g>
+        </svg>
+        <p class="empty-main">You don't have addresses yet.</p>
+      </div>
+    </div>
+    <div id="addressList" class="address-list"></div>
+  </div>
+  </div>
+</div>
+
+<!-- Address Modal -->
+<div id="addressModal" class="ab-modal" style="display:none;"></div>
 
 <!-- ✅ Toast -->
 <div id="toast" class="toast">
