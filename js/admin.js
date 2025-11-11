@@ -735,14 +735,13 @@ function renderOrderRow(o){
         <tr data-order-id="${o.order_id}">
             <td>#${o.order_id}</td>
             <td>${escapeHtml(o.customer||'User')} (ID:${o.user_id})</td>
-            <td>${o.date ? new Date(o.date).toLocaleString() : '-'}</td>
+            <td style="text-align:center; width: 120px;"><button type="button" class="btn btn-secondary" onclick="viewOrderItems(${o.order_id})">Details</button></td>
             <td class="price">$${Number(o.total||0).toFixed(2)}</td>
             <td>
                 <span class="status-badge ${st==='to_pay'?'low-stock': st==='completed'?'available':''}">${st.replace('_',' ')}</span>
             </td>
             <td>
                 <div class="action-buttons">
-                    <button type="button" class="btn btn-secondary" onclick="viewOrderItems(${o.order_id})">Details</button>
                     ${st==='to_pay' ? `<button type="button" class="btn btn-primary" onclick="changeOrderStatus(${o.order_id},'to_ship')">Approve → To Ship</button>` : ''}
                     ${st==='to_ship' ? `<button type="button" class="btn" onclick="changeOrderStatus(${o.order_id},'to_receive')">Mark To Receive</button>` : ''}
                     ${st==='to_receive' ? `<button type="button" class="btn" onclick="changeOrderStatus(${o.order_id},'completed')">Complete</button>` : ''}
@@ -769,7 +768,7 @@ async function loadOrders(){
                     <tr>
                         <th>ID</th>
                         <th>Customer</th>
-                        <th>Details</th>
+                        <th style="text-align:center; width: 120px;">Details</th>
                         <th>Total</th>
                         <th>Status</th>
                         <th>Actions</th>
