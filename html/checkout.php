@@ -109,11 +109,6 @@ if (!isset($_SESSION['user_id'])) {
         <div class="card">
           <div class="body summary">
             <h3>Order Summary</h3>
-            <table>
-              <tr><td>Subtotal</td><td class="right" id="sumSubtotal">$0.00</td></tr>
-              <tr><td>Tax (6% VAT)</td><td class="right" id="sumTax">$0.00</td></tr>
-              <tr><td>Total</td><td class="right" id="sumTotal">$0.00</td></tr>
-            </table>
             <button id="placeOrder" class="place-order" style="margin-top:12px"><i class="fa fa-check-circle"></i> Place Order</button>
           </div>
         </div>
@@ -216,9 +211,6 @@ if (!isset($_SESSION['user_id'])) {
       `).join('');
 
       const sums = calculateTotals(items);
-      document.getElementById('sumSubtotal').textContent = `$${sums.subtotal.toFixed(2)}`;
-      document.getElementById('sumTax').textContent = `$${sums.tax.toFixed(2)}`;
-      document.getElementById('sumTotal').textContent = `$${sums.total.toFixed(2)}`;
     }
 
     document.getElementById('placeOrder').addEventListener('click', function(){

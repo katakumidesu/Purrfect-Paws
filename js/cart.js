@@ -103,8 +103,13 @@ function renderCart() {
             </tr>
         `;
         totalsDiv.innerHTML = '';
+        // Hide header and checkout bar immediately when cart is empty
+        const hdr = document.getElementById('cartHeader'); if (hdr) hdr.style.display = 'none';
+        updateCheckoutBar();
         return;
     }
+    // Ensure header is visible when there are items
+    { const hdr = document.getElementById('cartHeader'); if (hdr) hdr.style.display = ''; }
     
     // Render cart items with selection checkboxes
     cartTable.innerHTML = cart.map(item => `
@@ -167,12 +172,7 @@ function renderCart() {
 // Update totals and bar
         const itemsForTotals2 = (getSelectedNames().length? getCart().filter(it=>getSelectedNames().includes(it.name)) : []);
         const t2 = calculateTotals(itemsForTotals2);
-        totalsDiv.innerHTML = `
-            <table>
-                <tr><td>Subtotal</td><td>$${t2.subtotal.toFixed(2)}</td></tr>
-                <tr><td>Tax (6% VAT)</td><td>$${t2.tax.toFixed(2)}</td></tr>
-                <tr style=\"font-weight: bold; font-size: 18px;\"><td>Total</td><td>$${t2.total.toFixed(2)}</td></tr>
-            </table>`;
+        totalsDiv.innerHTML = '';
         updateCheckoutBar();
     }));
 
@@ -189,26 +189,11 @@ function renderCart() {
         };
     }
 
-    // Calculate and render totals based on selection
+// Calculate and render totals based on selection
 const itemsForTotals = (getSelectedNames().length? getCart().filter(it=>getSelectedNames().includes(it.name)) : []);
-    const { subtotal, tax, total } = calculateTotals(itemsForTotals);
+    const { total } = calculateTotals(itemsForTotals);
     
-    totalsDiv.innerHTML = `
-        <table>
-            <tr>
-                <td>Subtotal</td>
-                <td>$${subtotal.toFixed(2)}</td>
-            </tr>
-            <tr>
-                <td>Tax (6% VAT)</td>
-                <td>$${tax.toFixed(2)}</td>
-            </tr>
-            <tr style=\"font-weight: bold; font-size: 18px;\">
-                <td>Total</td>
-                <td>$${total.toFixed(2)}</td>
-            </tr>
-        </table>
-    `;
+    totalsDiv.innerHTML = '';
     
     // Update sticky checkout bar
     updateCheckoutBar();
@@ -327,13 +312,48 @@ function updateCheckoutBar() {
 
 const items = (getSelectedNames().length? getCart().filter(it=>getSelectedNames().includes(it.name)) : []);
     const { total } = calculateTotals(items);
+    const allCount = getCart().length;
+    const selectedCount = items.length;
     bar.style.display = 'block';
 bar.innerHTML = `
         <div class="checkout-bar-inner">
-            <div class="checkout-bar-total"><span>Total:</span> <strong>$${total.toFixed(2)}</strong></div>
-            <button class="checkout-btn" ${items.length===0?'disabled':''} onclick="proceedToCheckout()">Checkout</button>
+            <div class="checkout-left">
+                <label class="select-all-bottom">
+                    <input type="checkbox" id="checkAllBottom" ${selectedCount===allCount && allCount>0 ? 'checked' : ''}>
+                    <span>Select All (${allCount})</span>
+                </label>
+                <button class="link-delete" id="deleteSelected">Delete</button>
+            </div>
+            <div class="checkout-right" style="display:flex;align-items:center;gap:12px;">
+                <div class="checkout-bar-total"><span>Total (${selectedCount} item${selectedCount!==1?'s':''}):</span> <strong>$${total.toFixed(2)}</strong></div>
+                <button class="checkout-btn" ${items.length===0?'disabled':''} onclick="proceedToCheckout()">Check Out</button>
+            </div>
         </div>
     `;
+
+    // Bottom select-all behavior
+    const bottomAll = document.getElementById('checkAllBottom');
+    if (bottomAll){
+        bottomAll.onchange = () => {
+            const names = new Set();
+            document.querySelectorAll('.item-check').forEach(cb => { cb.checked = bottomAll.checked; if (bottomAll.checked) names.add(cb.getAttribute('data-name')); });
+            setSelectedNames(Array.from(names));
+            renderCart();
+        };
+    }
+
+    // Delete selected items
+    const delSel = document.getElementById('deleteSelected');
+    if (delSel){
+        delSel.onclick = () => {
+            const sel = getSelectedNames();
+            if (!sel || sel.length===0) return;
+            const remaining = getCart().filter(it => !sel.includes(it.name));
+            saveCart(remaining);
+            setSelectedNames([]);
+            renderCart();
+        };
+    }
 }
 
 // Add CSS for animations and components
@@ -360,5 +380,6 @@ style.textContent = `
 /* Delete link sizing */
 .link-delete{background:none;border:none;color:#1a73e8;cursor:pointer;font-size:14px;padding:0;line-height:1}
 .link-delete:hover{text-decoration:underline}
+.select-all-bottom{display:inline-flex;align-items:center;gap:8px;margin-right:12px}
 `;
 document.head.appendChild(style);

@@ -62,7 +62,7 @@ if (!isset($_SESSION['user_id'])) {
         </ul>
         
 <div class="nav-right">
-    <!-- 🧑‍💼 User dropdown OR Login -->
+    <!--  User dropdown OR Login -->
     <?php if (isset($_SESSION['user_id'])): ?>
         <?php
         $profileImage = isset($_SESSION['profile_image']) && !empty($_SESSION['profile_image'])
@@ -97,14 +97,16 @@ if (!isset($_SESSION['user_id'])) {
 <div class="small-container cart-page">
     <h2 style="text-align: center; margin: 30px 0;">Shopping Cart</h2>
     <table>
-        <tr>
-            <th style="width:42px;text-align:center;"><input type="checkbox" id="checkAll"></th>
-            <th>Product</th>
-            <th style="width:120px;text-align:center;">Unit Price</th>
-            <th style="width:160px;text-align:center;">Quantity</th>
-            <th style="width:120px;text-align:center;">Total Price</th>
-            <th style="width:110px;text-align:center;">Actions</th>
-        </tr>
+        <thead id="cartHeader">
+            <tr>
+                <th style="width:42px;text-align:center;"><input type="checkbox" id="checkAll"></th>
+                <th>Product</th>
+                <th style="width:120px;text-align:center;">Unit Price</th>
+                <th style="width:160px;text-align:center;">Quantity</th>
+                <th style="width:120px;text-align:center;">Total Price</th>
+                <th style="width:110px;text-align:center;">Actions</th>
+            </tr>
+        </thead>
         <tbody id="cartItems">
             <!-- Cart items loaded dynamically via JavaScript -->
             <tr>
