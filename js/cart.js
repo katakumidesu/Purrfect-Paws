@@ -173,154 +173,38 @@ function updateCartBadge() {
     });
 }
 
-// Proceed to checkout
+// Proceed to checkout (full page)
 function proceedToCheckout() {
     const cart = getCart();
-    
-    if (cart.length === 0) {
-        alert('Your cart is empty!');
-        return;
-    }
-    
-    // Check if user is logged in
+    if (cart.length === 0) { alert('Your cart is empty!'); return; }
+
+    // Require login
     const isLoggedIn = document.querySelector('.user-menu') !== null;
-    
     if (!isLoggedIn) {
         if (confirm('Please login to proceed with checkout. Redirect to login page?')) {
             window.location.href = '../login_register/purdex.php';
         }
         return;
     }
-    
-    // Show checkout modal
-    showCheckoutModal();
+
+    // Go to dedicated checkout page (no modal)
+    window.location.href = 'checkout.php';
 }
 
-// Show checkout modal
-function showCheckoutModal() {
-    const { subtotal, tax, total } = calculateTotals();
-    
-    const modal = document.createElement('div');
-    modal.className = 'checkout-modal';
-    modal.innerHTML = `
-        <div class="checkout-modal-content">
-            <span class="close-checkout" onclick="this.closest('.checkout-modal').remove()">&times;</span>
-            <h2><i class="fa fa-shopping-bag"></i> Checkout</h2>
-            
-            <div class="checkout-summary">
-                <h3>Order Summary</h3>
-                <p><strong>Subtotal:</strong> $${subtotal.toFixed(2)}</p>
-                <p><strong>Tax (6% VAT):</strong> $${tax.toFixed(2)}</p>
-                <p class="brand-accent" style="font-size: 20px;"><strong>Total:</strong> $${total.toFixed(2)}</p>
-            </div>
-            
-            <form id="checkoutForm" onsubmit="submitOrder(event)">
-                <h3>Shipping Information</h3>
-                
-                <div class="form-group">
-                    <label>Full Name <span style="color: red;">*</span></label>
-                    <input type="text" name="fullname" required>
-                </div>
-                
-                <div class="form-group">
-                    <label>Phone Number <span style="color: red;">*</span></label>
-                    <input type="tel" name="phone" placeholder="09xxxxxxxxx" required>
-                </div>
-                
-                <div class="form-group">
-                    <label>Complete Address <span style="color: red;">*</span></label>
-                    <textarea name="address" rows="3" placeholder="House No., Street, Barangay" required></textarea>
-                </div>
-                
-                <div class="form-group">
-                    <label>City <span style="color: red;">*</span></label>
-                    <input type="text" name="city" value="Cagayan de Oro City" required>
-                </div>
-                
-                <h3>Payment Method</h3>
-                
-                <div class="payment-options">
-                    <label class="payment-card">
-                        <input type="radio" name="payment" value="cod" checked>
-                        <div class="content">
-                            <div class="title"><i class="fa fa-hand-holding-dollar"></i> Cash on Delivery</div>
-                            <div class="desc">Pay when the item arrives</div>
-                        </div>
-                    </label>
-                    <label class="payment-card gcash">
-                        <input type="radio" name="payment" value="gcash">
-                        <div class="content">
-                            <div class="title"><i class="fa fa-wallet"></i> GCash</div>
-                            <div class="desc">Pay via mobile wallet</div>
-                        </div>
-                    </label>
-                </div>
-                
-                <div class="form-group">
-                    <label>Order Notes (Optional)</label>
-                    <textarea name="notes" rows="2" placeholder="Any special instructions?"></textarea>
-                </div>
-                
-                <button type="submit" class="place-order-btn">
-                    <i class="fa fa-check-circle"></i> Place Order
-                </button>
-            </form>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
+// Fetch the user's default address from the profile API (shared by checkout page)
+async function fetchDefaultAddress(){
+    try{
+        const res = await fetch('../profile_php/addresses.php?action=list');
+        const items = await res.json();
+        if (!Array.isArray(items)) return null;
+        // Prefer the one marked default; otherwise take the first item
+        return items.find(a => String(a.is_default) === '1') || items[0] || null;
+    }catch(e){ return null; }
 }
 
-// Submit order
-function submitOrder(event) {
-    event.preventDefault();
-    
-    const form = event.target;
-    const formData = new FormData(form);
-    const cart = getCart();
-    const { subtotal, tax, total } = calculateTotals();
-    
-    const orderData = {
-        items: cart,
-        shipping: {
-            fullname: formData.get('fullname'),
-            phone: formData.get('phone'),
-            address: formData.get('address'),
-            city: formData.get('city')
-        },
-        payment: formData.get('payment'),
-        notes: formData.get('notes'),
-        subtotal: subtotal,
-        tax: tax,
-        total: total,
-        date: new Date().toISOString()
-    };
-    
-    // Save order to sessionStorage (in real app, send to server)
-    const orders = JSON.parse(sessionStorage.getItem('purrfectOrders') || '[]');
-    orders.push(orderData);
-    sessionStorage.setItem('purrfectOrders', JSON.stringify(orders));
-    
-    // Clear cart
-    sessionStorage.removeItem('purrfectCart');
-    updateCartBadge();
-    
-    // Show success message
-    document.querySelector('.checkout-modal').innerHTML = `
-        <div class="checkout-modal-content" style="text-align: center; padding: 40px;">
-            <i class="fa fa-check-circle" style="font-size: 64px; color: #4caf50;"></i>
-            <h2 style="margin-top: 20px;">Order Placed Successfully!</h2>
-            <p style="color: #aaa;">Thank you for your order. We'll contact you shortly.</p>
-            <p><strong>Order Total: $${total.toFixed(2)}</strong></p>
-            <button onclick="window.location.href='product.php'" class="btn-primary" style="margin: 20px 10px;">
-                Go Shopping Now
-            </button>
-            <button onclick="window.location.href='cart.php'" class="btn-secondary" style="margin: 20px 10px;">
-                View Cart
-            </button>
-        </div>
-    `;
-}
+// The modal-based checkout has been removed in favor of a dedicated page.
+// No modal code remains here.
+
 
 // Show notification
 function showNotification(message) {
@@ -378,104 +262,8 @@ function updateCheckoutBar() {
 const style = document.createElement('style');
 style.textContent = `
 :root{--brand:#9bd8f7;--brand-strong:#5cbfef;--brand-text:#003a57;}
-@keyframes slideIn {
-    from { transform: translateX(400px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-}
-@keyframes slideOut {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(400px); opacity: 0; }
-}
-.checkout-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-}
-.checkout-modal-content {
-    background: #1a1a1a;
-    padding: 30px;
-    border-radius: 10px;
-    max-width: 600px;
-    max-height: 90vh;
-    overflow-y: auto;
-    position: relative;
-    color: #fff;
-}
-.close-checkout {
-    position: absolute;
-    top: 10px;
-    right: 20px;
-    font-size: 30px;
-    cursor: pointer;
-    color: #aaa;
-}
-.close-checkout:hover {
-    color: #fff;
-}
-.checkout-summary {
-    background: #2a2a2a;
-    padding: 20px;
-    border-radius: 5px;
-    margin-bottom: 20px;
-}
-.form-group {
-    margin-bottom: 15px;
-}
-.form-group label {
-    display: block;
-    margin-bottom: 5px;
-    color: var(--brand-strong);
-}
-.form-group input,
-.form-group textarea {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #444;
-    border-radius: 8px;
-    background: #2a2a2a;
-    color: #fff;
-    outline: none;
-}
-.form-group input:focus,
-.form-group textarea:focus {
-    border-color: var(--brand-strong);
-    box-shadow: 0 0 0 3px rgba(92,191,239,0.25);
-}
-.place-order-btn {
-    width: 100%;
-    padding: 15px;
-    background: var(--brand-strong);
-    color: #003044;
-    border: none;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: 700;
-    cursor: pointer;
-    margin-top: 20px;
-}
-.place-order-btn:hover {
-    background: #3fb2ea;
-}
-.checkout-btn{
-    width:100%;
-    padding:15px;
-    background:var(--brand-strong);
-    color:#003044;
-    border:none;
-    border-radius:8px;
-    font-size:16px;
-    font-weight:700;
-    cursor:pointer;
-    margin-top:20px;
-}
-.checkout-btn:hover{background:#3fb2ea;}
+@keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(400px); opacity: 0; } }
 .btn-primary{display:inline-block;padding:10px 20px;background:var(--brand-strong);color:#003044;border:none;border-radius:8px;text-decoration:none;font-weight:700}
 .btn-primary:hover{background:#3fb2ea;color:#002333}
 .btn-secondary{display:inline-block;padding:10px 20px;background:#333;color:#fff;border:none;border-radius:8px;text-decoration:none;font-weight:700}
@@ -483,14 +271,6 @@ style.textContent = `
 .checkout-bar-inner{max-width:900px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .checkout-bar-total span{color:#666;margin-right:6px}
 .checkout-bar-total strong{font-size:18px}
- .brand-accent{color:var(--brand-strong);} 
-.payment-options{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;margin-bottom:8px}
-.payment-card{cursor:pointer;display:block;position:relative}
-.payment-card input{position:absolute;opacity:0;pointer-events:none}
-.payment-card .content{border:2px solid #2e4450;background:rgba(155,216,247,0.05);padding:12px;border-radius:12px;transition:all .2s ease;color:#e9f7ff}
-.payment-card .title{font-weight:700;color:var(--brand-strong);display:flex;gap:8px;align-items:center}
-.payment-card .desc{font-size:12px;color:#a9c6d6;margin-top:4px}
-.payment-card input:checked + .content{border-color:var(--brand-strong);background:rgba(92,191,239,0.15)}
-.payment-card.gcash .title i{color:var(--brand-strong)}
+.brand-accent{color:var(--brand-strong);}
 `;
 document.head.appendChild(style);
