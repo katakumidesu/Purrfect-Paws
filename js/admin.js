@@ -35,7 +35,7 @@ try { document.querySelector('.menu li.active')?.click(); } catch (e) { loadDash
 async function fetchAPI(action, method = 'GET', data = null) {
     try {
         if (method === 'GET' && action) {
-            const response = await fetch(`${API_URL}?action=${action}`);
+            const response = await fetch(`${API_URL}?action=${action}&_=${Date.now()}`);
             const result = await response.json();
             return result;
         }
@@ -728,31 +728,101 @@ async function deleteUser(userId) {
 }
 
 // ---------------- ORDERS ----------------
-function loadOrders(){
+let ordersCache = [];
+function renderOrderRow(o){
+    const st = (o.status && String(o.status).trim()) ? String(o.status) : 'to_pay';
+    return `
+        <tr data-order-id="${o.order_id}">
+            <td>#${o.order_id}</td>
+            <td>${escapeHtml(o.customer||'User')} (ID:${o.user_id})</td>
+            <td>${o.date ? new Date(o.date).toLocaleString() : '-'}</td>
+            <td class="price">$${Number(o.total||0).toFixed(2)}</td>
+            <td>
+                <span class="status-badge ${st==='to_pay'?'low-stock': st==='completed'?'available':''}">${st.replace('_',' ')}</span>
+            </td>
+            <td>
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-secondary" onclick="viewOrderItems(${o.order_id})">Details</button>
+                    ${st==='to_pay' ? `<button type="button" class="btn btn-primary" onclick="changeOrderStatus(${o.order_id},'to_ship')">Approve → To Ship</button>` : ''}
+                    ${st==='to_ship' ? `<button type="button" class="btn" onclick="changeOrderStatus(${o.order_id},'to_receive')">Mark To Receive</button>` : ''}
+                    ${st==='to_receive' ? `<button type="button" class="btn" onclick="changeOrderStatus(${o.order_id},'completed')">Complete</button>` : ''}
+                    ${st==='to_pay' || st==='to_ship' ? `<button type="button" class="btn btn-delete" onclick="changeOrderStatus(${o.order_id},'cancelled')">Cancel</button>` : ''}
+                </div>
+            </td>
+        </tr>`;
+}
+async function loadOrders(){
+    const orders = await fetchAPI('get_orders');
+    if (orders?.error){
+        mainContent.innerHTML = `<h2>Orders</h2><p class="error">${orders.error}</p>`; return;
+    }
+    ordersCache = Array.isArray(orders) ? orders : [];
+    const rows = (ordersCache.length>0) ? ordersCache.map(renderOrderRow).join('') : '<tr><td colspan="6" class="text-center">No orders found.</td></tr>';
+
     mainContent.innerHTML = `
         <div class="inventory-header">
             <h2>Orders</h2>
         </div>
         <div class="table-container">
-                <table class="table">
+            <table class="table">
                 <thead>
                     <tr>
                         <th>ID</th>
                         <th>Customer</th>
-                        <th>Date</th>
+                        <th>Details</th>
                         <th>Total</th>
                         <th>Status</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr>
-                        <td colspan="5" class="text-center">No orders found.</td>
-                    </tr>
-                </tbody>
+                <tbody>${rows}</tbody>
             </table>
         </div>
+        <div id="orderItemsModal" class="modal hidden"><div class="modal-content"><span class="closeBtn" onclick="document.getElementById('orderItemsModal').classList.add('hidden')">&times;</span><h2>Order Items</h2><div id="orderItemsBody" style="margin-top:10px"></div></div></div>
     `;
 }
+
+async function changeOrderStatus(orderId, status){
+    console.log('changeOrderStatus click', orderId, status);
+    // Optimistic UI: update the single row immediately
+    const idx = ordersCache.findIndex(o=> String(o.order_id) === String(orderId));
+    const prev = idx>-1 ? {...ordersCache[idx]} : null;
+    if (idx>-1){ ordersCache[idx].status = status; }
+    const tr = document.querySelector(`tr[data-order-id="${orderId}"]`);
+    if (tr && idx>-1){ tr.outerHTML = renderOrderRow(ordersCache[idx]); }
+
+    const res = await fetchAPI(null,'POST',{ action:'update_order_status', order_id: parseInt(orderId,10), status });
+    console.log('update_order_status resp', res);
+    if (res?.success){
+        // Re-fetch to keep items synced (bust cache)
+        await loadOrders();
+    } else {
+        // If backend reports current_status, reflect it
+        if (res?.current_status && idx>-1){ ordersCache[idx].status = res.current_status; if (tr) tr.outerHTML = renderOrderRow(ordersCache[idx]); }
+        else if (idx>-1 && prev){ ordersCache[idx] = prev; if (tr) tr.outerHTML = renderOrderRow(prev); }
+        alert(res?.error || 'Failed to update order');
+    }
+}
+
+function viewOrderItems(orderId){
+    const o = ordersCache.find(x=>x.order_id==orderId);
+    const items = Array.isArray(o?.items) ? o.items : [];
+    const html = items.length? items.map(it=>`
+        <div style="display:flex;align-items:center;gap:10px;margin:8px 0;">
+            <img src="${it.image_url||'../HTML/images/catbed.jpg'}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;" onerror="this.src='../HTML/images/catbed.jpg'">
+            <div style="flex:1;">
+                <div style="font-weight:600;">${escapeHtml(it.product_name||'')}</div>
+                <div style="color:#aaa;font-size:12px;">Qty: ${it.quantity} • $${Number(it.price||0).toFixed(2)}</div>
+            </div>
+            <div style="font-weight:600;">$${(Number(it.price||0)*Number(it.quantity||0)).toFixed(2)}</div>
+        </div>
+    `).join('') : '<div style="color:#aaa;">No items found for this order.</div>';
+    const body = document.getElementById('orderItemsBody');
+    if (body){ body.innerHTML = html; document.getElementById('orderItemsModal').classList.remove('hidden'); }
+}
+// Expose functions for inline onclick handlers
+window.changeOrderStatus = changeOrderStatus;
+window.viewOrderItems = viewOrderItems;
 
 // ---------------- ANALYTICS ----------------
 function loadAnalytics(){

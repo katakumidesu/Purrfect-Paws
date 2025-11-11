@@ -215,6 +215,7 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
       <div class="tabs">
         <a href="#" data-tab="all" class="active">All</a>
         <a href="#" data-tab="to_pay">To Pay</a>
+        <a href="#" data-tab="to_ship">To Ship</a>
         <a href="#" data-tab="to_receive">To Receive</a>
         <a href="#" data-tab="completed">Completed</a>
         <a href="#" data-tab="cancelled">Cancelled</a>

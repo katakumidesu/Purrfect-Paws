@@ -26,6 +26,7 @@
         submenu.classList.add('open');
         if (accountToggle) accountToggle.setAttribute('aria-expanded','true');
       }
+
     }
 
     // Highlight the active menu item
@@ -40,7 +41,8 @@
     // Initialize purchases tab handlers and render orders on first entry
     if (name === 'purchases'){
       if (!purchasesInit){ initPurchases(); purchasesInit = true; }
-      renderPurchases(document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all');
+      const tab = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
+      renderPurchases(tab);
     }
   };
   // Attach handlers to ALL matching links instead of just the first one
@@ -599,7 +601,7 @@
   }
 
   // Ensure purchases render after navigation (e.g., from checkout redirect)
-  window.addEventListener('pageshow', () => {
+  window.addEventListener('pageshow', async () => {
     if (sections.purchases && sections.purchases.style.display !== 'none'){
       const current = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
       renderPurchases(current);
@@ -618,36 +620,82 @@
   function money(n){ return '$'+Number(n||0).toFixed(2); }
   function initPurchases(){
     const tabs = $$('.p-head .tabs a');
-    tabs.forEach(a=>a.addEventListener('click', (e)=>{
+    tabs.forEach(a=>a.addEventListener('click', async (e)=>{
       e.preventDefault();
       tabs.forEach(x=>x.classList.remove('active'));
       a.classList.add('active');
-      renderPurchases(a.dataset.tab);
+      const t = a.dataset.tab;
+      await renderPurchases(t);
     }));
     const search = $('#p-search');
-    if (search){ search.addEventListener('input', ()=>{
+    if (search){ search.addEventListener('input', async ()=>{
       const current = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
-      renderPurchases(current);
+      await renderPurchases(current);
     }); }
   }
-  function renderPurchases(tab){
+  async function syncOrdersFromServer(){
+    try{
+      const res = await fetch(`../crud/crud.php?action=get_orders&user_id=${encodeURIComponent(window.PURR_USER_ID||'')}&_=${Date.now()}`);
+      const arr = await res.json();
+      if (!Array.isArray(arr)) return false;
+      const byId = {};
+      arr.forEach(o=>{ if (o && o.order_id!=null) byId[String(o.order_id)] = o.status; });
+      const local = getOrders();
+      let changed = false;
+      for (const o of local){
+        if (o.order_id != null){
+          const s = byId[String(o.order_id)];
+          if (s && o.status !== s){ o.status = s; changed = true; }
+        }
+      }
+      if (changed) saveOrders(local);
+      return changed;
+    }catch(e){ return false; }
+  }
+  async function renderPurchases(tab){
     const wrap = $('#p-orders');
     if (!wrap) return;
+    // Sync latest statuses from server for this user
+    await syncOrdersFromServer();
     // Show search only on "All" tab
     const searchWrap = document.querySelector('.p-search');
     const searchInput = document.getElementById('p-search');
     if (searchWrap){ searchWrap.style.display = (tab==='all') ? '' : 'none'; }
     if (tab !== 'all' && searchInput){ searchInput.value = ''; }
     const q = (tab==='all' && searchInput ? (searchInput.value||'').toLowerCase() : '');
-    let orders = getOrders().map(o=> ({...o, status: (o.status||'completed')}));
+    // If the local cache is empty, seed it once from the server so Admin actions appear here
+    let cached = getOrders();
+    if (!Array.isArray(cached) || cached.length === 0){
+      try{
+        const res = await fetch(`../crud/crud.php?action=get_orders&user_id=${encodeURIComponent(window.PURR_USER_ID||'')}&_=${Date.now()}`);
+        const arr = await res.json();
+        if (Array.isArray(arr) && arr.length){
+          const seeded = arr.filter(o=>o && o.order_id!=null).map(o=>({
+            order_id: o.order_id,
+            date: o.date || o.created_at || Date.now(),
+            total: Number(o.total||0),
+            status: String(o.status||'to_pay'),
+            items: Array.isArray(o.items) ? o.items.map(it=>({
+              name: it.product_name || it.name || '',
+              quantity: Number(it.quantity||1),
+              price: Number(it.price||0),
+              image: it.image_url || it.image || ''
+            })) : []
+          }));
+          if (seeded.length){ saveOrders(seeded); cached = seeded; }
+        }
+      }catch(_){ /* ignore */ }
+    }
+    let orders = (Array.isArray(cached)? cached : []).map(o=> ({...o, status: (o.status||'to_pay')}));
     if (tab==='to_pay') orders = orders.filter(o=>o.status==='to_pay');
+    if (tab==='to_ship') orders = orders.filter(o=>o.status==='to_ship');
     if (tab==='to_receive') orders = orders.filter(o=>o.status==='to_receive');
     if (tab==='completed') orders = orders.filter(o=>o.status==='completed');
     if (tab==='cancelled') orders = orders.filter(o=>o.status==='cancelled');
     if (q) orders = orders.filter(o => (o.items||[]).some(it => (it.name||'').toLowerCase().includes(q)) );
     if (!orders.length){ wrap.innerHTML = '<div class="address-empty" style="display:flex"><div class="empty-inner"><p class="empty-main">No orders yet.</p></div></div>'; return; }
 
-    const statusLabel = (s)=>({to_pay:'To Pay', to_receive:'To Receive', completed:'Completed', cancelled:'Cancelled'})[s]||'—';
+    const statusLabel = (s)=>({to_pay:'To Pay', to_ship:'To Ship', to_receive:'To Receive', completed:'Completed', cancelled:'Cancelled'})[s]||'—';
 
     wrap.innerHTML = orders.map((o,idx)=>{
       if (o.status === 'to_pay'){
@@ -765,11 +813,28 @@
       if (confirmBtn){ confirmBtn.disabled = false; confirmBtn.style.opacity = '1'; }
     }));
 
-    modal.querySelector('#pcForm').addEventListener('submit', (e)=>{
+    modal.querySelector('#pcForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
       const orders = getOrders();
       const idx = orders.findIndex(o=> String(o.date) === String(orderKey));
-      if (idx>-1){ orders[idx].status = 'cancelled'; saveOrders(orders); }
+      let oid = null;
+      if (idx>-1){
+        orders[idx].status = 'cancelled';
+        oid = orders[idx].order_id || null;
+        saveOrders(orders);
+      }
+      // Tell server so Admin page reflects the cancellation (when order_id is known)
+      if (oid){
+        try {
+          await fetch('../crud/crud.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'update_order_status', order_id: oid, status: 'cancelled' }),
+            keepalive: true,
+            credentials: 'same-origin'
+          });
+        } catch (_) {}
+      }
       close();
       updatePurchaseTabCounts();
       const current = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
@@ -778,14 +843,15 @@
   }
 
   function updatePurchaseTabCounts(){
-    const orders = getOrders().map(o=> ({...o, status: (o.status||'completed')}));
+    const orders = getOrders().map(o=> ({...o, status: (o.status||'to_pay')}));
     const counts = orders.reduce((acc,o)=>{ acc[o.status]=(acc[o.status]||0)+1; acc.all++; return acc; }, {all:0});
     const set = (tab, label, n)=>{
-      const el = document.querySelector(`.p-head .tabs a[data-tab="${tab}"]`);
+      const el = document.querySelector(`.p-head .tabs a[data-tab=\"${tab}\"]`);
       if (el) el.textContent = n>0 ? `${label} (${n})` : label;
     };
     set('all','All', counts.all||0);
     set('to_pay','To Pay', counts.to_pay||0);
+    set('to_ship','To Ship', counts.to_ship||0);
     set('to_receive','To Receive', counts.to_receive||0);
     set('completed','Completed', counts.completed||0);
     set('cancelled','Cancelled', counts.cancelled||0);

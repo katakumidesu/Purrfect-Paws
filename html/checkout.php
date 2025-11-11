@@ -216,15 +216,37 @@ if (!isset($_SESSION['user_id'])) {
       const sums = calculateTotals(items);
     }
 
-    document.getElementById('placeOrder').addEventListener('click', function(){
+    document.getElementById('placeOrder').addEventListener('click', async function(){
       const all = getCart();
       const selected = (()=>{ try { return JSON.parse(sessionStorage.getItem('purrfectSelected')||'[]'); } catch(e){ return []; } })();
       const items = selected.length ? all.filter(it => selected.includes(it.name)) : all;
       if(!items || items.length===0){ alert('Your cart is empty'); return; }
       const sums = calculateTotals(items);
       const orders = JSON.parse(sessionStorage.getItem(ORDERS_KEY()) || '[]');
-      orders.push({ items, total: sums.total, date: new Date().toISOString(), status: 'to_pay' });
+      const record = { items, total: sums.total, date: new Date().toISOString(), status: 'to_pay' };
+      orders.push(record);
       sessionStorage.setItem(ORDERS_KEY(), JSON.stringify(orders));
+      // Also persist to server for admin panel; use keepalive so it survives redirect
+      try {
+        const resp = await fetch('../crud/crud.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'create_order', items, total: sums.total, user_id: window.PURR_USER_ID }),
+          keepalive: true,
+          credentials: 'same-origin'
+        });
+        try {
+          const data = await resp.json();
+          if (data?.success && data?.order_id){
+            // Save the created order_id back to the same record in sessionStorage
+            const arr = JSON.parse(sessionStorage.getItem(ORDERS_KEY())||'[]');
+            const idx = arr.findIndex(o => o.date === record.date);
+            if (idx > -1){ arr[idx].order_id = data.order_id; sessionStorage.setItem(ORDERS_KEY(), JSON.stringify(arr)); }
+          } else {
+            console.warn('Server create_order response:', data);
+          }
+        } catch (_) {}
+      } catch (e) { console.warn('create_order failed', e); }
       // Remove only purchased items from cart if a subset was selected
       if (selected.length){
         const remaining = all.filter(it => !selected.includes(it.name));

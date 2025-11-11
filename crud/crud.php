@@ -426,6 +426,172 @@ switch ($action) {
         }
         break;
 
+    // ===== ORDERS =====
+    case 'create_order':
+        try {
+            // Accept user_id from session or (fallback) request body to survive cookie issues during redirect
+            $user_id = isset($_SESSION['user_id']) ? intval($_SESSION['user_id']) : intval($data['user_id'] ?? 0);
+            if (!$user_id) { echo json_encode(['error'=>'Not logged in']); break; }
+            $items = $data['items'] ?? [];
+            $total = floatval($data['total'] ?? 0);
+            // Create tables if not exist
+            $conn->query("CREATE TABLE IF NOT EXISTS orders (
+                order_id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                total DECIMAL(10,2) NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'to_pay'
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            $conn->query("CREATE TABLE IF NOT EXISTS order_items (
+                item_id INT AUTO_INCREMENT PRIMARY KEY,
+                order_id INT NOT NULL,
+                product_name VARCHAR(255) NOT NULL,
+                quantity INT NOT NULL,
+                price DECIMAL(10,2) NOT NULL,
+                image_url VARCHAR(255) DEFAULT NULL,
+                FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            // Insert order (schema-safe: handle existing tables missing 'total' or 'status')
+            $hasTotal = $conn->query("SHOW COLUMNS FROM orders LIKE 'total'");
+            $hasStatus = $conn->query("SHOW COLUMNS FROM orders LIKE 'status'");
+            $existsTotal = $hasTotal && $hasTotal->num_rows > 0; if ($hasTotal) { $hasTotal->close(); }
+            $existsStatus = $hasStatus && $hasStatus->num_rows > 0; if ($hasStatus) { $hasStatus->close(); }
+
+            if ($existsTotal && $existsStatus) {
+                $stmt = $conn->prepare("INSERT INTO orders (user_id, total, status) VALUES (?,?, 'to_pay')");
+                $stmt->bind_param("id", $user_id, $total);
+            } elseif ($existsTotal && !$existsStatus) {
+                $stmt = $conn->prepare("INSERT INTO orders (user_id, total) VALUES (?,?)");
+                $stmt->bind_param("id", $user_id, $total);
+            } elseif (!$existsTotal && $existsStatus) {
+                $stmt = $conn->prepare("INSERT INTO orders (user_id, status) VALUES (?, 'to_pay')");
+                $stmt->bind_param("i", $user_id);
+            } else {
+                $stmt = $conn->prepare("INSERT INTO orders (user_id) VALUES (?)");
+                $stmt->bind_param("i", $user_id);
+            }
+
+            if (!$stmt->execute()) { echo json_encode(['error'=>'Failed to create order: '.$stmt->error]); $stmt->close(); break; }
+            $order_id = $stmt->insert_id; $stmt->close();
+            // Insert items
+            if (is_array($items)) {
+                $it = $conn->prepare("INSERT INTO order_items (order_id, product_name, quantity, price, image_url) VALUES (?,?,?,?,?)");
+                foreach ($items as $itRow) {
+                    $name = (string)($itRow['name'] ?? '');
+                    $qty = intval($itRow['quantity'] ?? 1);
+                    $price = floatval($itRow['price'] ?? 0);
+                    $img = (string)($itRow['image'] ?? '');
+                    $it->bind_param("isids", $order_id, $name, $qty, $price, $img);
+                    $it->execute();
+                }
+                $it->close();
+            }
+            echo json_encode(['success'=>true,'order_id'=>$order_id]);
+        } catch (Exception $e) { echo json_encode(['error'=>'Error creating order: '.$e->getMessage()]); }
+        break;
+
+    case 'get_orders':
+        try {
+            // Create tables if not exist (safe)
+            $conn->query("CREATE TABLE IF NOT EXISTS orders (
+                order_id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                total DECIMAL(10,2) NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'to_pay'
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            $conn->query("CREATE TABLE IF NOT EXISTS order_items (
+                item_id INT AUTO_INCREMENT PRIMARY KEY,
+                order_id INT NOT NULL,
+                product_name VARCHAR(255) NOT NULL,
+                quantity INT NOT NULL,
+                price DECIMAL(10,2) NOT NULL,
+                image_url VARCHAR(255) DEFAULT NULL,
+                FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            // Figure out which timestamp column exists: 'date' or 'created_at'
+            $hasDate = $conn->query("SHOW COLUMNS FROM orders LIKE 'date'");
+            $hasCreated = $conn->query("SHOW COLUMNS FROM orders LIKE 'created_at'");
+            $dateExpr = 'o.date'; // default
+            if (!($hasDate && $hasDate->num_rows > 0)) {
+                $dateExpr = ($hasCreated && $hasCreated->num_rows > 0) ? 'o.created_at' : 'NULL';
+            }
+            if ($hasDate) { $hasDate->close(); }
+            if ($hasCreated) { $hasCreated->close(); }
+
+            // If orders.total doesn't exist, compute from order_items instead
+            $hasTotal = $conn->query("SHOW COLUMNS FROM orders LIKE 'total'");
+            $totalExpr = ($hasTotal && $hasTotal->num_rows > 0)
+                ? 'o.total'
+                : '(SELECT COALESCE(SUM(oi.quantity * oi.price),0) FROM order_items oi WHERE oi.order_id = o.order_id)';
+            if ($hasTotal) { $hasTotal->close(); }
+
+            // Ensure we always return a status; if column missing, default to 'to_pay'
+            $hasStatus = $conn->query("SHOW COLUMNS FROM orders LIKE 'status'");
+            $statusExpr = ($hasStatus && $hasStatus->num_rows > 0) ? 'o.status' : "'to_pay'";
+            if ($hasStatus) { $hasStatus->close(); }
+
+            $userFilter = '';
+            if (isset($_GET['user_id']) && $_GET['user_id'] !== '') {
+                $uid = intval($_GET['user_id']);
+                $userFilter = "WHERE o.user_id = $uid";
+            }
+            $sql = "SELECT o.order_id, o.user_id, $dateExpr AS date, $totalExpr AS total, $statusExpr AS status, COALESCE(u.name,'User') AS customer
+                    FROM orders o LEFT JOIN users u ON u.user_id = o.user_id
+                    $userFilter
+                    ORDER BY o.order_id DESC";
+            $res = $conn->query($sql);
+            if (!$res) { echo json_encode(['error'=>'DB error: '.$conn->error]); break; }
+            $orders = [];
+            while($row=$res->fetch_assoc()) { $row['total']=floatval($row['total']); $orders[]=$row; }
+            // Load items per order
+            if (!empty($orders)){
+                $ids = implode(',', array_map('intval', array_column($orders,'order_id')));
+                $itemsRes = $conn->query("SELECT order_id, product_name, quantity, price, image_url FROM order_items WHERE order_id IN ($ids)");
+                $byOrder = [];
+                while($r=$itemsRes->fetch_assoc()){ $byOrder[$r['order_id']][] = $r; }
+                foreach($orders as &$o){ $o['items'] = $byOrder[$o['order_id']] ?? []; }
+            }
+            echo json_encode($orders);
+        } catch (Exception $e) { echo json_encode(['error'=>'Error fetching orders: '.$e->getMessage()]); }
+        break;
+
+    case 'update_order_status':
+        try {
+            $order_id = intval($data['order_id'] ?? 0);
+            $status = $data['status'] ?? '';
+            $allowed = ['to_pay','to_ship','to_receive','completed','cancelled'];
+            if (!$order_id || !in_array($status,$allowed)) { echo json_encode(['error'=>'Invalid input']); break; }
+            // Ensure status column exists; add if missing
+            $hasStatus = $conn->query("SHOW COLUMNS FROM orders LIKE 'status'");
+            if (!($hasStatus && $hasStatus->num_rows > 0)) {
+                $conn->query("ALTER TABLE orders ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'to_pay'");
+            }
+            if ($hasStatus) { $hasStatus->close(); }
+            $stmt = $conn->prepare("UPDATE orders SET status=? WHERE order_id=?");
+            $stmt->bind_param("si", $status, $order_id);
+            $ok = $stmt->execute();
+            $affected = $stmt->affected_rows;
+            $err = $stmt->error;
+            $stmt->close();
+            if ($ok && $affected > 0) {
+                echo json_encode(['success'=>true,'order_id'=>$order_id,'status'=>$status]);
+            } else if ($ok && $affected === 0) {
+                // Fetch current status to report back
+                $q = $conn->prepare("SELECT status FROM orders WHERE order_id=?");
+                $q->bind_param("i", $order_id);
+                $q->execute();
+                $res = $q->get_result();
+                $row = $res ? $res->fetch_assoc() : null;
+                $q->close();
+                echo json_encode(['error'=>'No rows updated','order_id'=>$order_id,'current_status'=>$row['status'] ?? null]);
+            } else {
+                echo json_encode(['error'=>'Failed to update status: '.$err]);
+            }
+        } catch (Exception $e) { echo json_encode(['error'=>'Error updating order: '.$e->getMessage()]); }
+        break;
+
+
     default:
         echo json_encode(['error'=>'Invalid action']);
 }
