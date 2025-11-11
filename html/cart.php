@@ -98,14 +98,17 @@ if (!isset($_SESSION['user_id'])) {
     <h2 style="text-align: center; margin: 30px 0;">Shopping Cart</h2>
     <table>
         <tr>
+            <th style="width:42px;text-align:center;"><input type="checkbox" id="checkAll"></th>
             <th>Product</th>
-            <th>Quantity</th>
-            <th>Subtotal</th>
+            <th style="width:120px;text-align:center;">Unit Price</th>
+            <th style="width:160px;text-align:center;">Quantity</th>
+            <th style="width:120px;text-align:center;">Total Price</th>
+            <th style="width:110px;text-align:center;">Actions</th>
         </tr>
         <tbody id="cartItems">
             <!-- Cart items loaded dynamically via JavaScript -->
             <tr>
-                <td colspan="3" style="text-align: center; padding: 40px; color: #aaa;">
+                <td colspan="6" style="text-align: center; padding: 40px; color: #aaa;">
                     <i class="fa fa-spinner fa-spin" style="font-size: 48px;"></i>
                     <p style="margin-top: 20px;">Loading cart...</p>
                 </td>

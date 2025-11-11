@@ -196,7 +196,9 @@ if (!isset($_SESSION['user_id'])) {
     }
 
     function renderCartToCheckout(){
-      const items = getCart();
+      const all = getCart();
+      const selected = (()=>{ try { return JSON.parse(sessionStorage.getItem('purrfectSelected')||'[]'); } catch(e){ return []; } })();
+      const items = selected.length ? all.filter(it => selected.includes(it.name)) : all;
       const wrap = document.getElementById('orderItems');
       if(!items || items.length===0){
         wrap.innerHTML = '<div class="body">Your cart is empty. <a href="product.php">Go shopping</a>.</div>';
@@ -213,20 +215,30 @@ if (!isset($_SESSION['user_id'])) {
         </div>
       `).join('');
 
-      const sums = calculateTotals();
+      const sums = calculateTotals(items);
       document.getElementById('sumSubtotal').textContent = `$${sums.subtotal.toFixed(2)}`;
       document.getElementById('sumTax').textContent = `$${sums.tax.toFixed(2)}`;
       document.getElementById('sumTotal').textContent = `$${sums.total.toFixed(2)}`;
     }
 
     document.getElementById('placeOrder').addEventListener('click', function(){
-      const items = getCart();
+      const all = getCart();
+      const selected = (()=>{ try { return JSON.parse(sessionStorage.getItem('purrfectSelected')||'[]'); } catch(e){ return []; } })();
+      const items = selected.length ? all.filter(it => selected.includes(it.name)) : all;
       if(!items || items.length===0){ alert('Your cart is empty'); return; }
-      const sums = calculateTotals();
+      const sums = calculateTotals(items);
       const orders = JSON.parse(sessionStorage.getItem('purrfectOrders') || '[]');
       orders.push({ items, total: sums.total, date: new Date().toISOString() });
       sessionStorage.setItem('purrfectOrders', JSON.stringify(orders));
-      sessionStorage.removeItem('purrfectCart');
+      // Remove only purchased items from cart if a subset was selected
+      if (selected.length){
+        const remaining = all.filter(it => !selected.includes(it.name));
+        sessionStorage.setItem('purrfectCart', JSON.stringify(remaining));
+        sessionStorage.removeItem('purrfectSelected');
+      } else {
+        sessionStorage.removeItem('purrfectCart');
+      }
+      if (typeof updateCartBadge === 'function') updateCartBadge();
       window.location.href = '../profile_php/profile.php#purchases';
     });
 

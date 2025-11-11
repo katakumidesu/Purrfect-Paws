@@ -62,14 +62,25 @@ function updateQuantity(productName, quantity) {
     }
 }
 
-// Calculate totals
-function calculateTotals() {
-    const cart = getCart();
-    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+// Calculate totals (optionally for a provided items array)
+function calculateTotals(items) {
+    const data = Array.isArray(items) ? items : getCart();
+    const subtotal = data.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const tax = subtotal * TAX_RATE;
     const total = subtotal + tax;
-    
     return { subtotal, tax, total };
+}
+
+// Helpers for selection
+function getSelectedNames(){
+    try{ return JSON.parse(sessionStorage.getItem('purrfectSelected') || '[]'); }catch(e){ return []; }
+}
+function setSelectedNames(arr){ sessionStorage.setItem('purrfectSelected', JSON.stringify(arr||[])); }
+function selectedItemsOnly(){
+    const selected = getSelectedNames();
+    if (selected.length === 0) return [];
+    const set = new Set(selected);
+    return getCart().filter(it => set.has(it.name));
 }
 
 // Render cart page
@@ -77,16 +88,17 @@ function renderCart() {
     const cart = getCart();
     const cartTable = document.getElementById('cartItems');
     const totalsDiv = document.getElementById('cartTotals');
+    const selected = new Set(getSelectedNames());
     
     if (!cartTable) return;
     
     if (cart.length === 0) {
         cartTable.innerHTML = `
             <tr>
-                <td colspan="3" style="text-align: center; padding: 40px;">
-                    <i class="fa fa-shopping-cart" style="font-size: 48px; color: #aaa;"></i>
-                    <p style="color: #aaa; margin-top: 20px;">Your cart is empty</p>
-                    <a href="product.php" class="btn-primary" style="display: inline-block; margin-top: 20px;">Go Shopping Now</a>
+                <td colspan=\"6\" style=\"text-align: center; padding: 40px;\">
+                    <i class=\"fa fa-shopping-cart\" style=\"font-size: 48px; color: #aaa;\"></i>
+                    <p style=\"color: #aaa; margin-top: 20px;\">Your cart is empty</p>
+                    <a href=\"product.php\" class=\"btn-primary\" style=\"display: inline-block; margin-top: 20px;\">Go Shopping Now</a>
                 </td>
             </tr>
         `;
@@ -94,37 +106,92 @@ function renderCart() {
         return;
     }
     
-    // Render cart items (make image and name clickable to product details)
+    // Render cart items with selection checkboxes
     cartTable.innerHTML = cart.map(item => `
-        <tr data-product="${escapeHtml(item.name)}">
+        <tr data-product=\"${escapeHtml(item.name)}\">
+            <td style=\"text-align:center;\"><input type=\"checkbox\" class=\"item-check\" data-name=\"${escapeHtml(item.name)}\" ${selected.has(item.name)?'checked':''}></td>
             <td>
-                <div class="cart-info">
-                    <a class="cart-link" href="product-detail.php?name=${encodeURIComponent(item.name)}" title="View ${escapeHtml(item.name)}">
-                        <img src="${item.image}" alt="${escapeHtml(item.name)}" onerror="this.src='images/catbed.jpg'">
+                <div class=\"cart-info\">
+                    <a class=\"cart-link\" href=\"product-detail.php?name=${encodeURIComponent(item.name)}\" title=\"View ${escapeHtml(item.name)}\">\
+                        <img src=\"${item.image}\" alt=\"${escapeHtml(item.name)}\" onerror=\"this.src='images/catbed.jpg'\">\
                     </a>
                     <div>
-                        <a class="cart-link" href="product-detail.php?name=${encodeURIComponent(item.name)}" style="text-decoration: none; color: inherit;">
+                        <a class=\"cart-link\" href=\"product-detail.php?name=${encodeURIComponent(item.name)}\" style=\"text-decoration: none; color: inherit;\">\
                             <p>${escapeHtml(item.name)}</p>
                         </a>
                         <small>Price: $${item.price.toFixed(2)}</small>
-                        <br>
-                        <a href="#" onclick="removeFromCart('${escapeHtml(item.name)}'); return false;" style="color: #ff6b6b;">Remove</a>
                     </div>
                 </div>
             </td>
-            <td>
-                <input type="number" 
-                       value="${item.quantity}" 
-                       min="1" 
-                       onchange="updateQuantity('${escapeHtml(item.name)}', this.value)"
-                       style="width: 60px; padding: 5px;">
+            <td style=\"text-align:center;white-space:nowrap;\">$${item.price.toFixed(2)}</td>
+            <td style=\"text-align:center;\">
+                <div class=\"qty-controls\">
+                    <button type=\"button\" class=\"qty-dec\" data-name=\"${escapeHtml(item.name)}\">-</button>
+                    <input type=\"number\" class=\"qty-input\" value=\"${item.quantity}\" min=\"1\" data-name=\"${escapeHtml(item.name)}\">
+                    <button type=\"button\" class=\"qty-inc\" data-name=\"${escapeHtml(item.name)}\">+</button>
+                </div>
             </td>
-            <td class="item-subtotal">$${(item.price * item.quantity).toFixed(2)}</td>
+            </td>
+            <td class=\"item-subtotal\" style=\"text-align:center;\">$${(item.price * item.quantity).toFixed(2)}</td>
+            <td style=\"text-align:center;\"><button class=\"link-delete\" data-name=\"${escapeHtml(item.name)}\">Delete</button></td>
         </tr>
     `).join('');
-    
-    // Calculate and render totals
-    const { subtotal, tax, total } = calculateTotals();
+
+    // Wire up qty +/- and delete actions
+    cartTable.querySelectorAll('.qty-dec').forEach(btn=>btn.addEventListener('click',()=>{
+        const n = btn.getAttribute('data-name');
+        const cart = getCart();
+        const it = cart.find(i=>i.name===n); if(!it) return; it.quantity = Math.max(1, (it.quantity||1)-1); saveCart(cart); renderCart();
+    }));
+    cartTable.querySelectorAll('.qty-inc').forEach(btn=>btn.addEventListener('click',()=>{
+        const n = btn.getAttribute('data-name');
+        const cart = getCart();
+        const it = cart.find(i=>i.name===n); if(!it) return; it.quantity = (it.quantity||1)+1; saveCart(cart); renderCart();
+    }));
+    cartTable.querySelectorAll('.qty-input').forEach(inp=>inp.addEventListener('change',()=>{
+        const n = inp.getAttribute('data-name'); updateQuantity(n, inp.value);
+    }));
+    cartTable.querySelectorAll('.link-delete').forEach(btn=>btn.addEventListener('click',()=>{ removeFromCart(btn.getAttribute('data-name')); }));
+
+    // Wire up checkbox events
+    const checks = cartTable.querySelectorAll('.item-check');
+    checks.forEach(cb => cb.addEventListener('change', ()=>{
+        const name = cb.getAttribute('data-name');
+        const names = getSelectedNames();
+        const set = new Set(names);
+        if (cb.checked) set.add(name); else set.delete(name);
+        setSelectedNames(Array.from(set));
+        // Sync select-all
+        const allChecked = Array.from(cartTable.querySelectorAll('.item-check')).every(x=>x.checked);
+        const sa = document.getElementById('checkAll'); if (sa) sa.checked = allChecked;
+// Update totals and bar
+        const itemsForTotals2 = (getSelectedNames().length? getCart().filter(it=>getSelectedNames().includes(it.name)) : []);
+        const t2 = calculateTotals(itemsForTotals2);
+        totalsDiv.innerHTML = `
+            <table>
+                <tr><td>Subtotal</td><td>$${t2.subtotal.toFixed(2)}</td></tr>
+                <tr><td>Tax (6% VAT)</td><td>$${t2.tax.toFixed(2)}</td></tr>
+                <tr style=\"font-weight: bold; font-size: 18px;\"><td>Total</td><td>$${t2.total.toFixed(2)}</td></tr>
+            </table>`;
+        updateCheckoutBar();
+    }));
+
+    // Master checkbox
+    const selectAll = document.getElementById('checkAll');
+    if (selectAll){
+        const allChecked = Array.from(cartTable.querySelectorAll('.item-check')).every(x=>x.checked);
+        selectAll.checked = allChecked && checks.length>0;
+        selectAll.onchange = ()=>{
+            const names = new Set();
+            checks.forEach(cb => { cb.checked = selectAll.checked; if (selectAll.checked) names.add(cb.getAttribute('data-name')); });
+            setSelectedNames(Array.from(names));
+            updateCheckoutBar();
+        };
+    }
+
+    // Calculate and render totals based on selection
+const itemsForTotals = (getSelectedNames().length? getCart().filter(it=>getSelectedNames().includes(it.name)) : []);
+    const { subtotal, tax, total } = calculateTotals(itemsForTotals);
     
     totalsDiv.innerHTML = `
         <table>
@@ -136,7 +203,7 @@ function renderCart() {
                 <td>Tax (6% VAT)</td>
                 <td>$${tax.toFixed(2)}</td>
             </tr>
-            <tr style="font-weight: bold; font-size: 18px;">
+            <tr style=\"font-weight: bold; font-size: 18px;\">
                 <td>Total</td>
                 <td>$${total.toFixed(2)}</td>
             </tr>
@@ -184,6 +251,16 @@ function proceedToCheckout() {
         if (confirm('Please login to proceed with checkout. Redirect to login page?')) {
             window.location.href = '../login_register/purdex.php';
         }
+        return;
+    }
+
+    // Persist the current selection so checkout page can filter items
+    // (If no selection, checkout page will use all items.)
+    // Nothing else to do—selection is already stored in sessionStorage.
+
+// Must select at least one item
+    if (!getSelectedNames().length){
+        alert('Please select at least one item to checkout.');
         return;
     }
 
@@ -248,12 +325,13 @@ function updateCheckoutBar() {
         return;
     }
 
-    const { total } = calculateTotals();
+const items = (getSelectedNames().length? getCart().filter(it=>getSelectedNames().includes(it.name)) : []);
+    const { total } = calculateTotals(items);
     bar.style.display = 'block';
-    bar.innerHTML = `
+bar.innerHTML = `
         <div class="checkout-bar-inner">
             <div class="checkout-bar-total"><span>Total:</span> <strong>$${total.toFixed(2)}</strong></div>
-            <button class="checkout-btn" onclick="proceedToCheckout()">Checkout</button>
+            <button class="checkout-btn" ${items.length===0?'disabled':''} onclick="proceedToCheckout()">Checkout</button>
         </div>
     `;
 }
@@ -268,9 +346,19 @@ style.textContent = `
 .btn-primary:hover{background:#3fb2ea;color:#002333}
 .btn-secondary{display:inline-block;padding:10px 20px;background:#333;color:#fff;border:none;border-radius:8px;text-decoration:none;font-weight:700}
 .checkout-bar{position:fixed;left:0;right:0;bottom:0;background:#ffffffd9;backdrop-filter:saturate(180%) blur(6px);box-shadow:0 -4px 16px rgba(0,0,0,0.08);z-index:9998;padding:10px 16px}
-.checkout-bar-inner{max-width:900px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.checkout-bar-inner{max-width:1000px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .checkout-bar-total span{color:#666;margin-right:6px}
 .checkout-bar-total strong{font-size:18px}
-.brand-accent{color:var(--brand-strong);}
+.brand-accent{color:var(--brand-strong);} 
+.checkout-btn[disabled]{opacity:.6;cursor:not-allowed}
+/* Qty controls */
+.qty-controls{display:inline-flex;align-items:center;gap:6px}
+.qty-controls .qty-dec,.qty-controls .qty-inc{width:28px;height:28px;border:1px solid #d8e5ec;background:#fff;color:#333;border-radius:4px;cursor:pointer}
+.qty-controls .qty-input{width:54px;text-align:center;border:1px solid #d8e5ec;border-radius:4px;padding:4px}
+/* Checkbox sizing */
+.item-check,#checkAll{width:18px;height:18px}
+/* Delete link sizing */
+.link-delete{background:none;border:none;color:#1a73e8;cursor:pointer;font-size:14px;padding:0;line-height:1}
+.link-delete:hover{text-decoration:underline}
 `;
 document.head.appendChild(style);
