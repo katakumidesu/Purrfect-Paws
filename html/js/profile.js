@@ -633,7 +633,12 @@
   function renderPurchases(tab){
     const wrap = $('#p-orders');
     if (!wrap) return;
-    const q = ($('#p-search')?.value||'').toLowerCase();
+    // Show search only on "All" tab
+    const searchWrap = document.querySelector('.p-search');
+    const searchInput = document.getElementById('p-search');
+    if (searchWrap){ searchWrap.style.display = (tab==='all') ? '' : 'none'; }
+    if (tab !== 'all' && searchInput){ searchInput.value = ''; }
+    const q = (tab==='all' && searchInput ? (searchInput.value||'').toLowerCase() : '');
     let orders = getOrders().map(o=> ({...o, status: (o.status||'completed')}));
     if (tab==='to_pay') orders = orders.filter(o=>o.status==='to_pay');
     if (tab==='to_receive') orders = orders.filter(o=>o.status==='to_receive');
