@@ -10,18 +10,51 @@
     addresses: $('#addresses'),
     purchases: $('#purchases')
   };
+  const submenu = $('#submenu-account');
+  const accountToggle = $('#toggle-account');
   const showSection = (name) => {
+    // Show the requested content section
     Object.entries(sections).forEach(([k, el]) => el && (el.style.display = (k===name? 'block':'none')));
+
+    // Collapse or expand the "My Account" submenu like Shopee
+    if (submenu){
+      if (name === 'purchases'){
+        submenu.classList.remove('open');
+        if (accountToggle) accountToggle.setAttribute('aria-expanded','false');
+      } else {
+        submenu.classList.add('open');
+        if (accountToggle) accountToggle.setAttribute('aria-expanded','true');
+      }
+    }
+
+    // Highlight the active menu item
+    $$('.account-menu a').forEach(a=>a.classList.remove('active'));
+    const selMap = {
+      profile: 'a[href="#profile"]',
+      addresses: 'a[href="#addresses"]',
+      purchases: '#link-purchases, a[href="#purchases"]'
+    };
+    $$(selMap[name]).forEach(a=>a.classList.add('active'));
   };
   // Attach handlers to ALL matching links instead of just the first one
   $$('.account-submenu a[href="#addresses"], a[href="#addresses"], #link-addresses').forEach((el)=>{
     el.addEventListener('click', (e)=>{ e.preventDefault(); showSection('addresses'); loadAddresses(); });
   });
-  $$('.account-submenu a[href="#profile"], a[href="#profile"], #link-profile, .au-edit').forEach((el)=>{
+  $$('.account-submenu a[href=\"#profile\"], a[href=\"#profile\"], #link-profile, .au-edit').forEach((el)=>{
     el.addEventListener('click', (e)=>{ e.preventDefault(); showSection('profile'); });
   });
-  const purLink = $('#link-purchases');
-  if (purLink){ purLink.addEventListener('click', (e)=>{ e.preventDefault(); showSection('purchases'); }); }
+  $$('#link-purchases, a[href=\"#purchases\"]').forEach((el)=>{
+    el.addEventListener('click', (e)=>{ e.preventDefault(); showSection('purchases'); });
+  });
+  // Clicking the "My Account" heading should bring the submenu back and show Profile
+  if (accountToggle){
+    accountToggle.addEventListener('click', (e)=>{
+      e.preventDefault();
+      if (submenu){ submenu.classList.add('open'); }
+      accountToggle.setAttribute('aria-expanded','true');
+      showSection('profile');
+    });
+  }
 
   // Toast
   const toast = $('#toast') || Object.assign(document.createElement('div'), { id:'toast', className:'toast' });
@@ -491,6 +524,10 @@
   // Add Address button
   const addBtn = $('#addAddressBtn');
   if (addBtn){ addBtn.addEventListener('click', ()=> openAddressModal()); }
+
+  // Honor URL hash on load (e.g., #purchases)
+  const initial = (location.hash||'').replace('#','');
+  if (sections[initial]) showSection(initial);
 
   // On initial load, keep current section and pre-load addresses if visible
   if (sections.addresses && sections.addresses.style.display !== 'none'){
