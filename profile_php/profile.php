@@ -47,13 +47,6 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
 
 <body>
 
-<?php if (isset($_SESSION['success'])): ?>
-  <div class="toast" style="display:block;"><?= $_SESSION['success']; ?></div>
-  <?php unset($_SESSION['success']); ?>
-<?php elseif (isset($_SESSION['error'])): ?>
-  <div class="toast error" style="display:block;"><?= $_SESSION['error']; ?></div>
-  <?php unset($_SESSION['error']); ?>
-<?php endif; ?>
 
 <!-- 🐾 Navigation Bar -->
 <nav class="navbar">

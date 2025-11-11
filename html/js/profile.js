@@ -13,10 +13,13 @@
   const showSection = (name) => {
     Object.entries(sections).forEach(([k, el]) => el && (el.style.display = (k===name? 'block':'none')));
   };
-  const addrLink = $$('a[href="#addresses"], #link-addresses')[0];
-  if (addrLink){ addrLink.addEventListener('click', (e)=>{ e.preventDefault(); showSection('addresses'); loadAddresses(); }); }
-  const profLink = $$('a[href="#profile"], #link-profile')[0];
-  if (profLink){ profLink.addEventListener('click', (e)=>{ e.preventDefault(); showSection('profile'); }); }
+  // Attach handlers to ALL matching links instead of just the first one
+  $$('.account-submenu a[href="#addresses"], a[href="#addresses"], #link-addresses').forEach((el)=>{
+    el.addEventListener('click', (e)=>{ e.preventDefault(); showSection('addresses'); loadAddresses(); });
+  });
+  $$('.account-submenu a[href="#profile"], a[href="#profile"], #link-profile, .au-edit').forEach((el)=>{
+    el.addEventListener('click', (e)=>{ e.preventDefault(); showSection('profile'); });
+  });
   const purLink = $('#link-purchases');
   if (purLink){ purLink.addEventListener('click', (e)=>{ e.preventDefault(); showSection('purchases'); }); }
 
@@ -24,7 +27,12 @@
   const toast = $('#toast') || Object.assign(document.createElement('div'), { id:'toast', className:'toast' });
   if (!toast.parentNode) document.body.appendChild(toast);
   function showToast(msg, isErr=false){
-    toast.textContent = msg;
+    const msgEl = toast.querySelector('#toastMsg');
+    if (msgEl) {
+      msgEl.textContent = msg;
+    } else {
+      toast.textContent = msg;
+    }
     toast.classList.toggle('error', !!isErr);
     toast.classList.add('show');
     setTimeout(()=> toast.classList.remove('show'), 2200);
@@ -326,7 +334,13 @@
     updateInput();
     function open(){ panel.hidden = false; render('region'); document.addEventListener('click', onDoc); }
     function close(){ panel.hidden = true; document.removeEventListener('click', onDoc); }
-    function onDoc(e){ if (!wrap.contains(e.target)) close(); }
+    function onDoc(e){
+      // If the click originated from within the picker (even if the clicked element
+      // was removed during render), do not close the panel.
+      const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+      if (wrap.contains(e.target) || (Array.isArray(path) && path.includes(wrap))) return;
+      close();
+    }
     wrap.querySelector('.ph-toggle').addEventListener('click', (e)=>{ e.stopPropagation(); panel.hidden? open(): close(); });
     input.addEventListener('click', (e)=>{ e.stopPropagation(); panel.hidden? open(): close(); });
 
@@ -367,7 +381,12 @@
         const brgys = Array.isArray(arr) ? arr : (arr[state.city] || []);
         brgys.forEach(name=>{
           const btn = document.createElement('button'); btn.className='ph-item'; btn.type='button'; btn.textContent=name;
-          btn.onclick = ()=>{ state.barangay = name; updateInput(); $('#ab_hidden_barangay', root).value = name; close(); };
+          btn.onclick = ()=>{
+            state.barangay = name;
+            updateInput();
+            $('#ab_hidden_barangay', root).value = name;
+            close();
+          };
           list.appendChild(btn);
         });
       }
@@ -397,27 +416,31 @@
       }
       if (empty) empty.style.display = 'none';
       list.classList.add('rows');
-      list.innerHTML = items.map(a => `
+      const canDelete = items.length > 1;
+      list.innerHTML = items.map(a => {
+        const rightActions = [
+          '<button class="link-btn edit">Edit</button>',
+          a.is_default==1 ? '' : '<button class="btn-outline set-default">Set as default</button>',
+          (!a.is_default && canDelete) ? '<button class="link-btn danger delete">Delete</button>' : ''
+        ].filter(Boolean).join(' ');
+        return `
         <div class="address-row" data-id="${a.address_id}">
-          <div class="select">
-            <input type="radio" name="defaultAddress" class="def-radio" value="${a.address_id}" ${a.is_default==1 ? 'checked':''}>
-          </div>
           <div class="addr-left">
             <div class="name-line">
               <span class="name">${escapeHtml(a.fullname||'')}</span>
               <span class="divider">|</span>
               <span class="phone">${escapeHtml(a.phone||'')}</span>
-              ${a.is_default==1 ? '<span class="badge">Default</span>' : ''}
             </div>
             <div class="addr-lines">${escapeHtml(a.address_line||'')}${a.barangay? ', '+escapeHtml(a.barangay):''}${a.city? ', '+escapeHtml(a.city):''}${a.province? ', '+escapeHtml(a.province):''}${a.postal_code? ', '+escapeHtml(a.postal_code):''}
               ${a.label? ` <span style="margin-left:6px;color:#6b8897;font-weight:600;">• ${escapeHtml(a.label)}</span>`:''}
             </div>
+            ${a.is_default==1 ? '<span class="badge">Default</span>' : ''}
           </div>
           <div class="addr-actions">
-            <button class="link-btn edit">Edit</button>
-            <button class="link-btn danger delete">Delete</button>
+            ${rightActions}
           </div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
     }catch(err){
       showToast('Failed to load addresses', true);
     }
@@ -450,9 +473,11 @@
       }
     });
 
-    listEl.addEventListener('change', async (e)=>{
-      if (e.target.classList.contains('def-radio')){
-        const id = e.target.value;
+    listEl.addEventListener('click', async (e)=>{
+      if (e.target.classList.contains('set-default')){
+        const row = e.target.closest('.address-row');
+        const id = row?.getAttribute('data-id');
+        if (!id) return;
         const fd = new FormData(); fd.append('action','set_default'); fd.append('address_id', id);
         try{
           const res = await fetch(API, { method:'POST', body: fd });
@@ -470,5 +495,30 @@
   // On initial load, keep current section and pre-load addresses if visible
   if (sections.addresses && sections.addresses.style.display !== 'none'){
     loadAddresses();
+  }
+
+  // Phone number validation - only allow numbers
+  const phoneInput = $('#phone');
+  if (phoneInput) {
+    phoneInput.addEventListener('input', (e) => {
+      // Remove any non-digit characters except +
+      e.target.value = e.target.value.replace(/[^0-9+]/g, '');
+      // Limit to 11 digits (for PH format like 09XXXXXXXXX)
+      if (e.target.value.length > 11) {
+        e.target.value = e.target.value.slice(0, 11);
+      }
+    });
+    phoneInput.addEventListener('keypress', (e) => {
+      // Allow only numbers, +, backspace, delete, arrow keys
+      const charCode = e.which || e.keyCode;
+      const char = String.fromCharCode(charCode);
+      if (!/[0-9+]/.test(char) && charCode !== 8 && charCode !== 46) {
+        e.preventDefault();
+      }
+      // Prevent typing if already at 11 digits
+      if (e.target.value.length >= 11 && charCode !== 8 && charCode !== 46) {
+        e.preventDefault();
+      }
+    });
   }
 })();
