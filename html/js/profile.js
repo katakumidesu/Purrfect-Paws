@@ -10,6 +10,7 @@
     addresses: $('#addresses'),
     purchases: $('#purchases')
   };
+  let purchasesInit = false;
   const submenu = $('#submenu-account');
   const accountToggle = $('#toggle-account');
   const showSection = (name) => {
@@ -30,11 +31,17 @@
     // Highlight the active menu item
     $$('.account-menu a').forEach(a=>a.classList.remove('active'));
     const selMap = {
-      profile: 'a[href="#profile"]',
-      addresses: 'a[href="#addresses"]',
-      purchases: '#link-purchases, a[href="#purchases"]'
+      profile: 'a[href=\"#profile\"]',
+      addresses: 'a[href=\"#addresses\"]',
+      purchases: '#link-purchases, a[href=\"#purchases\"]'
     };
     $$(selMap[name]).forEach(a=>a.classList.add('active'));
+
+    // Initialize purchases tab handlers and render orders on first entry
+    if (name === 'purchases'){
+      if (!purchasesInit){ initPurchases(); purchasesInit = true; }
+      renderPurchases(document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all');
+    }
   };
   // Attach handlers to ALL matching links instead of just the first one
   $$('.account-submenu a[href="#addresses"], a[href="#addresses"], #link-addresses').forEach((el)=>{
@@ -69,6 +76,54 @@
     toast.classList.toggle('error', !!isErr);
     toast.classList.add('show');
     setTimeout(()=> toast.classList.remove('show'), 2200);
+  }
+
+  // ----- Profile form (image upload + save) -----
+  const profileForm = document.getElementById('profileForm');
+  if (profileForm){
+    // Submit handler -> POST to update_profile.php using FormData
+    profileForm.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const fd = new FormData(profileForm);
+      const btn = profileForm.querySelector('.save-btn');
+      const orig = btn ? btn.textContent : '';
+      if (btn){ btn.disabled = true; btn.textContent = 'Saving...'; }
+      try{
+        const res = await fetch('../profile_php/update_profile.php', { method:'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok || data.success === false){ throw new Error(data.message || 'Failed to update profile'); }
+        // Success toast (include image warning if present)
+        let msg = 'Profile updated successfully!';
+        if (data.image_warning) msg += ' (' + data.image_warning + ')';
+        showToast(msg, false);
+        // Update preview + navbar + sidebar avatars immediately
+        if (data.new_image){
+          const url = data.new_image + '?t=' + Date.now();
+          const preview = document.getElementById('preview'); if (preview) preview.src = url;
+          const navImg = document.querySelector('.user-menu .user-icon'); if (navImg) navImg.src = url;
+          const sideImg = document.querySelector('.au-avatar'); if (sideImg) sideImg.src = url;
+        }
+        // Small delay then refresh so session header updates
+        setTimeout(()=> location.reload(), 1200);
+      }catch(err){
+        showToast(err.message || 'Failed to save. Please try again.', true);
+      }finally{
+        if (btn){ btn.disabled = false; btn.textContent = orig; }
+      }
+    });
+
+    // Image preview + click-to-open
+    const uploadInput = document.getElementById('upload');
+    const previewImg = document.getElementById('preview');
+    if (uploadInput){
+      uploadInput.addEventListener('change', (e)=>{
+        const file = e.target.files && e.target.files[0];
+        if (file && previewImg){ previewImg.src = URL.createObjectURL(file); }
+      });
+    }
+    if (previewImg){
+      previewImg.addEventListener('click', ()=>{ const up = document.getElementById('upload'); if (up) up.click(); });
+    }
   }
 
   // Address modal
@@ -529,9 +584,72 @@
   const initial = (location.hash||'').replace('#','');
   if (sections[initial]) showSection(initial);
 
+  // Ensure purchases render after navigation (e.g., from checkout redirect)
+  window.addEventListener('pageshow', () => {
+    if (sections.purchases && sections.purchases.style.display !== 'none'){
+      const current = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
+      renderPurchases(current);
+    }
+  });
+
   // On initial load, keep current section and pre-load addresses if visible
   if (sections.addresses && sections.addresses.style.display !== 'none'){
     loadAddresses();
+  }
+
+  // Purchases helpers (sessionStorage-backed)
+  const ORDERS_KEY = () => `purrfectOrders:${window.PURR_USER_ID||'anon'}`;
+  function getOrders(){ try { return JSON.parse(sessionStorage.getItem(ORDERS_KEY())||'[]'); } catch(e){ return []; } }
+  function money(n){ return '₱'+Number(n||0).toFixed(2); }
+  function initPurchases(){
+    const tabs = $$('.p-head .tabs a');
+    tabs.forEach(a=>a.addEventListener('click', (e)=>{
+      e.preventDefault();
+      tabs.forEach(x=>x.classList.remove('active'));
+      a.classList.add('active');
+      renderPurchases(a.dataset.tab);
+    }));
+    const search = $('#p-search');
+    if (search){ search.addEventListener('input', ()=>{
+      const current = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
+      renderPurchases(current);
+    }); }
+  }
+  function renderPurchases(tab){
+    const wrap = $('#p-orders');
+    if (!wrap) return;
+    const q = ($('#p-search')?.value||'').toLowerCase();
+    let orders = getOrders().map(o=> ({...o, status: (o.status||'completed')}));
+    if (tab==='to_pay') orders = orders.filter(o=>o.status==='to_pay');
+    if (tab==='to_receive') orders = orders.filter(o=>o.status==='to_receive');
+    if (tab==='completed') orders = orders.filter(o=>o.status==='completed');
+    if (tab==='cancelled') orders = orders.filter(o=>o.status==='cancelled');
+    if (q) orders = orders.filter(o => (o.items||[]).some(it => (it.name||'').toLowerCase().includes(q)) );
+    if (!orders.length){ wrap.innerHTML = '<div class="address-empty" style="display:flex"><div class="empty-inner"><p class="empty-main">No orders yet.</p></div></div>'; return; }
+    const statusLabel = (s)=>({to_pay:'To Pay', to_receive:'To Receive', completed:'Completed', cancelled:'Cancelled'})[s]||'—';
+    wrap.innerHTML = orders.map((o,idx)=>`
+      <div class="order">
+        <div class="order-h">
+          <div><strong>Order #${idx+1}</strong> <span style="color:#9ab0bd;margin-left:8px">${new Date(o.date||Date.now()).toLocaleString()}</span></div>
+          <div class="status">${statusLabel(o.status)}</div>
+        </div>
+        <div class="order-items">
+          ${(o.items||[]).map(it=>`
+            <div class="oi">
+              <img src="${it.image||'../HTML/images/catbed.jpg'}" onerror="this.src='../HTML/images/catbed.jpg'" alt="">
+              <div style="flex:1">
+                <div class="name">${escapeHtml(it.name)}</div>
+                <div class="meta">Qty: ${it.quantity||1} • Price: ${money(it.price||0)}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="order-f">
+          <div class="order-total">Order Total: <strong>${money(o.total||0)}</strong></div>
+          <div class="actions"><button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(((o.items||[])[0]||{}).name||'')}'">Buy Again</button></div>
+        </div>
+      </div>
+    `).join('');
   }
 
   // Phone number validation - only allow numbers

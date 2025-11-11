@@ -92,7 +92,7 @@ if (previewImg) {
   });
 }
 
-// ===== Address Book (Shopee-like) =====
+// ===== Address Book =====
 const addressListEl = document.getElementById('addressList');
 const addressEmptyEl = document.getElementById('addressEmpty');
 const modalEl = document.getElementById('addressModal');
@@ -336,11 +336,67 @@ if(purchasesLink){
   });
 }
 
-// ===== Purchases (Simple history like Shopee) =====
+// ===== Purchases =====
 function getOrders(){
   try { return JSON.parse(sessionStorage.getItem('purrfectOrders')||'[]'); } catch(e){ return []; }
 }
 function money(n){ return '₱'+Number(n||0).toFixed(2); }
+function saveOrders(arr){ sessionStorage.setItem('purrfectOrders', JSON.stringify(arr||[])); }
+// Cancel modal (Shopee-like)
+function openCancelModal(orderKey){
+  const modal = document.getElementById('pcModal') || Object.assign(document.createElement('div'), { id:'pcModal', className:'pc-modal' });
+  modal.innerHTML = `
+    <div class="panel">
+      <h3>Select Cancellation Reason</h3>
+      <div class="note">Please select a cancellation reason. Please take note that this will cancel all items in the order and the action cannot be undone.</div>
+      <form id="pcForm">
+        ${[
+          'Need to change delivery address',
+          'Need to input/change voucher code',
+          'Need to modify order (size, color, quantity, etc.)',
+          'Payment procedure too troublesome',
+          'Found cheaper elsewhere',
+          "Don\'t want to buy anymore",
+          'Others'
+        ].map((txt,i)=>`<label class=\"row\"><input type=\"radio\" name=\"reason\" value=\"${txt.replace(/\"/g,'&quot;')}\" ${i===0?'checked':''}> <span>${txt}</span></label>`).join('')}
+        <footer class="actions">
+          <button type="button" class="btn outline" id="pcNotNow">NOT NOW</button>
+          <button type="submit" class="btn danger" id="pcConfirm">CANCEL ORDER</button>
+        </footer>
+      </form>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.style.display = 'flex';
+  modal.addEventListener('click', (e)=>{ if (e.target===modal) closeCancelModal(); });
+  document.getElementById('pcNotNow').onclick = closeCancelModal;
+  document.getElementById('pcForm').onsubmit = (e)=>{
+    e.preventDefault();
+    const orders = getOrders();
+    const idx = orders.findIndex(o=> String(o.date) === String(orderKey));
+    if (idx>-1){ orders[idx].status = 'cancelled'; saveOrders(orders); }
+    closeCancelModal();
+    updatePurchaseTabCounts();
+    const current = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
+    renderPurchases(current);
+  };
+}
+function closeCancelModal(){ const m = document.getElementById('pcModal'); if (m) m.remove(); }
+
+// Update tab counts like Shopee (e.g., To Pay (1))
+function updatePurchaseTabCounts(){
+  const orders = getOrders().map(o=> ({...o, status: (o.status||'completed')}));
+  const counts = orders.reduce((acc,o)=>{ acc[o.status]=(acc[o.status]||0)+1; acc.all++; return acc; }, {all:0});
+  const set = (tab, label, n)=>{
+    const el = document.querySelector(`.p-head .tabs a[data-tab="${tab}"]`);
+    if (el) el.textContent = n>0 ? `${label} (${n})` : label;
+  };
+  set('all','All', counts.all||0);
+  set('to_pay','To Pay', counts.to_pay||0);
+  set('to_receive','To Receive', counts.to_receive||0);
+  set('completed','Completed', counts.completed||0);
+  set('cancelled','Cancelled', counts.cancelled||0);
+}
+
 function initPurchases(){
   const tabs = document.querySelectorAll('.p-head .tabs a');
   tabs.forEach(a=>a.addEventListener('click', (e)=>{
@@ -354,21 +410,66 @@ function initPurchases(){
     const current = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
     renderPurchases(current);
   }); }
+  updatePurchaseTabCounts();
 }
 function renderPurchases(tab){
   const wrap = document.getElementById('p-orders');
   if(!wrap) return;
   const q = (document.getElementById('p-search')?.value||'').toLowerCase();
-  let orders = getOrders().map(o=> ({...o, status: o.status || 'completed'}));
+  let orders = getOrders().map(o=> ({...o, status: (o.status||'completed')}));
+
+  if(tab==='to_pay') orders = orders.filter(o=>o.status==='to_pay');
+  if(tab==='to_receive') orders = orders.filter(o=>o.status==='to_receive');
   if(tab==='completed') orders = orders.filter(o=>o.status==='completed');
   if(tab==='cancelled') orders = orders.filter(o=>o.status==='cancelled');
+
   if(q) orders = orders.filter(o => (o.items||[]).some(it => (it.name||'').toLowerCase().includes(q)) );
-  if(!orders.length){ wrap.innerHTML = '<div class="address-empty" style="display:flex"><div class="empty-inner"><p class="empty-main">No orders yet.</p></div></div>'; return; }
-  wrap.innerHTML = orders.map((o,idx)=>`
+
+  if(!orders.length){
+    wrap.innerHTML = '<div class="address-empty" style="display:flex"><div class="empty-inner"><p class="empty-main">No orders yet.</p></div></div>';
+    return;
+  }
+
+  const statusLabel = (s)=>({to_pay:'To Pay', to_receive:'To Receive', completed:'Completed', cancelled:'Cancelled'})[s]||'—';
+
+  wrap.innerHTML = orders.map((o,idx)=>{
+    if (o.status === 'to_pay'){
+      return `
+      <div class="order pay">
+        <div class="shopbar">
+          <div class="left"><span class="shopname">In Shopping</span>
+            <button class="mini">Chat</button>
+            <button class="mini">View Shop</button>
+          </div>
+          <div class="status tag to-pay">TO PAY</div>
+        </div>
+        <div class="order-items">
+          ${(o.items||[]).map(it=>`
+            <div class="oi">
+              <img src="${it.image||'../HTML/images/catbed.jpg'}" onerror="this.src='../HTML/images/catbed.jpg'" alt="">
+              <div style="flex:1">
+                <div class="name">${escapeHtml(it.name)}</div>
+                <div class="meta">Variation: — • x${it.quantity||1}</div>
+              </div>
+              <div class="price">${money((it.price||0))}</div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="order-f pay">
+          <div class="amount">Amount Payable: <strong class="aprice">${money(o.total||0)}</strong></div>
+          <div class="actions">
+            <button class="btn small" disabled>Pending</button>
+            <button class="btn outline">Contact Seller</button>
+            <button class="btn outline danger cancel-order" data-key="${o.date}">Cancel Order</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    return `
     <div class="order">
       <div class="order-h">
         <div><strong>Order #${idx+1}</strong> <span style="color:#9ab0bd;margin-left:8px">${new Date(o.date||Date.now()).toLocaleString()}</span></div>
-        <div class="status">${(o.status||'completed').toUpperCase()}</div>
+        <div class="status">${statusLabel(o.status)}</div>
       </div>
       <div class="order-items">
         ${(o.items||[]).map(it=>`
@@ -378,16 +479,21 @@ function renderPurchases(tab){
               <div class="name">${escapeHtml(it.name)}</div>
               <div class="meta">Qty: ${it.quantity||1} • Price: ${money(it.price||0)}</div>
             </div>
-            <button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(it.name)}'">Buy Again</button>
           </div>
         `).join('')}
       </div>
       <div class="order-f">
-        <div>Total: <strong>${money(o.total||0)}</strong></div>
-        <div><a class="btn-outline" href="../HTML/product.php">Continue Shopping</a></div>
+        <div class="order-total">Order Total: <strong>${money(o.total||0)}</strong></div>
+        <div class="actions"><button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(((o.items||[])[0]||{}).name||'')}'">Buy Again</button></div>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+
+  // Wire up cancel buttons
+  wrap.querySelectorAll('.cancel-order').forEach(btn=>{
+    btn.addEventListener('click', ()=> openCancelModal(btn.getAttribute('data-key')) );
+  });
+  updatePurchaseTabCounts();
 }
 
 // Initial section on load

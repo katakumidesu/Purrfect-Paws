@@ -335,7 +335,9 @@ body {
 .section-addresses #purchases{display:none !important}
 /* Purchases (history) */
 .p-head{display:flex;align-items:center;gap:12px;justify-content:space-between;margin-bottom:12px;border-bottom:1px solid #eef6fb;padding-bottom:8px}
-.p-head .tabs a{margin-right:14px;color:#2a7db1;text-decoration:none;font-weight:600}
+/* Shopee-like tab spacing */
+.p-head .tabs{display:flex;gap:32px}
+.p-head .tabs a{margin-right:0;padding:0 2px;color:#2a7db1;text-decoration:none;font-weight:600}
 .p-head .tabs a.active{color:#003a57}
 .p-search input{width:280px;max-width:45%;padding:8px 10px;border:1px solid #d8e5ec;border-radius:8px}
 .orders{display:block}
@@ -347,8 +349,33 @@ body {
 .oi img{width:60px;height:60px;border-radius:6px;object-fit:cover;border:1px solid #eee}
 .oi .name{font-weight:700;color:#222}
 .oi .meta{color:#6b8897;font-size:13px}
-.order-f{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-top:1px solid #eef6fb}
-.buy-again{background:#fff;border:1px solid #d8e5ec;border-radius:8px;padding:6px 12px;cursor:pointer}
+.order-f{display:flex;justify-content:flex-end;align-items:center;padding:10px 12px;border-top:1px solid #eef6fb;gap:12px}
+.order-f .order-total{margin-right:8px;font-size:16px}
+.buy-again{background:#5cbfef;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;color:#003044;font-weight:700}
+.buy-again:hover{background:#3fb2ea}
+/* To Pay styling */
+.order.pay .shopbar{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #f1f6fa;background:#fff}
+.order.pay .shopbar .mini{background:#fff;border:1px solid #e5e5e5;border-radius:4px;padding:4px 8px;cursor:pointer;color:#5f6368;margin-left:8px}
+.tag.to-pay{color:#ee4d2d;font-weight:700}
+.order-f.pay{justify-content:flex-end}
+.order-f.pay .amount{margin-right:auto;color:#6b8897}
+.order-f.pay .aprice{color:#ee4d2d;font-size:20px}
+.btn{background:#fff;border:1px solid #d8e5ec;border-radius:6px;padding:8px 14px;cursor:pointer;color:#3b5160}
+.btn.small{padding:8px 18px}
+.btn[disabled]{opacity:.6;cursor:default}
+.btn.outline{background:#fff}
+.btn.outline.danger{border-color:#ffd9d5;color:#c92a2a}
+
+/* Purchase Cancel Modal */
+.pc-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:3000}
+.pc-modal .panel{background:#fff;max-width:520px;width:92%;border-radius:4px;padding:18px}
+.pc-modal h3{margin:0 0 8px;color:#333}
+.pc-modal .note{background:#fff8e1;border:1px solid #ffe7a3;color:#6b5d1f;border-radius:4px;padding:8px 10px;font-size:13px;margin-bottom:8px}
+.pc-modal .row{display:flex;align-items:flex-start;gap:10px;margin:10px 0;color:#333}
+.pc-modal .row input{margin-top:2px}
+.pc-modal footer.actions{display:flex;justify-content:flex-end;gap:10px;margin-top:12px}
+.pc-modal .btn.danger{background:#ee4d2d;color:#fff;border-color:#ee4d2d}
+.pc-modal .btn.danger:hover{background:#d94428}
 
 /* Responsive */
 @media (max-width: 768px) {

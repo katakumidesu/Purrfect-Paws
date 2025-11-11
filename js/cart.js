@@ -1,5 +1,5 @@
 // Shopping Cart Functionality
-const TAX_RATE = 0.06; // 6% VAT
+const TAX_RATE = 0; // tax disabled
 
 // Get cart from sessionStorage
 function getCart() {
@@ -66,8 +66,9 @@ function updateQuantity(productName, quantity) {
 function calculateTotals(items) {
     const data = Array.isArray(items) ? items : getCart();
     const subtotal = data.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const tax = subtotal * TAX_RATE;
-    const total = subtotal + tax;
+    // Tax disabled
+    const tax = 0;
+    const total = subtotal;
     return { subtotal, tax, total };
 }
 
@@ -298,7 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateCartBadge();
 });
 
-// Sticky checkout bar (Shopee-like)
+// Sticky checkout bar 
 function updateCheckoutBar() {
     const bar = document.getElementById('checkoutBar');
     if (!bar) return;

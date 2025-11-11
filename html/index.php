@@ -65,7 +65,7 @@ session_start();
             <span class="username"><?= htmlspecialchars($_SESSION['name'] ?? 'User'); ?></span>
             <div class="dropdown">
                 <a href="../profile_php/profile.php">My Account</a>
-                <a href="/my_purchases.php">My Purchase</a>
+                <a href="../profile_php/profile.php#purchases">My Purchase</a>
                 <a href="../login_register/logout.php">Logout</a>
             </div>
         </div>

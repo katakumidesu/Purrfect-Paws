@@ -162,8 +162,11 @@ if (!isset($_SESSION['user_id'])) {
     </div>
 </footer>
 
-  <script src="../js/cart.js"></script>
+  <script src="../js/cart.js?v=no-tax"></script>
   <script>
+    // Namespace orders per logged-in user so browser sessions don't mix
+    window.PURR_USER_ID = <?= json_encode((string)($_SESSION['user_id'] ?? 'anon')) ?>;
+    const ORDERS_KEY = () => `purrfectOrders:${window.PURR_USER_ID||'anon'}`;
     async function fetchDefaultAddress(){
       try{ const res = await fetch('../profile_php/addresses.php?action=list');
         const items = await res.json();
@@ -219,9 +222,9 @@ if (!isset($_SESSION['user_id'])) {
       const items = selected.length ? all.filter(it => selected.includes(it.name)) : all;
       if(!items || items.length===0){ alert('Your cart is empty'); return; }
       const sums = calculateTotals(items);
-      const orders = JSON.parse(sessionStorage.getItem('purrfectOrders') || '[]');
-      orders.push({ items, total: sums.total, date: new Date().toISOString() });
-      sessionStorage.setItem('purrfectOrders', JSON.stringify(orders));
+      const orders = JSON.parse(sessionStorage.getItem(ORDERS_KEY()) || '[]');
+      orders.push({ items, total: sums.total, date: new Date().toISOString(), status: 'to_pay' });
+      sessionStorage.setItem(ORDERS_KEY(), JSON.stringify(orders));
       // Remove only purchased items from cart if a subset was selected
       if (selected.length){
         const remaining = all.filter(it => !selected.includes(it.name));

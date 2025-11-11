@@ -38,10 +38,11 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
   <meta name="description" content="Purrfect Paws - Your one-stop shop for all things cat-related in Cagayan de Oro City.">
   <title>Purrfect Paws | Profile</title>
   <link rel="stylesheet" href="../HTML/css/kumi.css">
-  <link rel="stylesheet" href="../HTML/css/profile.css">
+  <link rel="stylesheet" href="../HTML/css/profile.css?v=to-pay-cancel">
   <script src="https://kit.fontawesome.com/df5d6157cf.js" crossorigin="anonymous"></script>
   <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
+  <script>window.PURR_USER_ID = <?= json_encode((string)$user_id) ?>;</script>
 
 </head>
 
@@ -67,7 +68,7 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
                   <span class="username"><?= htmlspecialchars($_SESSION['name'] ?? 'User'); ?></span>
                   <div class="dropdown">
                       <a href="profile.php">My Account</a>
-                      <a href="../HTML/my_purchases.php">My Purchase</a>
+                      <a href="profile.php#purchases">My Purchase</a>
                       <a href="../login_register/logout.php">Logout</a>
                   </div>
               </div>
@@ -179,7 +180,7 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
           </div>
           <input type="file" name="profile_image" id="upload" accept="image/*" style="display:none;">
           <button type="button" class="upload-btn" onclick="document.getElementById('upload').click();">Select Image</button>
-          <p class="img-hint">File size: maximum 1 MB<br>File extension: .JPEG, .PNG</p>
+          <p class="img-hint">File size: maximum 5 MB<br>File extension: .JPEG, .PNG, .WEBP</p>
         </div>
       </div>
 
@@ -209,16 +210,18 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
   </div>
 
   <!-- Purchases Section (history) -->
-  <div class="purchases" id="purchases" style="display:none;">
+    <div class="purchases" id="purchases" style="display:none;">
     <div class="p-head">
       <div class="tabs">
         <a href="#" data-tab="all" class="active">All</a>
+        <a href="#" data-tab="to_pay">To Pay</a>
+        <a href="#" data-tab="to_receive">To Receive</a>
         <a href="#" data-tab="completed">Completed</a>
         <a href="#" data-tab="cancelled">Cancelled</a>
       </div>
-      <div class="p-search">
-        <input id="p-search" placeholder="Search your orders...">
-      </div>
+    </div>
+    <div class="p-search" style="margin:8px 0 12px;">
+      <input id="p-search" placeholder="Search your orders...">
     </div>
     <div id="p-orders" class="orders"></div>
   </div>

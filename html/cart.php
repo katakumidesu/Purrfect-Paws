@@ -74,7 +74,7 @@ if (!isset($_SESSION['user_id'])) {
             <span class="username"><?= htmlspecialchars($_SESSION['name'] ?? 'User'); ?></span>
             <div class="dropdown">
                 <a href="../profile_php/profile.php">My Account</a>
-                <a href="my_purchases.php">My Purchase</a>
+                <a href="../profile_php/profile.php#purchases">My Purchase</a>
                 <a href="../login_register/logout.php">Logout</a>
             </div>
         </div>
@@ -120,7 +120,7 @@ if (!isset($_SESSION['user_id'])) {
     <div class="total-price" id="cartTotals">
         <!-- Totals calculated dynamically via JavaScript -->
     </div>
-    <!-- Sticky checkout bar like Shopee -->
+    <!-- Sticky checkout bar -->
     <div id="checkoutBar" class="checkout-bar" style="display:none;"></div>
 </div>
  
@@ -172,7 +172,7 @@ if (!isset($_SESSION['user_id'])) {
     </div>
 </footer>
 
-<script src="../js/cart.js"></script>
+<script src="../js/cart.js?v=no-tax"></script>
 <script>
   // Hide cart icon on cart page
   document.addEventListener('DOMContentLoaded', () => {

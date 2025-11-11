@@ -43,16 +43,51 @@ if (!empty($_FILES['profile_image']['name'])) {
     $targetFile = $targetDir . $fileName;
     $imageFileType = strtolower(pathinfo($targetFile, PATHINFO_EXTENSION));
     $validTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    $maxSize = 5 * 1024 * 1024; // 5MB
 
-    // Check file type
-    if (!in_array($imageFileType, $validTypes)) {
+    // Check for PHP upload errors first for clearer messages
+    if (isset($_FILES['profile_image']['error']) && $_FILES['profile_image']['error'] !== UPLOAD_ERR_OK) {
+        switch ($_FILES['profile_image']['error']) {
+            case UPLOAD_ERR_INI_SIZE:
+            case UPLOAD_ERR_FORM_SIZE:
+                $imageError = 'File too large. Max size is 5MB.';
+                break;
+            case UPLOAD_ERR_PARTIAL:
+                $imageError = 'Upload was partial. Please try again.';
+                break;
+            case UPLOAD_ERR_NO_FILE:
+                $imageError = 'No file uploaded.';
+                break;
+            default:
+                $imageError = 'Upload failed. Please try again.';
+        }
+    } elseif (!in_array($imageFileType, $validTypes)) {
+        // Validate extension
         $imageError = 'Invalid file type. Only JPG, PNG, GIF, and WebP are allowed.';
-    }
-    // Try to upload (no file size limit)
-    elseif (!move_uploaded_file($_FILES['profile_image']['tmp_name'], $targetFile)) {
-        $imageError = 'Failed to upload image. Please try again.';
+    } elseif (!isset($_FILES['profile_image']['size']) || $_FILES['profile_image']['size'] > $maxSize) {
+        $imageError = 'File too large. Max size is 5MB.';
     } else {
-        $newImage = $fileName;
+        // Optionally validate MIME using finfo for extra safety
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            if ($finfo) {
+                $mime = finfo_file($finfo, $_FILES['profile_image']['tmp_name']);
+                finfo_close($finfo);
+                $allowedMimes = ['image/jpeg','image/png','image/gif','image/webp','image/pjpeg'];
+                if ($mime && !in_array($mime, $allowedMimes)) {
+                    $imageError = 'Unsupported image format.';
+                }
+            }
+        }
+
+        // Move the uploaded file if no error so far
+        if (!$imageError) {
+            if (!move_uploaded_file($_FILES['profile_image']['tmp_name'], $targetFile)) {
+                $imageError = 'Failed to upload image. Please try again.';
+            } else {
+                $newImage = $fileName;
+            }
+        }
     }
 }
 
