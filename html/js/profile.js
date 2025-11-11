@@ -580,9 +580,23 @@
   const addBtn = $('#addAddressBtn');
   if (addBtn){ addBtn.addEventListener('click', ()=> openAddressModal()); }
 
-  // Honor URL hash on load (e.g., #purchases)
-  const initial = (location.hash||'').replace('#','');
-  if (sections[initial]) showSection(initial);
+  // Honor URL hash on load (e.g., #purchases or #purchases:to_pay)
+  const rawHash = (location.hash||'').replace('#','');
+  const [initialSection, initialSub] = rawHash.split(':');
+  if (sections[initialSection]){
+    showSection(initialSection);
+    // If a purchases sub-tab is indicated (e.g., to_pay), activate it
+    if (initialSection === 'purchases' && initialSub){
+      // Defer until purchases UI initializes
+      setTimeout(()=>{
+        const tabs = $$('.p-head .tabs a');
+        tabs.forEach(x=>x.classList.remove('active'));
+        const target = document.querySelector(`.p-head .tabs a[data-tab="${initialSub}"]`);
+        if (target){ target.classList.add('active'); }
+        renderPurchases(initialSub);
+      }, 0);
+    }
+  }
 
   // Ensure purchases render after navigation (e.g., from checkout redirect)
   window.addEventListener('pageshow', () => {
@@ -600,7 +614,8 @@
   // Purchases helpers (sessionStorage-backed)
   const ORDERS_KEY = () => `purrfectOrders:${window.PURR_USER_ID||'anon'}`;
   function getOrders(){ try { return JSON.parse(sessionStorage.getItem(ORDERS_KEY())||'[]'); } catch(e){ return []; } }
-  function money(n){ return '₱'+Number(n||0).toFixed(2); }
+  function saveOrders(arr){ sessionStorage.setItem(ORDERS_KEY(), JSON.stringify(arr||[])); }
+  function money(n){ return '$'+Number(n||0).toFixed(2); }
   function initPurchases(){
     const tabs = $$('.p-head .tabs a');
     tabs.forEach(a=>a.addEventListener('click', (e)=>{
@@ -626,30 +641,149 @@
     if (tab==='cancelled') orders = orders.filter(o=>o.status==='cancelled');
     if (q) orders = orders.filter(o => (o.items||[]).some(it => (it.name||'').toLowerCase().includes(q)) );
     if (!orders.length){ wrap.innerHTML = '<div class="address-empty" style="display:flex"><div class="empty-inner"><p class="empty-main">No orders yet.</p></div></div>'; return; }
+
     const statusLabel = (s)=>({to_pay:'To Pay', to_receive:'To Receive', completed:'Completed', cancelled:'Cancelled'})[s]||'—';
-    wrap.innerHTML = orders.map((o,idx)=>`
-      <div class="order">
-        <div class="order-h">
+
+    wrap.innerHTML = orders.map((o,idx)=>{
+      if (o.status === 'to_pay'){
+        return `
+        <div class="order pay" style="border:1px solid #e9eef2;border-radius:8px;margin-bottom:12px;">
+          <div class="shopbar" style="display:flex;justify-content:flex-end;align-items:center;padding:10px 12px;border-bottom:1px dashed #e9eef2;background:#fff;">
+            <div class="status tag to-pay" style="color:#c92a2a;font-weight:700;">TO PAY</div>
+          </div>
+          <div class="order-items" style="padding:10px 12px;">
+            ${(o.items||[]).map(it=>`
+              <div class="oi" style="display:flex;gap:10px;align-items:center;padding:8px 0;">
+                <img src="${it.image||'../HTML/images/catbed.jpg'}" onerror="this.src='../HTML/images/catbed.jpg'" alt="" style="width:64px;height:64px;border:1px solid #eee;border-radius:6px;object-fit:cover;">
+                <div style="flex:1">
+                  <div class="name" style="font-weight:700;">${escapeHtml(it.name)}</div>
+                  <div class=\"meta\" style=\"color:#6b8897;\">x${it.quantity||1}</div>
+                </div>
+                <div class="price" style="color:#333;">${money((it.price||0))}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="order-f pay" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-top:1px solid #e9eef2;background:#fff;">
+            <div class="amount">Amount Payable: <strong class="aprice">${money(o.total||0)}</strong></div>
+            <div class="actions" style="display:flex;gap:8px;">
+              <button class="btn small" disabled style="opacity:.7;cursor:not-allowed;padding:10px 16px;border:1px solid #e0e0e0;background:#f7f7f7;border-radius:6px;font-size:14px;">Pending</button>
+              <button class="btn outline danger cancel-order" data-key="${o.date}" style="padding:10px 16px;border:1px solid #ff6b6b;color:#c92a2a;background:#fff;border-radius:6px;font-size:14px;">Cancel Order</button>
+            </div>
+          </div>
+        </div>`;
+      }
+      return `
+      <div class="order" style="border:1px solid #e9eef2;border-radius:8px;margin-bottom:12px;">
+        <div class="order-h" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px dashed #e9eef2;background:#fff;">
           <div><strong>Order #${idx+1}</strong> <span style="color:#9ab0bd;margin-left:8px">${new Date(o.date||Date.now()).toLocaleString()}</span></div>
           <div class="status">${statusLabel(o.status)}</div>
         </div>
-        <div class="order-items">
+        <div class="order-items" style="padding:10px 12px;">
           ${(o.items||[]).map(it=>`
-            <div class="oi">
-              <img src="${it.image||'../HTML/images/catbed.jpg'}" onerror="this.src='../HTML/images/catbed.jpg'" alt="">
+            <div class="oi" style="display:flex;gap:10px;align-items:center;padding:8px 0;">
+              <img src="${it.image||'../HTML/images/catbed.jpg'}" onerror="this.src='../HTML/images/catbed.jpg'" alt="" style="width:64px;height:64px;border:1px solid #eee;border-radius:6px;object-fit:cover;">
               <div style="flex:1">
-                <div class="name">${escapeHtml(it.name)}</div>
-                <div class="meta">Qty: ${it.quantity||1} • Price: ${money(it.price||0)}</div>
+                <div class="name" style="font-weight:700;">${escapeHtml(it.name)}</div>
+                <div class="meta" style="color:#6b8897;">Qty: ${it.quantity||1} • Price: ${money(it.price||0)}</div>
               </div>
             </div>
           `).join('')}
         </div>
-        <div class="order-f">
+        <div class="order-f" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-top:1px solid #e9eef2;background:#fff;">
           <div class="order-total">Order Total: <strong>${money(o.total||0)}</strong></div>
-          <div class="actions"><button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(((o.items||[])[0]||{}).name||'')}'">Buy Again</button></div>
+          <div class="actions"><button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(((o.items||[])[0]||{}).name||'')}'" style="padding:6px 10px;border:1px solid #1a73e8;color:#1a73e8;background:#fff;border-radius:6px;">Buy Again</button></div>
         </div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
+
+    // Wire up cancel buttons for To Pay orders (open modal)
+    wrap.querySelectorAll('.cancel-order').forEach(btn=>{
+      btn.addEventListener('click', ()=> openCancelModal(btn.getAttribute('data-key')) );
+    });
+  }
+
+  // --- Cancel Order Modal (Shopee-like) ---
+  function openCancelModal(orderKey){
+    // Build overlay
+    let modal = document.getElementById('pcModal');
+    if (!modal){
+      modal = document.createElement('div');
+      modal.id = 'pcModal';
+      modal.className = 'pc-modal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:99999;';
+      document.body.appendChild(modal);
+    }
+    const panelStyle = 'background:#fff;border-radius:8px;width:420px;max-width:95vw;padding:16px 16px 12px;box-shadow:0 10px 30px rgba(0,0,0,.15);font-family:inherit;';
+    const noteStyle = 'background:#fff7e6;border:1px solid #ffe0b2;color:#8d6e63;padding:10px 12px;border-radius:6px;font-size:13px;margin:8px 0 12px;';
+    const btnBase = 'padding:10px 16px;border-radius:6px;font-weight:600;cursor:pointer;';
+
+    const reasons = [
+      'Need to change delivery address',
+      'Need to input/change voucher code',
+      'Need to modify order (size, color, quantity, etc.)',
+      'Payment procedure too troublesome',
+      'Found cheaper elsewhere',
+      "Don\'t want to buy anymore",
+      'Others'
+    ];
+
+    modal.innerHTML = `
+      <div class="panel" style="${panelStyle}">
+        <h3 style="margin:0 0 8px;">Select Cancellation Reason</h3>
+        <div class="note" style="${noteStyle}">Please select a cancellation reason. Please take note that this will cancel all items in the order and the action cannot be undone.</div>
+        <form id="pcForm">
+          <div style="display:grid;gap:10px;margin:10px 0 16px;">
+            ${reasons.map((txt)=>`
+              <label style=\"display:flex;gap:8px;align-items:flex-start;\">
+                <input type=\"radio\" name=\"reason\" value=\"${txt.replace(/\"/g,'&quot;')}\">
+                <span>${txt}</span>
+              </label>
+            `).join('')}
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+            <button type="button" id="pcNotNow" style="${btnBase}background:#f7f7f7;border:1px solid #e0e0e0;color:#555;">NOT NOW</button>
+            <button type="submit" id="pcConfirm" style="${btnBase}background:#fff;border:1px solid #ff6b6b;color:#c92a2a;">CANCEL ORDER</button>
+          </div>
+        </form>
+      </div>`;
+
+    modal.style.display = 'flex';
+
+    const close = ()=>{ modal.remove(); };
+    modal.addEventListener('click', (e)=>{ if (e.target===modal) close(); });
+    modal.querySelector('#pcNotNow').addEventListener('click', close);
+
+    // Disable confirm until a reason is selected (like Shopee)
+    const confirmBtn = modal.querySelector('#pcConfirm');
+    if (confirmBtn){ confirmBtn.disabled = true; confirmBtn.style.opacity = '0.6'; }
+    modal.querySelectorAll('input[name="reason"]').forEach(r => r.addEventListener('change', ()=>{
+      if (confirmBtn){ confirmBtn.disabled = false; confirmBtn.style.opacity = '1'; }
+    }));
+
+    modal.querySelector('#pcForm').addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const orders = getOrders();
+      const idx = orders.findIndex(o=> String(o.date) === String(orderKey));
+      if (idx>-1){ orders[idx].status = 'cancelled'; saveOrders(orders); }
+      close();
+      updatePurchaseTabCounts();
+      const current = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
+      renderPurchases(current);
+    });
+  }
+
+  function updatePurchaseTabCounts(){
+    const orders = getOrders().map(o=> ({...o, status: (o.status||'completed')}));
+    const counts = orders.reduce((acc,o)=>{ acc[o.status]=(acc[o.status]||0)+1; acc.all++; return acc; }, {all:0});
+    const set = (tab, label, n)=>{
+      const el = document.querySelector(`.p-head .tabs a[data-tab="${tab}"]`);
+      if (el) el.textContent = n>0 ? `${label} (${n})` : label;
+    };
+    set('all','All', counts.all||0);
+    set('to_pay','To Pay', counts.to_pay||0);
+    set('to_receive','To Receive', counts.to_receive||0);
+    set('completed','Completed', counts.completed||0);
+    set('cancelled','Cancelled', counts.cancelled||0);
   }
 
   // Phone number validation - only allow numbers

@@ -234,7 +234,7 @@ if (!isset($_SESSION['user_id'])) {
         sessionStorage.removeItem('purrfectCart');
       }
       if (typeof updateCartBadge === 'function') updateCartBadge();
-      window.location.href = '../profile_php/profile.php#purchases';
+      window.location.href = '../profile_php/profile.php#purchases:to_pay';
     });
 
     // Init
