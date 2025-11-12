@@ -65,6 +65,12 @@ switch ($action) {
             $hasRating = $col && $col->num_rows > 0;
             if ($col) { $col->close(); }
 
+            // Optional filter: only return items with stock > 0 (for shop)
+            $availableOnly = isset($_GET['available_only']) && $_GET['available_only'] == '1';
+            $stockCol = $conn->query("SHOW COLUMNS FROM products LIKE 'stock'");
+            $hasStockCol = $stockCol && $stockCol->num_rows > 0;
+            if ($stockCol) { $stockCol->close(); }
+
             $selectRating = $hasRating ? ', p.rating' : '';
             $sql = "SELECT p.product_id, p.name, p.description, p.price, p.stock,
                            COALESCE(p.image_url, '') AS image_url,
@@ -72,6 +78,7 @@ switch ($action) {
                            p.category_id" . $selectRating . "
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.category_id
+                    " . (($availableOnly && $hasStockCol) ? "WHERE CAST(TRIM(p.stock) AS SIGNED) > 0" : "") . "
                     ORDER BY p.product_id DESC";
 
             $res = $conn->query($sql);

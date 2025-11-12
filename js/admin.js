@@ -63,9 +63,11 @@ async function loadDashboard(){
     try {
         const products = await fetchAPI('get_products');
         const users = await fetchAPI('get_users');
+        const orders = await fetchAPI('get_orders');
         
         const totalProducts = Array.isArray(products) ? products.length : 0;
         const totalUsers = Array.isArray(users) ? users.length : 0;
+        const totalOrders = Array.isArray(orders) ? orders.length : 0;
         const lowStock = Array.isArray(products) ? products.filter(p => p.stock < 10).length : 0;
         
     mainContent.innerHTML = `
@@ -92,7 +94,7 @@ async function loadDashboard(){
                     <div class="card-icon"><i class="fa fa-file-invoice"></i></div>
                     <div class="card-content">
                         <h3>Total Orders</h3>
-                        <p class="card-value">0</p>
+                        <p class="card-value">${totalOrders}</p>
                     </div>
                 </div>
                 <div class="card">

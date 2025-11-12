@@ -2,14 +2,15 @@
 let products = [];
 const API_URL = '../crud/crud.php';
 
-// Load products from database
+// Load products from database (in-stock only)
 async function loadProducts() {
     try {
-        const res = await fetch(`${API_URL}?action=get_products`);
+        const res = await fetch(`${API_URL}?action=get_products&available_only=1&_ts=${Date.now()}`);
         const data = await res.json();
         if (data && !data.error) {
-            // Transform DB products to match expected format
-            products = data.map(p => ({
+            // Transform DB products to match expected format; safeguard filter stock > 0
+            const inStock = Array.isArray(data) ? data.filter(p => Number(p?.stock) > 0) : [];
+            products = inStock.map(p => ({
                 name: p.name || '',
                 img: p.image_url || 'images/catbed.jpg',
                 price: parseFloat(p.price || 0),

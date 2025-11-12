@@ -25,9 +25,10 @@ if (!isset($_SESSION['user_id'])) {
     :root{--brand:#9bd8f7;--brand-strong:#5cbfef;--brand-text:#003a57}
     body{background:#f5f5f5}
     .container{max-width:1000px;margin:24px auto;padding:0 16px}
-    .checkout-grid{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+    .checkout-grid{display:grid;grid-template-columns:1fr;gap:16px}
     .card{background:#fff;border:1px solid #e5e5e5;border-radius:8px}
     .card h3{margin:0 0 8px 0}
+    .section-title{font-size:22px; font-weight:800; color:#222}
     .card .body{padding:14px}
     .delivery-address{background:#fff;color:#222;border-radius:8px;margin:0 0 16px;border:1px solid #e5e5e5}
     .delivery-address .da-head{padding:12px 14px;border-bottom:1px dashed #e9eef2;font-weight:700;display:flex;align-items:center;gap:8px;color:#003a57}
@@ -41,11 +42,26 @@ if (!isset($_SESSION['user_id'])) {
 .shop-row .title{font-weight:700;color:#222;text-decoration:none}
     .shop-row .muted{color:#6b8897;font-size:12px}
     .right{margin-left:auto;color:#333}
+    .order-head{display:flex;align-items:center;justify-content:space-between;padding:6px 14px 0 14px;color:#6b8897}
+    .order-head .left-label{flex:1;min-width:0;font-weight:800;color:#000}
+    .order-cols{display:flex;gap:40px;justify-content:flex-end;color:#6b8897}
+    .order-cols .col{width:120px;text-align:right}
+    .order-cols.values{color:#333}
     .summary table{width:100%;border-collapse:collapse}
     .summary td{padding:8px 0}
     .summary tr:last-child td{font-weight:700;border-top:1px solid #eee}
-    .place-order{width:100%;padding:12px;background:var(--brand-strong);color:#003044;border:none;border-radius:6px;font-weight:700;cursor:pointer}
+    .place-order{padding:12px 22px;background:var(--brand-strong);color:#003044;border:none;border-radius:6px;font-weight:700;cursor:pointer}
     .place-order:hover{background:#3fb2ea}
+    .pm-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px dashed #e9eef2}
+    .pm-title{font-weight:700;color:#003a57}
+    .pm-meta{display:flex;gap:16px;align-items:center;color:#6b8897}
+    .pm-change{color:#0b65c2;text-decoration:none;font-weight:500;font-size:16px;}
+    .pm-change:hover{text-decoration:underline}
+    .pm-body{background:#fffdf8;padding:16px 14px}
+    .pm-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;color:#555}
+    .pm-row.total{border-top:1px solid #eee;margin-top:8px;padding-top:12px;font-weight:800}
+    .pm-row.total .val{color:#ff3e1f;font-size:20px}
+    .pm-footer{display:flex;justify-content:flex-end;padding:14px}
     @media(max-width: 880px){.checkout-grid{grid-template-columns:1fr}}
     /* Address modal styles are shared via css/address-modal.css */
   </style>
@@ -104,17 +120,25 @@ if (!isset($_SESSION['user_id'])) {
     <div class="checkout-grid">
       <div>
         <div class="card">
-          <div class="body">
-            <h3>Products Ordered</h3>
-          </div>
+          <div class="body"></div>
           <div id="orderItems"></div>
         </div>
-      </div>
-      <div>
-        <div class="card">
-          <div class="body summary">
-            <h3>Order Summary</h3>
-            <button id="placeOrder" class="place-order" style="margin-top:12px"><i class="fa fa-check-circle"></i> Place Order</button>
+        <div class="card" style="margin-top:16px;">
+          <div class="pm-header">
+            <div class="pm-title">Payment Method</div>
+            <div class="pm-meta">
+              <span id="pmCurrentMethod">Cash on Delivery</span>
+              <a href="#" id="pmChange" class="pm-change">Change</a>
+            </div>
+          </div>
+          <div class="pm-body">
+            <div class="pm-row total">
+              <span>Total Payment:</span>
+              <span class="val" id="pmTotalPayment">$0.00</span>
+            </div>
+          </div>
+          <div class="pm-footer">
+            <button id="placeOrder" class="place-order"><i class="fa fa-check-circle"></i> Place Order</button>
           </div>
         </div>
       </div>
@@ -338,6 +362,13 @@ if (!isset($_SESSION['user_id'])) {
       });
     }
 
+    function updatePaymentPanel(items){
+      const sums = calculateTotals(items);
+      const totalPay = sums.total; // shipping currently 0
+      const el = document.getElementById('pmTotalPayment');
+      if (el) el.textContent = `$${totalPay.toFixed(2)}`;
+    }
+
     function renderCartToCheckout(){
       const all = getCart();
       const selected = (()=>{ try { return JSON.parse(sessionStorage.getItem('purrfectSelected')||'[]'); } catch(e){ return []; } })();
@@ -347,18 +378,32 @@ if (!isset($_SESSION['user_id'])) {
         wrap.innerHTML = '<div class="body">Your cart is empty. <a href="product.php">Go shopping</a>.</div>';
         return;
       }
-      wrap.innerHTML = items.map(it=>`
+
+      // Header row: left label + right-side columns
+      wrap.innerHTML = `
+        <div class="order-head">
+          <span class="left-label">Products Ordered</span>
+          <div class="order-cols">
+            <span class="col">Unit Price</span>
+            <span class="col">Quantity</span>
+            <span class="col">Item Subtotal</span>
+          </div>
+        </div>
+      ` + items.map(it=>`
         <div class="shop-row">
           <img src="${it.image}" alt="${esc(it.name)}" onerror="this.src='images/catbed.jpg'">
-          <div>
+          <div style="flex:1;min-width:0;">
             <div class="title">${esc(it.name)}</div>
-            <div class="muted">Qty: ${it.quantity}</div>
           </div>
-          <div class="right">$${(it.price*it.quantity).toFixed(2)}</div>
+          <div class="order-cols values">
+            <span class="col">$${Number(it.price).toFixed(2)}</span>
+            <span class="col">${it.quantity}</span>
+            <span class="col">$${(it.price*it.quantity).toFixed(2)}</span>
+          </div>
         </div>
       `).join('');
 
-      const sums = calculateTotals(items);
+      updatePaymentPanel(items);
     }
 
     document.getElementById('placeOrder').addEventListener('click', async function(){

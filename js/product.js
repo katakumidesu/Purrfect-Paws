@@ -38,12 +38,13 @@ function computeRating(p) {
 function renderProducts(list) {
   const container = document.getElementById('productContainer');
   if (!container) return;
-  if (!Array.isArray(list) || list.length === 0) {
+  const safeList = Array.isArray(list) ? list.filter(p => Number(p?.stock) > 0) : [];
+  if (safeList.length === 0) {
     container.innerHTML = '<p style="color:#aaa;">No products found.</p>';
     return;
   }
 
-  container.innerHTML = list.map(p => {
+  container.innerHTML = safeList.map(p => {
     const price = parseFloat(p.price || 0);
    const rating = computeRating(p);
     const name = escapeHtml(p.name || '');
@@ -70,10 +71,11 @@ function renderProducts(list) {
 
 async function loadProducts() {
   try {
-    const res = await fetch(`${API_URL}?action=get_products`);
+    const res = await fetch(`${API_URL}?action=get_products&available_only=1&_ts=${Date.now()}`);
     const data = await res.json();
     if (data && !data.error) {
-      renderProducts(data);
+      const filtered = Array.isArray(data) ? data.filter(p => Number(p.stock) > 0) : [];
+      renderProducts(filtered);
     } else {
       console.error('Error loading products:', data.error);
     }
