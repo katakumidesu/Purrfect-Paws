@@ -77,8 +77,11 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
               <a href="../login_register/purdex.php"><button><i class="fa-solid fa-cat"></i> Login</button></a>
           <?php endif; ?>
 
-          <!-- 🛒 Cart icon -->
-          <a href="../HTML/cart.php" class="cart-icon"><i class="fa-solid fa-cart-shopping"></i></a>
+          <!-- 🛒 Cart icon with badge -->
+          <a href="../HTML/cart.php" class="cart-icon" style="position:relative;">
+            <i class="fa-solid fa-cart-shopping"></i>
+            <span class="cart-badge" style="display:none;">0</span>
+          </a>
       </div>
   </div>
 </nav>
@@ -285,6 +288,7 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
   </div>
 </footer>
 
+<script src="../js/cart.js"></script>
 <script src="../HTML/js/address-modal.js"></script>
 <script src="../HTML/js/profile.js"></script>
 
