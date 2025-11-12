@@ -766,17 +766,14 @@
       modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:99999;';
       document.body.appendChild(modal);
     }
-    const panelStyle = 'background:#fff;border-radius:8px;width:420px;max-width:95vw;padding:16px 16px 12px;box-shadow:0 10px 30px rgba(0,0,0,.15);font-family:inherit;';
+    const panelStyle = 'background:#fff;border-radius:12px;width:420px;max-width:95vw;padding:16px 16px 12px;box-shadow:0 14px 34px rgba(2,8,23,.18);font-family:inherit;border:1px solid #e9eef2;';
     const noteStyle = 'background:#fff7e6;border:1px solid #ffe0b2;color:#8d6e63;padding:10px 12px;border-radius:6px;font-size:13px;margin:8px 0 12px;';
-    const btnBase = 'padding:10px 16px;border-radius:6px;font-weight:600;cursor:pointer;';
+    const btnBase = 'display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;transition:all .15s ease;box-shadow:0 2px 6px rgba(0,0,0,.08);';
 
     const reasons = [
       'Need to change delivery address',
-      'Need to input/change voucher code',
-      'Need to modify order (size, color, quantity, etc.)',
-      'Payment procedure too troublesome',
       'Found cheaper elsewhere',
-      "Don\'t want to buy anymore",
+      "Don't want to buy anymore",
       'Others'
     ];
 
@@ -793,8 +790,8 @@
               </label>
             `).join('')}
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
-            <button type="button" id="pcNotNow" style="${btnBase}background:#f7f7f7;border:1px solid #e0e0e0;color:#555;">NOT NOW</button>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;">
+            <button type="button" id="pcNotNow" style="${btnBase}background:#f7f7f7;border:1px solid #dfe3e6;color:#444;">NOT NOW</button>
             <button type="submit" id="pcConfirm" style="${btnBase}background:#fff;border:1px solid #ff6b6b;color:#c92a2a;">CANCEL ORDER</button>
           </div>
         </form>
@@ -808,9 +805,9 @@
 
     // Disable confirm until a reason is selected (like Shopee)
     const confirmBtn = modal.querySelector('#pcConfirm');
-    if (confirmBtn){ confirmBtn.disabled = true; confirmBtn.style.opacity = '0.6'; }
+    if (confirmBtn){ confirmBtn.disabled = true; confirmBtn.style.opacity = '0.6'; confirmBtn.style.cursor = 'not-allowed'; }
     modal.querySelectorAll('input[name="reason"]').forEach(r => r.addEventListener('change', ()=>{
-      if (confirmBtn){ confirmBtn.disabled = false; confirmBtn.style.opacity = '1'; }
+      if (confirmBtn){ confirmBtn.disabled = false; confirmBtn.style.opacity = '1'; confirmBtn.style.cursor = 'pointer'; }
     }));
 
     modal.querySelector('#pcForm').addEventListener('submit', async (e)=>{
