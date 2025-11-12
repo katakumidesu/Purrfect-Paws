@@ -744,7 +744,7 @@ function renderOrderRow(o){
             </td>
             <td>
                 <div class="action-buttons">
-                    ${st==='to_pay' ? `<button type="button" class="btn btn-primary" onclick="changeOrderStatus(${o.order_id},'to_ship')">Approve</button>` : ''}
+                    ${st==='to_pay' ? `<button type="button" class="btn btn-primary" onclick="changeOrderStatus(${o.order_id},'to_ship')">Approve → To Ship</button>` : ''}
                     ${st==='to_ship' ? `<button type="button" class="btn" onclick="changeOrderStatus(${o.order_id},'to_receive')">Mark To Receive</button>` : ''}
                     ${st==='to_receive' ? `<button type="button" class="btn" onclick="changeOrderStatus(${o.order_id},'completed')">Complete</button>` : ''}
                     ${st==='to_pay' || st==='to_ship' ? `<button type="button" class="btn btn-delete" onclick="changeOrderStatus(${o.order_id},'cancelled')">Cancel</button>` : ''}
