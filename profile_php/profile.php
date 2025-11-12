@@ -39,6 +39,7 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
   <title>Purrfect Paws | Profile</title>
   <link rel="stylesheet" href="../HTML/css/kumi.css">
   <link rel="stylesheet" href="../HTML/css/profile.css?v=to-pay-cancel">
+  <link rel="stylesheet" href="../HTML/css/address-modal.css">
   <script src="https://kit.fontawesome.com/df5d6157cf.js" crossorigin="anonymous"></script>
   <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
@@ -284,6 +285,7 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
   </div>
 </footer>
 
+<script src="../HTML/js/address-modal.js"></script>
 <script src="../HTML/js/profile.js"></script>
 
 </body>

@@ -1,0 +1,65 @@
+:root{--brand:#9bd8f7;--brand-strong:#5cbfef;--brand-text:#003a57}
+/* Shared Address Modal styles for profile and checkout */
+.ab-modal,.addr-modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:2000}
+/* Match profile modal container */
+.ab-modal .panel,.addr-modal .panel{background:#fff;color:#222;border-radius:0;max-width:640px;width:92%;padding:20px}
+.ab-modal .panel h3,.addr-modal .panel h3{margin:0 0 10px 0;color:#333;font-size:18px}
+/* Grid and form elements identical to profile */
+.ab-modal .grid,.addr-modal .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ab-modal .grid .full,.addr-modal .grid .full{grid-column:1/-1}
+.ab-modal .panel label,.addr-modal .panel label{display:block;color:#333;font-weight:600;margin:6px 0 4px}
+.ab-modal .panel input,.ab-modal .panel textarea,.ab-modal .panel select,
+.addr-modal .panel input,.addr-modal .panel textarea,.addr-modal .panel select{width:100%;padding:10px;border:1px solid #d8e5ec;border-radius:6px;background:#fff;color:#333}
+.ab-modal .label-pills,.addr-modal .label-pills{display:flex;gap:12px;margin-top:6px}
+.ab-modal .label-pill,.addr-modal .label-pill{border:1px solid #d8e5ec;background:#fff;padding:8px 16px;border-radius:6px;color:#3b5160;cursor:pointer}
+.ab-modal .label-pill.active,.addr-modal .label-pill.active{border-color:var(--brand-strong);background:#fff;color:var(--brand-strong)}
+.ab-modal .checkline,.addr-modal .checkline{display:flex;align-items:center;gap:10px;color:#9ab0bd;font-size:14px}
+.ab-modal .checkline input[type="checkbox"],.addr-modal .checkline input[type="checkbox"]{width:18px;height:18px;cursor:pointer;accent-color:var(--brand-strong)}
+/* PH picker */
+.ab-modal .ph-picker,.addr-modal .ph-picker{position:relative}
+.ab-modal .ph-picker input,.addr-modal .ph-picker input{padding-right:28px}
+.ab-modal .ph-picker .ph-toggle,.addr-modal .ph-picker .ph-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#6b8897;cursor:pointer}
+.ab-modal .ph-panel,.addr-modal .ph-panel{position:absolute;left:0;right:0;top:100%;margin-top:6px;background:#fff;border:1px solid #d8e5ec;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.08);z-index:10}
+.ab-modal .ph-tabs,.addr-modal .ph-tabs{display:flex;border-bottom:1px solid #eef6fb}
+.ab-modal .ph-tabs button,.addr-modal .ph-tabs button{flex:1;background:none;border:none;padding:10px 8px;color:#6b8897;cursor:pointer;font-weight:600}
+.ab-modal .ph-tabs button.active,.addr-modal .ph-tabs button.active{color:#003a57;border-bottom:2px solid var(--brand-strong)}
+.ab-modal .ph-tabs button:disabled,.addr-modal .ph-tabs button:disabled{opacity:.5;cursor:default}
+.ab-modal .ph-list,.addr-modal .ph-list{max-height:240px;overflow:auto;padding:6px}
+.ab-modal .ph-item,.addr-modal .ph-item{width:100%;text-align:left;background:#fff;border:1px solid #eef6fb;border-radius:6px;padding:8px 10px;margin:4px 0;cursor:pointer;color:#334}
+.ab-modal .ph-item:hover,.addr-modal .ph-item:hover{border-color:var(--brand-strong);background:#f6fbff}
+/* Footer */
+.ab-modal .panel footer{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.ab-modal .panel footer.ab-actions{justify-content:flex-end;gap:18px}
+.ab-modal .panel .link-cancel{background:none;border:none;color:#6b8897;cursor:pointer;font-weight:600;padding:8px 10px}
+/* Buttons to match profile */
+.btn-accent{background:#ee4d2d;color:#fff;border:none;border-radius:0;padding:10px 16px;cursor:pointer;font-weight:700}
+.btn-accent:hover{background:#d84315}
+.addr-list{max-height:380px;overflow:auto}
+.addr-item{display:flex;gap:10px;padding:14px 16px;border-bottom:1px solid #f1f3f5}
+.addr-item:last-child{border-bottom:none}
+.addr-main{flex:1}
+.addr-name{font-weight:700}
+.addr-phone{color:#6b8897;margin-left:6px}
+.addr-lines{color:#3a4a53;margin-top:4px}
+.addr-default{display:inline-block;font-size:12px;background:#fff0f0;border:1px solid #ff6b6b;color:#c92a2a;border-radius:6px;padding:2px 6px;margin-left:8px}
+.addr-edit{color:#1a73e8;text-decoration:none;font-size:14px}
+.addr-edit:hover{text-decoration:underline}
+/* Outlined add button style */
+.add-outline{display:inline-flex;align-items:center;gap:8px;text-decoration:none;color:#666;background:#fff;border:1px solid #d8e5ec;border-radius:6px;padding:8px 12px;font-weight:600}
+.add-outline:hover{background:#f8fbff;border-color:#b9d2e2}
+.addr-f{display:flex;gap:8px;padding:12px 16px;border-top:1px solid #eef3f6;background:#fbfdff}
+/* Buttons aligned with profile */
+.btn-secondary{border:1px solid #d0dae0;background:#fff;border-radius:6px;padding:8px 12px;cursor:pointer}
+.btn-primary{border:none;background:var(--brand-strong);color:#003044;border-radius:6px;padding:8px 14px;font-weight:700;cursor:pointer}
+.btn-secondary:hover{background:#f6f9fc}
+.btn-primary:hover{background:#3fb2ea}
+/* Form inside modal */
+.ab-modal .panel form,.addr-modal .panel form{padding:16px}
+.addr-form .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.addr-form .grid .full{grid-column:1 / -1}
+.addr-form label{display:block;font-size:12px;color:#6b8897;margin-bottom:6px}
+.addr-form input,.addr-form select{width:100%;border:1px solid #d7e0e6;border-radius:6px;padding:9px 10px;font-size:14px;outline:none}
+.addr-form input:focus{border-color:#5cbfef;box-shadow:0 0 0 3px rgba(92,191,239,.15)}
+.label-pills{display:flex;gap:8px;margin-top:6px}
+.label-pill{border:1px solid #d7e0e6;border-radius:999px;padding:6px 10px;font-size:13px;cursor:pointer;color:#37515e}
+.label-pill.active{background:#eaf6ff;border-color:#5cbfef;color:#003a57}

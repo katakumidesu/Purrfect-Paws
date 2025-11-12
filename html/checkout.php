@@ -20,6 +20,7 @@ if (!isset($_SESSION['user_id'])) {
   <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="css/address-modal.css">
   <style>
     :root{--brand:#9bd8f7;--brand-strong:#5cbfef;--brand-text:#003a57}
     body{background:#f5f5f5}
@@ -46,6 +47,7 @@ if (!isset($_SESSION['user_id'])) {
     .place-order{width:100%;padding:12px;background:var(--brand-strong);color:#003044;border:none;border-radius:6px;font-weight:700;cursor:pointer}
     .place-order:hover{background:#3fb2ea}
     @media(max-width: 880px){.checkout-grid{grid-template-columns:1fr}}
+    /* Address modal styles are shared via css/address-modal.css */
   </style>
 </head>
 <body>
@@ -75,6 +77,9 @@ if (!isset($_SESSION['user_id'])) {
                 <a href="../profile_php/profile.php#purchases">My Purchase</a>
                 <a href="../login_register/logout.php">Logout</a>
             </div>
+
+  <!-- Address Picker Modal (shared profile style) -->
+  <div id="addrPicker" class="ab-modal" style="display:none"></div>
         </div>
     <?php else: ?>
         <a href="../login_register/purdex.php"><button><i class="fa-solid fa-cat"></i> Login</button></a>
@@ -163,16 +168,21 @@ if (!isset($_SESSION['user_id'])) {
 </footer>
 
   <script src="../js/cart.js?v=no-tax"></script>
+  <script src="js/address-modal.js"></script>
   <script>
     // Namespace orders per logged-in user so browser sessions don't mix
     window.PURR_USER_ID = <?= json_encode((string)($_SESSION['user_id'] ?? 'anon')) ?>;
     const ORDERS_KEY = () => `purrfectOrders:${window.PURR_USER_ID||'anon'}`;
+    const SELECTED_ADDR_KEY = () => `purrfectSelectedAddr:${window.PURR_USER_ID||'anon'}`;
+    async function fetchAddresses(){
+      try{ const r = await fetch('../profile_php/addresses.php?action=list'); return await r.json(); }catch(e){ return []; }
+    }
     async function fetchDefaultAddress(){
-      try{ const res = await fetch('../profile_php/addresses.php?action=list');
-        const items = await res.json();
-        if(!Array.isArray(items)) return null;
-        return items.find(a => String(a.is_default)==='1') || items[0] || null;
-      }catch(e){ return null; }
+      const items = await fetchAddresses();
+      if(!Array.isArray(items) || !items.length) return null;
+      const sel = sessionStorage.getItem(SELECTED_ADDR_KEY());
+      if(sel){ const hit = items.find(a=>String(a.address_id)===String(sel)); if(hit) return hit; }
+      return items.find(a => String(a.is_default)==='1') || items[0] || null;
     }
 
     function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
@@ -189,8 +199,143 @@ if (!isset($_SESSION['user_id'])) {
         <div class="da-body">
           <div class="da-line1"><strong>${esc(a.fullname||'')}</strong> <span class="muted">(${esc(a.phone||'')})</span> ${String(a.is_default)==='1'?'<span class="badge">Default</span>':''}</div>
           <div class="da-line2">${esc(a.address_line||'')}${a.barangay? ', '+esc(a.barangay):''}${a.city? ', '+esc(a.city):''}${a.province? ', '+esc(a.province):''}${a.postal_code? ' '+esc(a.postal_code):''}</div>
-          <a class="da-change" href="../profile_php/profile.php#addresses">Change</a>
+          <a class="da-change" href="#" id="changeAddrLink">Change</a>
         </div>`;
+      const change = document.getElementById('changeAddrLink');
+      if(change){ change.addEventListener('click', (e)=>{ e.preventDefault(); openAddressPicker(); }); }
+    }
+
+    async function openAddressPicker(){
+      const modal = document.getElementById('addrPicker');
+      const list = await fetchAddresses();
+      const current = await fetchDefaultAddress();
+      if(!Array.isArray(list) || !list.length){
+        modal.style.display='flex';
+        modal.innerHTML = `<div class="panel">
+          <h3>My Address</h3>
+          <div style="padding:16px">No saved addresses. <a class="addr-edit" href="../profile_php/profile.php#addresses">Add New Address</a></div>
+          <div class="addr-f"><button class="btn-plain" onclick="closeAddrPicker()">Close</button></div>
+        </div>`;
+        return;
+      }
+      modal.style.display='flex';
+      modal.innerHTML = `
+        <div class="panel">
+          <h3>My Address</h3>
+          <div class="addr-list">
+            ${list.map(a=>`
+              <label class="addr-item">
+                <input type="radio" name="addr" value="${a.address_id}" ${current&&String(current.address_id)===String(a.address_id)?'checked':''} style="margin-top:4px">
+                <div class="addr-main">
+                  <div><span class="addr-name">${esc(a.fullname)}</span> <span class="addr-phone">(+63) ${esc(a.phone)}</span> ${String(a.is_default)==='1'?'<span class="addr-default">Default</span>':''}
+                    <a class="addr-edit" href="../profile_php/profile.php#addresses" target="_blank" style="float:right">Edit</a>
+                  </div>
+                  <div class="addr-lines">${esc(a.address_line)}${a.barangay?', '+esc(a.barangay):''}, ${esc(a.city)}${a.province?', '+esc(a.province):''} ${a.postal_code?esc(a.postal_code):''}</div>
+                </div>
+              </label>
+            `).join('')}
+            <div style="padding:12px 16px"><a class="add-outline" href="#" onclick="openAddrForm();return false;">+ <span>Add New Address</span></a></div>
+          </div>
+          <div class="addr-f">
+            <button class="link-cancel" onclick="closeAddrPicker()">Cancel</button>
+            <button class="btn-accent" onclick="confirmAddrPicker()">Confirm</button>
+          </div>
+        </div>`;
+    }
+    function closeAddrPicker(){ const m=document.getElementById('addrPicker'); m.style.display='none'; m.innerHTML=''; }
+    function confirmAddrPicker(){
+      const m=document.getElementById('addrPicker');
+      const sel = m.querySelector('input[name="addr"]:checked');
+      if(sel){ sessionStorage.setItem(SELECTED_ADDR_KEY(), String(sel.value)); }
+      closeAddrPicker();
+      renderAddress();
+    }
+
+    function openAddrForm(){
+      const modal = document.getElementById('addrPicker');
+      modal.style.display='flex';
+      modal.innerHTML = `
+        <div class="panel">
+          <h3>New Address</h3>
+          <form id="addrForm" class="addr-form">
+            <div class="grid">
+              <div>
+                <input name="fullname" required placeholder="Full Name">
+              </div>
+              <div>
+                <input name="phone" required placeholder="Phone Number">
+              </div>
+              <div class="full">
+                <div class="ph-picker" id="phPicker">
+                  <input id="ab_region" placeholder="Region, Province, City, Barangay" readonly>
+                  <button type="button" class="ph-toggle">▾</button>
+                  <div class="ph-panel" hidden>
+                    <div class="ph-tabs">
+                      <button type="button" data-tab="region" class="active">Region</button>
+                      <button type="button" data-tab="province" disabled>Province</button>
+                      <button type="button" data-tab="city" disabled>City</button>
+                      <button type="button" data-tab="barangay" disabled>Barangay</button>
+                    </div>
+                    <div class="ph-list" id="phList"></div>
+                  </div>
+                </div>
+                <input type="hidden" name="region" id="ab_hidden_region" value="">
+                <input type="hidden" name="province" id="ab_hidden_province" value="">
+                <input type="hidden" name="city" id="ab_hidden_city" value="">
+                <input type="hidden" name="barangay" id="ab_hidden_barangay" value="">
+              </div>
+              <div class="full">
+                <input name="postal_code" placeholder="Postal Code">
+              </div>
+              <div class="full">
+                <input name="address_line" required placeholder="Street Name, Building, House No.">
+              </div>
+              <div class="full">
+                <label>Label As</label>
+                <div class="label-pills" id="ab_labels">
+                  <button type="button" class="label-pill active" data-value="Home">Home</button>
+                  <button type="button" class="label-pill" data-value="Work">Work</button>
+                </div>
+                <input type="hidden" name="label" value="Home">
+              </div>
+              <div class="full" style="margin-top:6px;">
+                <div class="checkline">
+                  <input type="checkbox" name="is_default" value="1"> <span>Set as Default Address</span>
+                </div>
+              </div>
+            </div>
+            <footer class="ab-actions">
+              <button type="button" class="link-cancel" onclick="openAddressPicker()">Cancel</button>
+              <button type="submit" class="btn-accent">Submit</button>
+            </footer>
+          </form>
+        </div>`;
+      const form = document.getElementById('addrForm');
+      if (window.AddressModal){ AddressModal.wireLabelPills(modal); AddressModal.initPhPicker(modal); }
+      form.addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const fd = new FormData(form);
+        fd.append('action','create');
+        // Ensure picker-selected values are included
+        fd.set('region', document.getElementById('ab_hidden_region')?.value || '');
+        fd.set('province', document.getElementById('ab_hidden_province')?.value || '');
+        fd.set('city', document.getElementById('ab_hidden_city')?.value || '');
+        fd.set('barangay', document.getElementById('ab_hidden_barangay')?.value || '');
+        if (fd.get('is_default')) fd.set('is_default','1'); else fd.set('is_default','0');
+        try{
+          const r = await fetch('../profile_php/addresses.php', { method:'POST', body: fd });
+          const data = await r.json();
+          if(data && data.address_id){
+            sessionStorage.setItem(SELECTED_ADDR_KEY(), String(data.address_id));
+            // Go back to list and refresh
+            await openAddressPicker();
+          }else if(data && data.ok){
+            await openAddressPicker();
+          }else{
+            alert('Failed to save address');
+          }
+        }catch(err){ alert('Failed to save address'); }
+      });
     }
 
     function renderCartToCheckout(){
