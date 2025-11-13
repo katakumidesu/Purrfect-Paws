@@ -671,6 +671,7 @@ switch ($action) {
             $existsRow = $existsRes ? $existsRes->fetch_assoc() : null;
             $check->close();
             if (!$existsRow) { echo json_encode(['error'=>'Order not found','order_id'=>$order_id]); break; }
+            $prevStatusRaw = isset($existsRow['status']) ? strtolower(trim((string)$existsRow['status'])) : '';
 
             // Determine target DB value for status (handle ENUM variants like 'To Ship')
             $target = $status;
@@ -733,10 +734,10 @@ switch ($action) {
             $check2->close();
             $current = $row2 && isset($row2['status']) ? $row2['status'] : null;
 
-            // If already equal (idempotent), success (verified by SELECT)
-            if (is_string($current) && strtolower(trim($current)) === strtolower($target)) {
-                echo json_encode(['success'=>true,'order_id'=>$order_id,'status'=>$target,'note'=>($affected===0?'No change needed':null)]);
-                break;
+            // If already equal (idempotent), continue to unified success path (allows restock on cancel)
+            $alreadyEqual = (is_string($current) && strtolower(trim($current)) === strtolower($target));
+            if ($alreadyEqual) {
+                // fall through to final verification block to trigger restock logic
             }
 
             // If not equal and first update didn't take effect, try common variants (for ENUM schemas)
@@ -766,13 +767,67 @@ switch ($action) {
                 break;
             }
 
-            // Final verification: re-read and only succeed if matches target
+            // Final verification: re-read and only succeed if matches target (also handles idempotent case)
             $vchk = $conn->prepare("SELECT status FROM orders WHERE order_id=?");
             $vchk->bind_param("i", $order_id);
             $vchk->execute(); $vres = $vchk->get_result(); $vrow = $vres? $vres->fetch_assoc(): null; $vchk->close();
             $vcur = $vrow && isset($vrow['status']) ? $vrow['status'] : null;
             if (is_string($vcur) && strtolower(trim($vcur)) === strtolower($target)) {
-                echo json_encode(['success'=>true,'order_id'=>$order_id,'status'=>$target]);
+                // If status transitioned to cancelled and wasn't previously cancelled, restock items
+                $vcurNorm = strtolower(trim((string)$vcur));
+                $prevNorm = strtolower(trim((string)$prevStatusRaw));
+                $restockedCount = 0; $unmatched = [];
+                if (in_array($vcurNorm, ['cancelled','canceled','cancel'], true) && !in_array($prevNorm, ['cancelled','canceled','cancel'], true)) {
+                    // Restock from order_items -> products
+                    $tblProd = $conn->query("SHOW TABLES LIKE 'products'");
+                    $tblItems = $conn->query("SHOW TABLES LIKE 'order_items'");
+                    if ($tblProd && $tblProd->num_rows > 0 && $tblItems && $tblItems->num_rows > 0) {
+                        // Detect product columns
+                        $cols = $conn->query("SHOW COLUMNS FROM products");
+                        $nameCol = 'name'; $stockCol = 'stock'; $idCol = 'id';
+                        if ($cols){
+                            $hasName=false; $hasProdName=false; $hasId=false; $hasProdId=false; $hasStock=false;
+                            while($c=$cols->fetch_assoc()){
+                                $f = strtolower($c['Field']);
+                                if ($f==='name') $hasName=true;
+                                if ($f==='product_name') $hasProdName=true;
+                                if ($f==='id') $hasId=true;
+                                if ($f==='product_id') $hasProdId=true;
+                                if ($f==='stock') $hasStock=true;
+                            }
+                            $cols->close();
+                            if ($hasProdName && !$hasName) $nameCol = 'product_name';
+                            if ($hasProdId && !$hasId) $idCol = 'product_id';
+                        }
+                        // Collect order items and restock
+                        $oi = $conn->prepare("SELECT product_name, quantity FROM order_items WHERE order_id=?");
+                        if ($oi){
+                            $oi->bind_param("i", $order_id);
+                            $oi->execute();
+                            $rs = $oi->get_result();
+                            if ($rs){
+                                while ($row = $rs->fetch_assoc()){
+                                    $pname = (string)($row['product_name'] ?? '');
+                                    $q = max(1, intval($row['quantity'] ?? 0));
+                                    if ($pname !== '' && $hasStock){
+                                        $upd = $conn->prepare("UPDATE products SET $stockCol = $stockCol + ? WHERE $nameCol = ?");
+                                        if ($upd){
+                                            $upd->bind_param("is", $q, $pname);
+                                            if ($upd->execute() && $upd->affected_rows > 0) { $restockedCount += $q; }
+                                            else { $unmatched[] = ['name'=>$pname, 'qty'=>$q]; }
+                                            $upd->close();
+                                        } else {
+                                            $unmatched[] = ['name'=>$pname, 'qty'=>$q, 'err'=>'prepare_failed'];
+                                        }
+                                    }
+                                }
+                                $rs->free();
+                            }
+                            $oi->close();
+                        }
+                    }
+                }
+                echo json_encode(['success'=>true,'order_id'=>$order_id,'status'=>$target,'restocked_count'=>$restockedCount,'unmatched'=>$unmatched]);
             } else {
                 echo json_encode(['error'=>'Failed to update status (post-verify mismatch)', 'order_id'=>$order_id,'current_status'=>$vcur, 'enum_options'=>$enumOpts]);
             }

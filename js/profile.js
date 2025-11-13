@@ -369,11 +369,34 @@ function openCancelModal(orderKey){
   modal.style.display = 'flex';
   modal.addEventListener('click', (e)=>{ if (e.target===modal) closeCancelModal(); });
   document.getElementById('pcNotNow').onclick = closeCancelModal;
-  document.getElementById('pcForm').onsubmit = (e)=>{
+  document.getElementById('pcForm').onsubmit = async (e)=>{
     e.preventDefault();
     const orders = getOrders();
     const idx = orders.findIndex(o=> String(o.date) === String(orderKey));
-    if (idx>-1){ orders[idx].status = 'cancelled'; saveOrders(orders); }
+    let oid = null;
+    if (idx>-1){
+      orders[idx].status = 'cancelled';
+      oid = orders[idx].order_id || null;
+      saveOrders(orders);
+    }
+    try {
+      if (!oid){
+        const res = await fetch('../crud/crud.php?action=get_orders&status=to_pay&_=' + Date.now(), { credentials:'same-origin' });
+        const list = await res.json();
+        const arr = Array.isArray(list) ? list : [];
+        const cand = arr.find(o => Math.abs(Number(o.total||0) - Number((orders[idx]||{}).total||0)) < 0.01);
+        if (cand && cand.order_id) { oid = cand.order_id; }
+      }
+      if (oid){
+        await fetch('../crud/crud.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'update_order_status', order_id: parseInt(oid,10), status: 'cancelled' }),
+          keepalive: true,
+          credentials: 'same-origin'
+        });
+      }
+    } catch(_){ }
     closeCancelModal();
     updatePurchaseTabCounts();
     const current = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';

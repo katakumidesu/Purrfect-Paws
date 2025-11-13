@@ -843,22 +843,31 @@
         oid = orders[idx].order_id || null;
         saveOrders(orders);
       }
-      // Tell server so Admin page reflects the cancellation (when order_id is known)
-      if (oid){
-        try {
+      // Tell server so Admin page reflects the cancellation and restock executes.
+      // If we don't have order_id saved locally, try to locate it from the server by matching.
+      try {
+        if (!oid){
+          const uid = String(window.PURR_USER_ID || '');
+          const res = await fetch('../crud/crud.php?action=get_orders&user_id=' + encodeURIComponent(uid) + '&status=to_pay&_=' + Date.now(), { credentials:'same-origin' });
+          const list = await res.json();
+          const arr = Array.isArray(list) ? list : [];
+          const cand = arr.find(o => Math.abs(Number(o.total||0) - Number((orders[idx]||{}).total||0)) < 0.01);
+          if (cand && cand.order_id) { oid = cand.order_id; }
+        }
+        if (oid){
           await fetch('../crud/crud.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'update_order_status', order_id: oid, status: 'cancelled' }),
+            body: JSON.stringify({ action: 'update_order_status', order_id: parseInt(oid,10), status: 'cancelled' }),
             keepalive: true,
             credentials: 'same-origin'
           });
-        } catch (_) {}
-      }
+        }
+      } catch(_){}
       close();
       updatePurchaseTabCounts();
       const current = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
-      renderPurchases(current);
+      await renderPurchases(current);
     });
   }
 
