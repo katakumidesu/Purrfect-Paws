@@ -459,6 +459,7 @@ switch ($action) {
                 FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
             // Insert order (schema-safe: handle existing tables missing 'total' or 'status')
+            $conn->begin_transaction();
             $hasTotal = $conn->query("SHOW COLUMNS FROM orders LIKE 'total'");
             $hasStatus = $conn->query("SHOW COLUMNS FROM orders LIKE 'status'");
             $existsTotal = $hasTotal && $hasTotal->num_rows > 0; if ($hasTotal) { $hasTotal->close(); }
@@ -478,7 +479,7 @@ switch ($action) {
                 $stmt->bind_param("i", $user_id);
             }
 
-            if (!$stmt->execute()) { echo json_encode(['error'=>'Failed to create order: '.$stmt->error]); $stmt->close(); break; }
+            if (!$stmt->execute()) { $conn->rollback(); echo json_encode(['error'=>'Failed to create order: '.$stmt->error]); $stmt->close(); break; }
             $order_id = $stmt->insert_id; $stmt->close();
             // Insert items
             if (is_array($items)) {
@@ -489,10 +490,63 @@ switch ($action) {
                     $price = floatval($itRow['price'] ?? 0);
                     $img = (string)($itRow['image'] ?? '');
                     $it->bind_param("isids", $order_id, $name, $qty, $price, $img);
-                    $it->execute();
+                    if (!$it->execute()) { $it->close(); $conn->rollback(); echo json_encode(['error'=>'Failed to insert order item']); break 2; }
                 }
                 $it->close();
             }
+
+            // Deduct stock atomically if products table exists
+            $tblExists = $conn->query("SHOW TABLES LIKE 'products'");
+            if ($tblExists && $tblExists->num_rows > 0 && is_array($items) && count($items)>0) {
+                // Detect columns
+                $cols = $conn->query("SHOW COLUMNS FROM products");
+                $nameCol = 'name'; $stockCol = 'stock'; $idCol = 'id';
+                if ($cols){
+                    $hasName=false; $hasProdName=false; $hasId=false; $hasProdId=false; $hasStock=false;
+                    while($c=$cols->fetch_assoc()){
+                        $f = strtolower($c['Field']);
+                        if ($f==='name') $hasName=true;
+                        if ($f==='product_name') $hasProdName=true;
+                        if ($f==='id') $hasId=true;
+                        if ($f==='product_id') $hasProdId=true;
+                        if ($f==='stock') $hasStock=true;
+                    }
+                    $cols->close();
+                    if ($hasProdName && !$hasName) $nameCol = 'product_name';
+                    if ($hasProdId && !$hasId) $idCol = 'product_id';
+                    if (!$hasStock) { /* no stock column, skip deduction */ }
+                }
+                // Aggregate quantities by product name
+                $need = [];
+                foreach ($items as $itRow){
+                    $n = (string)($itRow['name'] ?? '');
+                    $q = intval($itRow['quantity'] ?? 1);
+                    if ($n!==''){ $need[$n] = ($need[$n] ?? 0) + max(1,$q); }
+                }
+                // Check and deduct per product
+                $insufficient = [];
+                foreach ($need as $n=>$q){
+                    if ($stockCol !== 'stock') { continue; } // stock not present
+                    // Lock row
+                    $sel = $conn->prepare("SELECT $idCol, $stockCol FROM products WHERE $nameCol=? LIMIT 1 FOR UPDATE");
+                    if (!$sel){ continue; }
+                    $sel->bind_param("s", $n);
+                    $sel->execute();
+                    $res = $sel->get_result();
+                    $row = $res? $res->fetch_assoc(): null; $sel->close();
+                    if (!$row){ continue; } // product not found -> skip deduction
+                    $pid = intval($row[$idCol] ?? 0);
+                    $stock = intval($row[$stockCol] ?? 0);
+                    if ($stock < $q){ $insufficient[] = ['product'=>$n,'needed'=>$q,'stock'=>$stock]; }
+                    else {
+                        $upd = $conn->prepare("UPDATE products SET $stockCol = $stockCol - ? WHERE $idCol = ?");
+                        if ($upd){ $upd->bind_param("ii", $q, $pid); $okU = $upd->execute(); $upd->close(); if (!$okU){ $insufficient[] = ['product'=>$n,'needed'=>$q,'stock'=>$stock,'error'=>'update_failed']; } }
+                    }
+                }
+                if (count($insufficient)>0){ $conn->rollback(); echo json_encode(['error'=>'insufficient_stock','details'=>$insufficient]); break; }
+            }
+
+            $conn->commit();
             echo json_encode(['success'=>true,'order_id'=>$order_id]);
         } catch (Exception $e) { echo json_encode(['error'=>'Error creating order: '.$e->getMessage()]); }
         break;
