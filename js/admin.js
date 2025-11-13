@@ -792,21 +792,33 @@ async function changeOrderStatus(orderId, status){
     const tr = document.querySelector(`tr[data-order-id="${orderId}"]`);
     if (tr && idx>-1){ tr.outerHTML = renderOrderRow(ordersCache[idx]); }
 
-    const res = await fetchAPI(null,'POST',{ action:'update_order_status', order_id: parseInt(orderId,10), status });
-    console.log('update_order_status resp', res);
+    let res;
+    try{
+        // Use unified backend that already supports status updates and matches schema
+        res = await fetchAPI(null,'POST',{ action:'update_order_status', order_id: parseInt(orderId,10), status });
+    }catch(e){ res = { success:false, error: e?.message || 'Network error' }; }
+    console.log('update order status resp', res);
     if (res?.success){
-        // Re-fetch to keep items synced (bust cache)
-        await loadOrders();
+        // Keep optimistic UI; ensure cached row reflects new status
+        if (idx>-1){ ordersCache[idx].status = status; }
+        const trOk = document.querySelector(`tr[data-order-id="${orderId}"]`);
+        if (trOk && idx>-1){ trOk.outerHTML = renderOrderRow(ordersCache[idx]); }
+        alert('Order updated: ' + (res?.message || status));
+        // Optional: background refresh to sync other rows without flashing this one
+        try { fetchAPI('get_orders').then(list => { if (Array.isArray(list)) { ordersCache = list; } }); } catch(_){}
     } else {
-        // If backend reports current_status, reflect it
-        if (res?.current_status && idx>-1){ ordersCache[idx].status = res.current_status; if (tr) tr.outerHTML = renderOrderRow(ordersCache[idx]); }
-        else if (idx>-1 && prev){ ordersCache[idx] = prev; if (tr) tr.outerHTML = renderOrderRow(prev); }
-        alert(res?.error || 'Failed to update order');
+        // Roll back optimistic change
+        if (idx>-1 && prev){ ordersCache[idx] = prev; }
+        const tr2 = document.querySelector(`tr[data-order-id="${orderId}"]`);
+        if (tr2 && idx>-1){ tr2.outerHTML = renderOrderRow(prev || ordersCache[idx]); }
+        const detail = (res && (res.current_status!==undefined)) ? ` (current_status: ${res.current_status})` : '';
+        if (res && res.tried) { try { console.warn('Update variants tried:', res.tried); } catch(_){} }
+        alert((res?.message || res?.error || 'Failed to update') + detail);
     }
 }
 
 function viewOrderItems(orderId){
-    const o = ordersCache.find(x=>x.order_id==orderId);
+    // ... (rest of the code remains the same)
     const items = Array.isArray(o?.items) ? o.items : [];
     const html = items.length? items.map(it=>`
         <div style="display:flex;align-items:center;gap:10px;margin:8px 0;">

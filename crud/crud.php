@@ -538,14 +538,40 @@ switch ($action) {
             $statusExpr = ($hasStatus && $hasStatus->num_rows > 0) ? 'o.status' : "'to_pay'";
             if ($hasStatus) { $hasStatus->close(); }
 
-            $userFilter = '';
+            // Determine user column (user_id or customer_id)
+            $hasUserId = $conn->query("SHOW COLUMNS FROM orders LIKE 'user_id'");
+            $hasCustomerId = $conn->query("SHOW COLUMNS FROM orders LIKE 'customer_id'");
+            $userCol = 'o.user_id';
+            if (!($hasUserId && $hasUserId->num_rows > 0) && ($hasCustomerId && $hasCustomerId->num_rows > 0)) {
+                $userCol = 'o.customer_id';
+            }
+            if ($hasUserId) { $hasUserId->close(); }
+            if ($hasCustomerId) { $hasCustomerId->close(); }
+
+            // Optional filters: user_id and status
+            $wheres = [];
             if (isset($_GET['user_id']) && $_GET['user_id'] !== '') {
                 $uid = intval($_GET['user_id']);
-                $userFilter = "WHERE o.user_id = $uid";
+                $wheres[] = "$userCol = $uid";
             }
-            $sql = "SELECT o.order_id, o.user_id, $dateExpr AS date, $totalExpr AS total, $statusExpr AS status, COALESCE(u.name,'User') AS customer
-                    FROM orders o LEFT JOIN users u ON u.user_id = o.user_id
-                    $userFilter
+            if (isset($_GET['status']) && $_GET['status'] !== '') {
+                $st = strtolower(trim($_GET['status']));
+                $allowed = ['to_pay','to_ship','to_receive','completed','cancelled'];
+                if (in_array($st, $allowed, true)) {
+                    $normExpr = "LOWER(REPLACE($statusExpr,' ','_'))";
+                    $cond = "$normExpr = '" . $conn->real_escape_string($st) . "'";
+                    if ($st === 'to_ship') {
+                        // Also include common equivalent 'shipped'
+                        $cond = "(($cond) OR LOWER($statusExpr) = 'shipped')";
+                    }
+                    $wheres[] = $cond;
+                }
+            }
+            $whereSql = count($wheres) ? ('WHERE ' . implode(' AND ', $wheres)) : '';
+
+            $sql = "SELECT o.order_id, $userCol AS user_id, $dateExpr AS date, $totalExpr AS total, $statusExpr AS status, COALESCE(u.name,'User') AS customer
+                    FROM orders o LEFT JOIN users u ON u.user_id = ($userCol)
+                    $whereSql
                     ORDER BY o.order_id DESC";
             $res = $conn->query($sql);
             if (!$res) { echo json_encode(['error'=>'DB error: '.$conn->error]); break; }
@@ -575,25 +601,99 @@ switch ($action) {
                 $conn->query("ALTER TABLE orders ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'to_pay'");
             }
             if ($hasStatus) { $hasStatus->close(); }
+            // Check order exists first
+            $check = $conn->prepare("SELECT status FROM orders WHERE order_id=?");
+            $check->bind_param("i", $order_id);
+            $check->execute();
+            $existsRes = $check->get_result();
+            $existsRow = $existsRes ? $existsRes->fetch_assoc() : null;
+            $check->close();
+            if (!$existsRow) { echo json_encode(['error'=>'Order not found','order_id'=>$order_id]); break; }
+
+            // Determine target DB value for status (handle ENUM variants like 'To Ship')
+            $target = $status;
+            $enumOpts = [];
+            $colInfo = $conn->query("SHOW COLUMNS FROM orders LIKE 'status'");
+            if ($colInfo && $colInfo->num_rows > 0){
+                $info = $colInfo->fetch_assoc();
+                $colInfo->close();
+                if (isset($info['Type']) && stripos($info['Type'], 'enum(') === 0){
+                    // Extract enum options
+                    if (preg_match("/enum\((.*)\)/i", $info['Type'], $m)){
+                        $opts = array_map(function($s){ return trim($s, "'\" "); }, explode(',', $m[1]));
+                        $enumOpts = $opts;
+                        $norm = function($s){ $s = strtolower(trim($s)); $s = preg_replace('/[^a-z]/','_', $s); $s = preg_replace('/_+/', '_', $s); return $s; };
+                        $want = $norm($status);
+                        foreach($opts as $opt){ if ($norm($opt) === $want){ $target = $opt; break; } }
+                        // If no exact match, try fuzzy by keyword
+                        if ($target === $status){
+                            $kw = [
+                                'to_pay' => 'pay',
+                                'to_ship' => 'ship',
+                                'to_receive' => 'receive',
+                                'completed' => 'complete',
+                                'cancelled' => 'cancel'
+                            ][$status] ?? '';
+                            if ($kw){
+                                foreach($opts as $opt){ if (stripos($opt, $kw)!==false){ $target = $opt; break; } }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Perform update and verify write
             $stmt = $conn->prepare("UPDATE orders SET status=? WHERE order_id=?");
-            $stmt->bind_param("si", $status, $order_id);
+            $stmt->bind_param("si", $target, $order_id);
             $ok = $stmt->execute();
-            $affected = $stmt->affected_rows;
+            $affected = $stmt->affected_rows; // may be 0 if same value
             $err = $stmt->error;
             $stmt->close();
+
+            // Re-read current status
+            $check2 = $conn->prepare("SELECT status FROM orders WHERE order_id=?");
+            $check2->bind_param("i", $order_id);
+            $check2->execute();
+            $res2 = $check2->get_result();
+            $row2 = $res2 ? $res2->fetch_assoc() : null;
+            $check2->close();
+            $current = $row2 && isset($row2['status']) ? $row2['status'] : null;
+
+            // If already equal (idempotent), success
+            if (is_string($current) && strtolower(trim($current)) === strtolower($target)) {
+                echo json_encode(['success'=>true,'order_id'=>$order_id,'status'=>$target,'note'=>($affected===0?'No change needed':null)]);
+                break;
+            }
+
+            // If not equal and first update didn't take effect, try common variants (for ENUM schemas)
+            if ($ok && $affected === 0) {
+                $variants = [$target, strtoupper(str_replace('_',' ', $status)), strtolower(str_replace('_',' ', $status)), ucwords(str_replace('_',' ', $status))];
+                $did = false; $lastErr = '';
+                foreach ($variants as $v) {
+                    $u = $conn->prepare("UPDATE orders SET status=? WHERE order_id=?");
+                    if ($u){
+                        $u->bind_param("si", $v, $order_id);
+                        $uok = $u->execute();
+                        $lastErr = $u->error; $u->close();
+                        // Re-read
+                        $c = $conn->prepare("SELECT status FROM orders WHERE order_id=?");
+                        $c->bind_param("i", $order_id);
+                        $c->execute(); $r = $c->get_result(); $rw = $r? $r->fetch_assoc(): null; $c->close();
+                        $cur = $rw && isset($rw['status']) ? $rw['status'] : null;
+                        if (is_string($cur) && strtolower(trim($cur)) === strtolower(str_replace(' ','_', $status))) { $did = true; break; }
+                        if (is_string($cur) && strtolower(trim($cur)) === strtolower($v)) { $did = true; break; }
+                    }
+                }
+                if ($did) { echo json_encode(['success'=>true,'order_id'=>$order_id,'status'=>$target,'note'=>'Saved via variant']); break; }
+                // If still not equal, error out with current value
+                echo json_encode(['error'=>'Update failed','order_id'=>$order_id,'current_status'=>$current, 'tried'=>$variants, 'enum_options'=>$enumOpts]);
+                break;
+            }
+
             if ($ok && $affected > 0) {
-                echo json_encode(['success'=>true,'order_id'=>$order_id,'status'=>$status]);
-            } else if ($ok && $affected === 0) {
-                // Fetch current status to report back
-                $q = $conn->prepare("SELECT status FROM orders WHERE order_id=?");
-                $q->bind_param("i", $order_id);
-                $q->execute();
-                $res = $q->get_result();
-                $row = $res ? $res->fetch_assoc() : null;
-                $q->close();
-                echo json_encode(['error'=>'No rows updated','order_id'=>$order_id,'current_status'=>$row['status'] ?? null]);
+                echo json_encode(['success'=>true,'order_id'=>$order_id,'status'=>$target]);
             } else {
-                echo json_encode(['error'=>'Failed to update status: '.$err]);
+                echo json_encode(['error'=>'Failed to update status: '.$err, 'order_id'=>$order_id,'current_status'=>$current, 'enum_options'=>$enumOpts]);
             }
         } catch (Exception $e) { echo json_encode(['error'=>'Error updating order: '.$e->getMessage()]); }
         break;

@@ -618,6 +618,19 @@
   function getOrders(){ try { return JSON.parse(sessionStorage.getItem(ORDERS_KEY())||'[]'); } catch(e){ return []; } }
   function saveOrders(arr){ sessionStorage.setItem(ORDERS_KEY(), JSON.stringify(arr||[])); }
   function money(n){ return '₱'+Number(n||0).toFixed(2); }
+  function normalizeStatus(s){
+    const raw = String(s||'to_pay').toLowerCase().trim();
+    // replace any non-letters with underscore, then collapse repeats
+    let t = raw.replace(/[^a-z]/g,'_').replace(/_+/g,'_');
+    // map common variants
+    if (t === 'shipped' || t === 'ship' || t === 'shipping') return 'to_ship';
+    if (t === 'to_ship' || t === 'toship') return 'to_ship';
+    if (t === 'to_receive' || t === 'toreceive') return 'to_receive';
+    if (t === 'completed' || t === 'complete') return 'completed';
+    if (t === 'cancelled' || t === 'canceled' || t === 'cancel') return 'cancelled';
+    if (t === 'to_pay' || t === 'topay') return 'to_pay';
+    return t || 'to_pay';
+  }
   function initPurchases(){
     const tabs = $$('.p-head .tabs a');
     tabs.forEach(a=>a.addEventListener('click', async (e)=>{
@@ -655,43 +668,51 @@
   async function renderPurchases(tab){
     const wrap = $('#p-orders');
     if (!wrap) return;
-    // Sync latest statuses from server for this user
-    await syncOrdersFromServer();
     // Show search only on "All" tab
     const searchWrap = document.querySelector('.p-search');
     const searchInput = document.getElementById('p-search');
     if (searchWrap){ searchWrap.style.display = (tab==='all') ? '' : 'none'; }
     if (tab !== 'all' && searchInput){ searchInput.value = ''; }
     const q = (tab==='all' && searchInput ? (searchInput.value||'').toLowerCase() : '');
-    // If the local cache is empty, seed it once from the server so Admin actions appear here
-    let cached = getOrders();
-    if (!Array.isArray(cached) || cached.length === 0){
-      try{
-        const res = await fetch(`../crud/crud.php?action=get_orders&user_id=${encodeURIComponent(window.PURR_USER_ID||'')}&_=${Date.now()}`);
-        const arr = await res.json();
-        if (Array.isArray(arr) && arr.length){
-          const seeded = arr.filter(o=>o && o.order_id!=null).map(o=>({
-            order_id: o.order_id,
-            date: o.date || o.created_at || Date.now(),
-            total: Number(o.total||0),
-            status: String(o.status||'to_pay'),
-            items: Array.isArray(o.items) ? o.items.map(it=>({
-              name: it.product_name || it.name || '',
-              quantity: Number(it.quantity||1),
-              price: Number(it.price||0),
-              image: it.image_url || it.image || ''
-            })) : []
-          }));
-          if (seeded.length){ saveOrders(seeded); cached = seeded; }
-        }
-      }catch(_){ /* ignore */ }
+
+    // Always fetch latest orders for this user, then filter by tab locally
+    let orders = [];
+    try{
+      // Ask server to pre-filter by status when not on 'all'
+      const base = `../crud/crud.php?action=get_orders&user_id=${encodeURIComponent(String(window.PURR_USER_ID||''))}`;
+      const url = base + (tab && tab!=='all' ? `&status=${encodeURIComponent(tab)}` : '') + `&_=${Date.now()}`;
+      let res = await fetch(url);
+      let arr = await res.json();
+      // If nothing returned, retry without user filter (fallback) then filter client-side
+      if (!Array.isArray(arr) || arr.length === 0){
+        res = await fetch(`../crud/crud.php?action=get_orders&_=${Date.now()}`);
+        arr = await res.json();
+      }
+      if (Array.isArray(arr)){
+        orders = arr
+          .filter(o => String(o.user_id||'') === String(window.PURR_USER_ID||''))
+          .map(o=>({
+          order_id: o.order_id,
+          date: o.date || o.created_at || Date.now(),
+          total: Number(o.total||0),
+          status: normalizeStatus(o.status),
+          items: Array.isArray(o.items)? o.items.map(it=>({
+            name: it.product_name || it.name || '',
+            quantity: Number(it.quantity||1),
+            price: Number(it.price||0),
+            image: it.image_url || it.image || ''
+          })) : []
+        }));
+        // Cache for fallback only
+        saveOrders(orders);
+      }
+    }catch(_){
+      const cached = getOrders();
+      orders = Array.isArray(cached)? cached : [];
     }
-    let orders = (Array.isArray(cached)? cached : []).map(o=> ({...o, status: (o.status||'to_pay')}));
-    if (tab==='to_pay') orders = orders.filter(o=>o.status==='to_pay');
-    if (tab==='to_ship') orders = orders.filter(o=>o.status==='to_ship');
-    if (tab==='to_receive') orders = orders.filter(o=>o.status==='to_receive');
-    if (tab==='completed') orders = orders.filter(o=>o.status==='completed');
-    if (tab==='cancelled') orders = orders.filter(o=>o.status==='cancelled');
+
+    // Client-side status filter
+    if (tab && tab !== 'all') orders = orders.filter(o=>o.status===tab);
     if (q) orders = orders.filter(o => (o.items||[]).some(it => (it.name||'').toLowerCase().includes(q)) );
     if (!orders.length){ wrap.innerHTML = '<div class="address-empty" style="display:flex"><div class="empty-inner"><p class="empty-main">No orders yet.</p></div></div>'; return; }
 
