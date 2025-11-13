@@ -172,6 +172,9 @@ if (!isset($_SESSION['user_id'])) {
     </div>
 </footer>
 
+<script>
+  window.PURR_USER_ID = <?= json_encode((string)($_SESSION['user_id'] ?? 'anon')) ?>;
+</script>
 <script src="../js/cart.js?v=no-tax"></script>
 <script>
   // Hide cart icon on cart page

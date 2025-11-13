@@ -146,7 +146,9 @@ session_start();
         </div>
     </div>
 </footer>
-
+<script>
+  window.PURR_USER_ID = <?= json_encode((string)($_SESSION['user_id'] ?? 'anon')) ?>;
+</script>
 <script src="../js/cart.js"></script>
 <script src="../js/product-details.js"></script>
 

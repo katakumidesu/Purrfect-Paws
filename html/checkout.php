@@ -151,7 +151,7 @@ if (!isset($_SESSION['user_id'])) {
           <div class="pm-body">
             <div class="pm-row total">
               <span>Total Payment:</span>
-              <span class="val" id="pmTotalPayment">$0.00</span>
+              <span class="val" id="pmTotalPayment">₱0.00</span>
             </div>
           </div>
           <div class="pm-footer">
@@ -223,11 +223,13 @@ if (!isset($_SESSION['user_id'])) {
     </div>
 </footer>
 
-  <script src="../js/cart.js?v=no-tax"></script>
-  <script src="js/address-modal.js"></script>
   <script>
     // Namespace orders per logged-in user so browser sessions don't mix
     window.PURR_USER_ID = <?= json_encode((string)($_SESSION['user_id'] ?? 'anon')) ?>;
+  </script>
+  <script src="../js/cart.js?v=no-tax"></script>
+  <script src="js/address-modal.js"></script>
+  <script>
     const ORDERS_KEY = () => `purrfectOrders:${window.PURR_USER_ID||'anon'}`;
     const SELECTED_ADDR_KEY = () => `purrfectSelectedAddr:${window.PURR_USER_ID||'anon'}`;
     async function fetchAddresses(){
@@ -398,12 +400,12 @@ if (!isset($_SESSION['user_id'])) {
       const sums = calculateTotals(items);
       const totalPay = sums.total; // shipping currently 0
       const el = document.getElementById('pmTotalPayment');
-      if (el) el.textContent = `$${totalPay.toFixed(2)}`;
+      if (el) el.textContent = `₱${totalPay.toFixed(2)}`;
     }
 
     function renderCartToCheckout(){
       const all = getCart();
-      const selected = (()=>{ try { return JSON.parse(sessionStorage.getItem('purrfectSelected')||'[]'); } catch(e){ return []; } })();
+      const selected = (()=>{ try { return JSON.parse(sessionStorage.getItem(SELECTED_KEY())||'[]'); } catch(e){ return []; } })();
       const items = selected.length ? all.filter(it => selected.includes(it.name)) : all;
       const wrap = document.getElementById('orderItems');
       if(!items || items.length===0){
@@ -428,9 +430,9 @@ if (!isset($_SESSION['user_id'])) {
             <div class="title">${esc(it.name)}</div>
           </div>
           <div class="order-cols values">
-            <span class="col">$${Number(it.price).toFixed(2)}</span>
+            <span class="col">₱${Number(it.price).toFixed(2)}</span>
             <span class="col">${it.quantity}</span>
-            <span class="col">$${(it.price*it.quantity).toFixed(2)}</span>
+            <span class="col">₱${(it.price*it.quantity).toFixed(2)}</span>
           </div>
         </div>
       `).join('');
@@ -440,7 +442,7 @@ if (!isset($_SESSION['user_id'])) {
 
     document.getElementById('placeOrder').addEventListener('click', async function(){
       const all = getCart();
-      const selected = (()=>{ try { return JSON.parse(sessionStorage.getItem('purrfectSelected')||'[]'); } catch(e){ return []; } })();
+      const selected = (()=>{ try { return JSON.parse(sessionStorage.getItem(SELECTED_KEY())||'[]'); } catch(e){ return []; } })();
       const items = selected.length ? all.filter(it => selected.includes(it.name)) : all;
       if(!items || items.length===0){ alert('Your cart is empty'); return; }
       const sums = calculateTotals(items);
@@ -472,10 +474,10 @@ if (!isset($_SESSION['user_id'])) {
       // Remove only purchased items from cart if a subset was selected
       if (selected.length){
         const remaining = all.filter(it => !selected.includes(it.name));
-        sessionStorage.setItem('purrfectCart', JSON.stringify(remaining));
-        sessionStorage.removeItem('purrfectSelected');
+        sessionStorage.setItem(CART_KEY(), JSON.stringify(remaining));
+        sessionStorage.removeItem(SELECTED_KEY());
       } else {
-        sessionStorage.removeItem('purrfectCart');
+        sessionStorage.removeItem(CART_KEY());
       }
       if (typeof updateCartBadge === 'function') updateCartBadge();
       window.location.href = '../profile_php/profile.php#purchases:to_pay';

@@ -84,7 +84,7 @@ async function displayProductDetails() {
                 <div class="product-details">
                     <p>Home / Cat Accessories</p>
                     <h1>${product.name}</h1>
-                    <h4>$ ${product.price.toFixed(2)}</h4>
+                    <h4>₱ ${product.price.toFixed(2)}</h4>
                     <input type="number" value="1" min="1">
                     <a href="#" class="purchase-btn-2">Add To Cart</a>
                     <h3>Description:</h3>
@@ -125,7 +125,7 @@ async function displayProductDetails() {
             <div class="rating">
                 ${getStars(prod.rating)}
             </div>
-            <p><strong>$ ${prod.price.toFixed(2)}</strong></p>
+            <p><strong>₱ ${prod.price.toFixed(2)}</strong></p>
             <a href="product-detail.php?name=${encodeURIComponent(prod.name)}">
                 <button class="purchase-btn">Purchase</button>
             </a>

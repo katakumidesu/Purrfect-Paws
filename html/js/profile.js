@@ -617,7 +617,7 @@
   const ORDERS_KEY = () => `purrfectOrders:${window.PURR_USER_ID||'anon'}`;
   function getOrders(){ try { return JSON.parse(sessionStorage.getItem(ORDERS_KEY())||'[]'); } catch(e){ return []; } }
   function saveOrders(arr){ sessionStorage.setItem(ORDERS_KEY(), JSON.stringify(arr||[])); }
-  function money(n){ return '$'+Number(n||0).toFixed(2); }
+  function money(n){ return '₱'+Number(n||0).toFixed(2); }
   function initPurchases(){
     const tabs = $$('.p-head .tabs a');
     tabs.forEach(a=>a.addEventListener('click', async (e)=>{

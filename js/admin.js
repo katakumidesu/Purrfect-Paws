@@ -182,7 +182,7 @@ function renderInventoryTable(productsList) {
                                     <div class="product-desc">${escapeHtml(p.description || '').substring(0, 50)}${p.description && p.description.length > 50 ? '...' : ''}</div>
                                 </td>
                                 <td>${escapeHtml(p.category_name || 'Uncategorized')}</td>
-                                <td class="price">$${parseFloat(p.price).toFixed(2)}</td>
+                                <td class="price">₱${parseFloat(p.price).toFixed(2)}</td>
                                 <td class="stock ${p.stock < 10 ? 'low-stock' : ''}">${p.stock}</td>
                                 <td>
                                     <span class="status-badge ${p.stock > 10 ? 'available' : 'low-stock'}">
@@ -738,7 +738,7 @@ function renderOrderRow(o){
             <td>#${o.order_id}</td>
             <td>${escapeHtml(o.customer||'User')} (ID:${o.user_id})</td>
             <td style="text-align:center; width: 120px;"><button type="button" class="btn btn-secondary" onclick="viewOrderItems(${o.order_id})">Details</button></td>
-            <td class="price">$${Number(o.total||0).toFixed(2)}</td>
+            <td class="price">₱${Number(o.total||0).toFixed(2)}</td>
             <td>
                 <span class="status-badge ${st==='to_pay'?'low-stock': st==='completed'?'available':''}">${st.replace('_',' ')}</span>
             </td>
@@ -813,9 +813,9 @@ function viewOrderItems(orderId){
             <img src="${it.image_url||'../HTML/images/catbed.jpg'}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;" onerror="this.src='../HTML/images/catbed.jpg'">
             <div style="flex:1;">
                 <div style="font-weight:600;">${escapeHtml(it.product_name||'')}</div>
-                <div style="color:#aaa;font-size:12px;">Qty: ${it.quantity} • $${Number(it.price||0).toFixed(2)}</div>
+                <div style="color:#aaa;font-size:12px;">Qty: ${it.quantity} • ₱${Number(it.price||0).toFixed(2)}</div>
             </div>
-            <div style="font-weight:600;">$${(Number(it.price||0)*Number(it.quantity||0)).toFixed(2)}</div>
+            <div style="font-weight:600;">₱${(Number(it.price||0)*Number(it.quantity||0)).toFixed(2)}</div>
         </div>
     `).join('') : '<div style="color:#aaa;">No items found for this order.</div>';
     const body = document.getElementById('orderItemsBody');
@@ -836,7 +836,7 @@ function loadAnalytics(){
                 <div class="card-icon"><i class="fa fa-dollar-sign"></i></div>
                 <div class="card-content">
                     <h3>Total Revenue</h3>
-                    <p class="card-value">$0</p>
+                    <p class="card-value">₱0</p>
                 </div>
             </div>
             <div class="card">
