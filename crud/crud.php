@@ -537,6 +537,19 @@ switch ($action) {
             $hasStatus = $conn->query("SHOW COLUMNS FROM orders LIKE 'status'");
             $statusExpr = ($hasStatus && $hasStatus->num_rows > 0) ? 'o.status' : "'to_pay'";
             if ($hasStatus) { $hasStatus->close(); }
+            // Normalized status expression for SELECT (treat NULL/empty as 'to_pay')
+            $statusRaw = "TRIM(COALESCE($statusExpr,''))";
+            $statusLc = "LOWER($statusRaw)";
+            $statusNormExpr = "CASE
+                WHEN $statusRaw = '' THEN 'to_pay'
+                WHEN $statusLc IN ('received','delivered') THEN 'to_receive'
+                WHEN $statusLc IN ('shipped') THEN 'to_ship'
+                WHEN REPLACE($statusLc,' ','_') IN ('to_ship','toship') OR $statusLc IN ('ship','shipping') THEN 'to_ship'
+                WHEN REPLACE($statusLc,' ','_') IN ('to_pay','topay') THEN 'to_pay'
+                WHEN $statusLc IN ('completed','complete') THEN 'completed'
+                WHEN $statusLc IN ('cancelled','canceled','cancel') THEN 'cancelled'
+                ELSE REPLACE($statusLc,' ','_')
+            END";
 
             // Determine user column (user_id or customer_id)
             $hasUserId = $conn->query("SHOW COLUMNS FROM orders LIKE 'user_id'");
@@ -561,16 +574,19 @@ switch ($action) {
                     $statusLc = "LOWER(TRIM($statusExpr))";
                     $normExpr = "LOWER(REPLACE($statusLc,' ','_'))";
                     $cond = "$normExpr = '" . $conn->real_escape_string($st) . "'";
-                    if ($st === 'to_receive') {
-                        // Include common equivalents 'received', 'delivered', and 'shipped'
-                        $cond = "(($cond) OR $statusLc IN ('received','delivered','shipped'))";
+                    if ($st === 'to_ship') {
+                        // Include DB equivalent 'shipped'
+                        $cond = "(($cond) OR $statusLc IN ('shipped','ship','shipping'))";
+                    } elseif ($st === 'to_receive') {
+                        // Include DB equivalents
+                        $cond = "(($cond) OR $statusLc IN ('received','delivered'))";
                     }
                     $wheres[] = $cond;
                 }
             }
             $whereSql = count($wheres) ? ('WHERE ' . implode(' AND ', $wheres)) : '';
 
-            $sql = "SELECT o.order_id, $userCol AS user_id, $dateExpr AS date, $totalExpr AS total, $statusExpr AS status, COALESCE(u.name,'User') AS customer
+            $sql = "SELECT o.order_id, $userCol AS user_id, $dateExpr AS date, $totalExpr AS total, $statusNormExpr AS status, COALESCE(u.name,'User') AS customer
                     FROM orders o LEFT JOIN users u ON u.user_id = ($userCol)
                     $whereSql
                     ORDER BY o.order_id DESC";
@@ -638,6 +654,12 @@ switch ($action) {
                             if ($kw){
                                 foreach($opts as $opt){ if (stripos($opt, $kw)!==false){ $target = $opt; break; } }
                             }
+                            // Special: if still no match for to_receive, prefer 'received' then 'delivered'
+                            if ($target === $status && $status === 'to_receive'){
+                                foreach(['received','delivered'] as $alt){
+                                    foreach($opts as $opt){ if (strcasecmp($opt, $alt)===0 || stripos($opt,$alt)!==false){ $target = $opt; break 2; } }
+                                }
+                            }
                         }
                     }
                 }
@@ -669,6 +691,7 @@ switch ($action) {
             // If not equal and first update didn't take effect, try common variants (for ENUM schemas)
             if ($ok && $affected === 0) {
                 $variants = [$target, strtoupper(str_replace('_',' ', $status)), strtolower(str_replace('_',' ', $status)), ucwords(str_replace('_',' ', $status))];
+                if ($status === 'to_receive') { array_unshift($variants, 'received', 'delivered'); }
                 $did = false; $lastErr = '';
                 foreach ($variants as $v) {
                     $u = $conn->prepare("UPDATE orders SET status=? WHERE order_id=?");
