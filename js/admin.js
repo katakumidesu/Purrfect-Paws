@@ -878,42 +878,152 @@ function loadAnalytics(){
 }
 
 // ---------------- REPORTS ----------------
-function loadReports(){
-    mainContent.innerHTML = `
-        <div class="inventory-header">
-            <h2>Reports</h2>
-        </div>
-        <div class="dashboard-cards">
-            <div class="card" onclick="alert('Sales Report coming soon')" style="cursor: pointer;">
-                <div class="card-icon"><i class="fa fa-file-invoice-dollar"></i></div>
-                <div class="card-content">
-                    <h3>Sales Report</h3>
-                    <p style="color: #aaa;">View detailed sales reports</p>
-                </div>
-            </div>
-            <div class="card" onclick="alert('Product Report coming soon')" style="cursor: pointer;">
-                <div class="card-icon"><i class="fa fa-box"></i></div>
-                <div class="card-content">
-                    <h3>Product Report</h3>
-                    <p style="color: #aaa;">Product performance analysis</p>
-                </div>
-            </div>
-            <div class="card" onclick="alert('Customer Report coming soon')" style="cursor: pointer;">
-                <div class="card-icon"><i class="fa fa-users"></i></div>
-                <div class="card-content">
-                    <h3>Customer Report</h3>
-                    <p style="color: #aaa;">Customer behavior insights</p>
-                </div>
-            </div>
-            <div class="card" onclick="alert('Inventory Report coming soon')" style="cursor: pointer;">
-                <div class="card-icon"><i class="fa fa-warehouse"></i></div>
-                <div class="card-content">
-                    <h3>Inventory Report</h3>
-                    <p style="color: #aaa;">Stock levels and movements</p>
-                </div>
-            </div>
-        </div>
-    `;
+async function loadReports(){
+    try {
+        var orders = await fetchAPI('get_orders');
+        var arr = Array.isArray(orders) ? orders : [];
+        var now = new Date();
+        var y = now.getFullYear();
+        var m = now.getMonth();
+        var byMonth = Array.from({length:12}, function(){ return {rev:0,count:0}; });
+        var completedRev = 0, completedCount = 0;
+        var thisMonthRev = 0, lastMonthRev = 0, thisMonthCount = 0;
+        var statusCount = {to_pay:0,to_ship:0,to_receive:0,completed:0,cancelled:0};
+        for (var i=0;i<arr.length;i++){
+            var o = arr[i];
+            var d = o.date ? new Date(o.date) : null;
+            var mm = d? d.getMonth(): m;
+            var rev = Number(o.total||0);
+            var s = String(o.status||'').toLowerCase();
+            if (statusCount[s]!==undefined) statusCount[s]++;
+            byMonth[mm].rev += rev; byMonth[mm].count += 1;
+            if (d && d.getFullYear()===y){ if (mm===m) { thisMonthRev+=rev; thisMonthCount++; } if (mm===((m+11)%12)) { lastMonthRev+=rev; } }
+            if (s==='completed'){ completedRev += rev; completedCount++; }
+        }
+        const netIncome = completedRev;
+        const avgOrder = completedCount? (completedRev/completedCount): 0;
+        const growthRate = lastMonthRev>0? ((thisMonthRev-lastMonthRev)/lastMonthRev*100): (thisMonthRev>0?100:0);
+        var lastMonthIndex = (m+11)%12;
+        var lastMonthCount = byMonth[lastMonthIndex].count;
+
+        var html = '<div class="report-wrap" style="color:#111">'
+        + '<div class="inventory-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">'
+        + '<h2>Report</h2>'
+        + '<div><button class="btn" onclick="window.print()" style="padding:8px 12px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;cursor:pointer"><i class="fa fa-download"></i> Download</button></div>'
+        + '</div>'
+        + '<div class="dashboard-cards" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:10px;">'
+        +   '<div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff">'
+        +     '<div style="font-size:12px;color:#6b7280;margin-bottom:6px">Net income</div>'
+        +     '<div style="font-size:22px;font-weight:700">\u20B1' + netIncome.toFixed(2) + '</div>'
+        +     '<div style="font-size:12px;color:#16a34a;margin-top:6px">This month: \u20B1' + thisMonthRev.toFixed(2) + '</div>'
+        +   '</div>'
+        +   '<div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff">'
+        +     '<div style="font-size:12px;color:#6b7280;margin-bottom:6px">Orders this month</div>'
+        +     '<div style="font-size:22px;font-weight:700">' + thisMonthCount + '</div>'
+        +     '<div style="font-size:12px;color:#6b7280;margin-top:6px">vs last month ' + lastMonthCount + '</div>'
+        +   '</div>'
+        +   '<div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff">'
+        +     '<div style="font-size:12px;color:#6b7280;margin-bottom:6px">Average Order</div>'
+        +     '<div style="font-size:22px;font-weight:700">\u20B1' + avgOrder.toFixed(2) + '</div>'
+        +     '<div style="font-size:12px;color:#6b7280;margin-top:6px">Completed only</div>'
+        +   '</div>'
+        +   '<div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff">'
+        +     '<div style="font-size:12px;color:#6b7280;margin-bottom:6px">Growth Rate</div>'
+        +     '<div style="font-size:22px;font-weight:700">' + growthRate.toFixed(2) + '%</div>'
+        +     '<div style="font-size:12px;color:#16a34a;margin-top:6px">vs last month</div>'
+        +   '</div>'
+        + '</div>'
+        + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-top:14px;">'
+        +   '<div style="border:1px solid #eee;border-radius:12px;background:#fff;padding:12px;">'
+        +     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><div style="font-weight:600">Total Sales</div></div>'
+        +     '<canvas id="salesLine" height="110"></canvas>'
+        +   '</div>'
+        +   '<div style="border:1px solid #eee;border-radius:12px;background:#fff;padding:12px;">'
+        +     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><div style="font-weight:600">Sales Activity</div></div>'
+        +     '<canvas id="salesPie" height="110"></canvas>'
+        +   '</div>'
+        + '</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;">'
+        +   '<div style="border:1px solid #eee;border-radius:12px;background:#fff;padding:12px;">'
+        +     '<div style="font-weight:600;margin-bottom:8px;">Top Products</div><div id="topProducts"></div>'
+        +   '</div>'
+        +   '<div style="border:1px solid #eee;border-radius:12px;background:#fff;padding:12px;">'
+        +     '<div style="font-weight:600;margin-bottom:8px;">New Orders by Month</div>'
+        +     '<canvas id="ordersBar" height="120"></canvas>'
+        +   '</div>'
+        + '</div>'
+        + '</div>';
+        mainContent.innerHTML = html;
+
+        function ensureChart(){
+            return new Promise(function(res){
+                if (window.Chart) return res();
+                var s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/chart.js'; s.onload=function(){res();}; document.head.appendChild(s);
+            });
+        }
+        await ensureChart();
+
+        var monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var revData = byMonth.map(function(x){ return x.rev; });
+        var cntData = byMonth.map(function(x){ return x.count; });
+        var ctx1 = document.getElementById('salesLine').getContext('2d');
+        new Chart(ctx1, {
+            type: 'line',
+            data: { labels: monthLabels, datasets: [
+                { label: 'Revenue', data: revData, borderColor: '#0ea5e9', backgroundColor: 'rgba(14,165,233,.12)', tension: 0.35, fill: true },
+                { label: 'Orders', data: cntData, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,.12)', tension: 0.35 }
+            ] },
+            options: { responsive: true, plugins:{ legend:{ labels:{ color:'#111' } } }, scales:{ x:{ ticks:{ color:'#111' } }, y:{ ticks:{ color:'#111' } } } }
+        });
+
+        var ctx2 = document.getElementById('salesPie').getContext('2d');
+        var pieLabels = ['To Pay','To Ship','To Receive','Completed','Cancelled'];
+        var pieData = [statusCount.to_pay, statusCount.to_ship, statusCount.to_receive, statusCount.completed, statusCount.cancelled];
+        var pieColors = ['#f59e0b','#3b82f6','#10b981','#22c55e','#ef4444'];
+        new Chart(ctx2, {
+            type: 'doughnut',
+            data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: pieColors }] },
+            options: { plugins: { legend: { position: 'bottom', labels:{ color:'#111' } } } }
+        });
+
+        var ctx3 = document.getElementById('ordersBar').getContext('2d');
+        new Chart(ctx3, {
+            type: 'bar',
+            data: { labels: monthLabels, datasets: [{ label: 'Orders', data: cntData, backgroundColor: '#111827' }] },
+            options: { scales: { x:{ ticks:{ color:'#111' } }, y: { beginAtZero: true, ticks:{ color:'#111' } } }, plugins: { legend: { display: false } } }
+        });
+
+        var topWrap = document.getElementById('topProducts');
+        var topMap = {};
+        for (var j=0;j<arr.length;j++){
+            var items = arr[j].items||[];
+            for (var k=0;k<items.length;k++){
+                var it = items[k];
+                var key = String(it.product_name||it.name||'');
+                var q = Number(it.quantity||0);
+                var p = Number(it.price||0);
+                if (!key) continue;
+                if (!topMap[key]) topMap[key] = {qty:0,rev:0};
+                topMap[key].qty += q; topMap[key].rev += q*p;
+            }
+        }
+        var top = Object.entries(topMap).sort(function(a,b){ return b[1].rev-a[1].rev; }).slice(0,6);
+        var headerHtml = '<div style="display:grid;grid-template-columns:1fr 100px 120px;gap:8px;padding:6px 0;color:#6b7280;font-size:13px;border-bottom:1px solid #f1f5f9;">'
+            + '<div>Product</div><div style="text-align:right">Qty</div><div style="text-align:right">Revenue</div>'
+            + '</div>';
+        var rowsHtml = top.map(function(entry){
+            var name = entry[0]; var v = entry[1];
+            return '<div style="display:grid;grid-template-columns:1fr 100px 120px;gap:8px;padding:8px 0;border-bottom:1px solid #f8fafc;">'
+                + '<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + name + '</div>'
+                + '<div style="text-align:right">' + v.qty + '</div>'
+                + '<div style="text-align:right">\u20B1' + v.rev.toFixed(2) + '</div>'
+                + '</div>';
+        }).join('');
+        if (!rowsHtml) { rowsHtml = '<div style="padding:8px;color:#9ca3af;">No data</div>'; }
+        topWrap.innerHTML = headerHtml + rowsHtml;
+    } catch (e) {
+        mainContent.innerHTML = `<div class=\"inventory-header\"><h2>Report</h2></div><p style=\"color:#ef4444\">Failed to load report: ${e.message}</p>`;
+    }
 }
 
 // Close modal when clicking outside

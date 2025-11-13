@@ -52,6 +52,6 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     </main>
 </div>
 
-<script src="../js/admin.js?v=orders-v2" defer></script>
+<script src="../js/admin.js?v=reports-v3" defer></script>
 </body>
 </html>
