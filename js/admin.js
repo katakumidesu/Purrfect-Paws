@@ -838,43 +838,116 @@ window.changeOrderStatus = changeOrderStatus;
 window.viewOrderItems = viewOrderItems;
 
 // ---------------- ANALYTICS ----------------
-function loadAnalytics(){
-    mainContent.innerHTML = `
-        <div class="inventory-header">
-            <h2>Analytics & Insights</h2>
-        </div>
-        <div class="dashboard-cards">
-            <div class="card">
-                <div class="card-icon"><i class="fa fa-dollar-sign"></i></div>
-                <div class="card-content">
-                    <h3>Total Revenue</h3>
-                    <p class="card-value">₱0</p>
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-icon"><i class="fa fa-shopping-cart"></i></div>
-                <div class="card-content">
-                    <h3>Total Sales</h3>
-                    <p class="card-value">0</p>
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-icon"><i class="fa fa-user"></i></div>
-                <div class="card-content">
-                    <h3>Active Customers</h3>
-                    <p class="card-value">0</p>
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-icon"><i class="fa fa-box"></i></div>
-                <div class="card-content">
-                    <h3>Popular Products</h3>
-                    <p class="card-value">-</p>
-                </div>
-            </div>
-        </div>
-        <p style="margin-top: 20px; color: #aaa;">Analytics dashboard coming soon...</p>
-    `;
+async function loadAnalytics(){
+    try {
+        var orders = await fetchAPI('get_orders');
+        var arr = Array.isArray(orders) ? orders : [];
+        var now = new Date();
+        var y = now.getFullYear();
+        var m = now.getMonth();
+        var start = new Date(y, m, 1);
+        var end = new Date(y, m + 1, 0);
+
+        var daysInMonth = end.getDate();
+        var dailyTotal = Array.from({length: daysInMonth}, function(){ return 0; });
+
+        var thisMonthCount = 0;
+        var thisMonthValue = 0;
+        var highestOrder = 0;
+        var statusRev = {to_pay:0,to_ship:0,to_receive:0,completed:0,cancelled:0};
+
+        // Top products map
+        var prodMap = {};
+
+        for (var i=0;i<arr.length;i++){
+            var o = arr[i];
+            var d = o.date ? new Date(o.date) : null;
+            var total = Number(o.total||0) || 0;
+            var s = String(o.status||'').toLowerCase();
+            if (statusRev[s]!==undefined) statusRev[s] += total;
+            if (d && d.getFullYear()===y && d.getMonth()===m){
+                thisMonthCount += 1; thisMonthValue += total; if (total>highestOrder) highestOrder = total;
+                var di = d.getDate()-1; if (di>=0 && di<dailyTotal.length) dailyTotal[di] += total;
+            }
+            var items = o.items||[];
+            for (var k=0;k<items.length;k++){
+                var it = items[k];
+                var name = String(it.product_name||it.name||'');
+                var q = Number(it.quantity||0); var p = Number(it.price||0);
+                if (!name) continue; if (!prodMap[name]) prodMap[name] = {qty:0,rev:0};
+                prodMap[name].qty += q; prodMap[name].rev += q*p;
+            }
+        }
+
+        var avgOrder = thisMonthCount ? (thisMonthValue/thisMonthCount) : 0;
+
+        // Build HTML
+        var html = '<div class="analytics-wrap" style="color:#111">'
+        + '<div class="inventory-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">'
+        +   '<div><h2>Analytics</h2><div style="color:#6b7280;font-size:13px;margin-top:2px">View advanced analytics for your business</div></div>'
+        +   '<div><button class="btn" onclick="window.print()" style="padding:8px 12px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;cursor:pointer">Export CSV</button></div>'
+        + '</div>'
+        + '<div class="dashboard-cards" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:10px;">'
+        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Orders this month</div><div style="font-size:24px;font-weight:700">' + thisMonthCount + '</div></div>'
+        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Total order value</div><div style="font-size:24px;font-weight:700">\u20B1' + thisMonthValue.toFixed(2) + '</div></div>'
+        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Average order value</div><div style="font-size:24px;font-weight:700">\u20B1' + avgOrder.toFixed(2) + '</div></div>'
+        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Highest order value</div><div style="font-size:24px;font-weight:700">\u20B1' + highestOrder.toFixed(2) + '</div></div>'
+        + '</div>'
+        + '<div style="border:1px solid #eee;border-radius:12px;background:#fff;margin-top:14px;padding:12px;">'
+        +   '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;"><div style="font-weight:600">This month at a glance</div><div style="font-size:12px;color:#6b7280">' + start.toLocaleDateString() + ' - ' + end.toLocaleDateString() + '</div></div>'
+        +   '<div style="display:grid;grid-template-columns:3fr 1fr;gap:12px;align-items:center">'
+        +     '<canvas id="an_line" height="120"></canvas>'
+        +     '<div style="border-left:1px solid #f1f5f9;padding-left:12px">'
+        +        '<div style="font-size:12px;color:#6b7280">Total</div>'
+        +        '<div style="font-size:20px;font-weight:700">\u20B1' + thisMonthValue.toFixed(2) + '</div>'
+        +        '<div style="font-size:12px;color:#6b7280;margin-top:10px">Orders</div>'
+        +        '<div style="font-size:20px;font-weight:700">' + thisMonthCount + '</div>'
+        +     '</div>'
+        +   '</div>'
+        + '</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:14px;">'
+        +   '<div style="border:1px solid #eee;border-radius:12px;background:#fff;padding:12px;"><div style="font-weight:600;margin-bottom:8px;">Value by status</div><canvas id="an_bar_status" height="120"></canvas></div>'
+        +   '<div style="border:1px solid #eee;border-radius:12px;background:#fff;padding:12px;"><div style="font-weight:600;margin-bottom:8px;">Top products by revenue</div><canvas id="an_bar_prod" height="120"></canvas></div>'
+        +   '<div style="border:1px solid #eee;border-radius:12px;background:#fff;padding:12px;"><div style="font-weight:600;margin-bottom:8px;">Orders by day</div><canvas id="an_bar_count" height="120"></canvas></div>'
+        + '</div>'
+        + '</div>';
+
+        mainContent.innerHTML = html;
+
+        function ensureChart(){
+            return new Promise(function(res){
+                if (window.Chart) return res();
+                var s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/chart.js'; s.onload=function(){res();}; document.head.appendChild(s);
+            });
+        }
+        await ensureChart();
+
+        // Charts
+        var daysLabels = Array.from({length:daysInMonth}, function(_,i){ return (i+1).toString().padStart(2,'0'); });
+        var ctxL = document.getElementById('an_line').getContext('2d');
+        new Chart(ctxL, { type:'line', data:{ labels: daysLabels, datasets:[{ label:'Revenue', data: dailyTotal, borderColor:'#0ea5e9', backgroundColor:'rgba(14,165,233,.12)', tension:.35, fill:true }] } });
+
+        var ctxS = document.getElementById('an_bar_status').getContext('2d');
+        var sLabels = ['To Pay','To Ship','To Receive','Completed','Cancelled'];
+        var sData = [statusRev.to_pay,statusRev.to_ship,statusRev.to_receive,statusRev.completed,statusRev.cancelled];
+        new Chart(ctxS, { type:'bar', data:{ labels:sLabels, datasets:[{ label:'Revenue', data:sData, backgroundColor:['#f59e0b','#3b82f6','#10b981','#22c55e','#ef4444'] }] } });
+
+        var top = Object.entries(prodMap).sort(function(a,b){ return b[1].rev - a[1].rev; }).slice(0,6);
+        var pLabels = top.map(function(t){ return t[0]; });
+        var pData = top.map(function(t){ return Number(t[1].rev||0); });
+        var ctxP = document.getElementById('an_bar_prod').getContext('2d');
+        new Chart(ctxP, { type:'bar', data:{ labels:pLabels, datasets:[{ label:'Revenue', data:pData, backgroundColor:'#111827' }] } });
+
+        var ctxC = document.getElementById('an_bar_count').getContext('2d');
+        var dayCounts = Array.from({length: daysInMonth}, function(){ return 0; });
+        for (var d=0; d<arr.length; d++){
+            var od = arr[d].date ? new Date(arr[d].date) : null;
+            if (od && od.getFullYear()===y && od.getMonth()===m){ var di2 = od.getDate()-1; dayCounts[di2] = (dayCounts[di2]||0) + 1; }
+        }
+        new Chart(ctxC, { type:'bar', data:{ labels: daysLabels, datasets:[{ label:'Orders', data: dayCounts, backgroundColor:'#0f172a' }] } });
+    } catch (e) {
+        mainContent.innerHTML = '<div class="inventory-header"><h2>Analytics</h2></div><p style="color:#ef4444">Failed to load analytics: ' + (e.message||e) + '</p>';
+    }
 }
 
 // ---------------- REPORTS ----------------
