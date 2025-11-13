@@ -623,7 +623,8 @@
     // replace any non-letters with underscore, then collapse repeats
     let t = raw.replace(/[^a-z]/g,'_').replace(/_+/g,'_');
     // map common variants
-    if (t === 'shipped' || t === 'ship' || t === 'shipping') return 'to_ship';
+    if (t === 'shipped' || t === 'ship' || t === 'shipping') return 'to_receive';
+    if (t === 'received' || t === 'receive' || t === 'delivered' || t === 'delivery') return 'to_receive';
     if (t === 'to_ship' || t === 'toship') return 'to_ship';
     if (t === 'to_receive' || t === 'toreceive') return 'to_receive';
     if (t === 'completed' || t === 'complete') return 'completed';

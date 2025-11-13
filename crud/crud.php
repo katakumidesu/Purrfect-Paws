@@ -558,11 +558,12 @@ switch ($action) {
                 $st = strtolower(trim($_GET['status']));
                 $allowed = ['to_pay','to_ship','to_receive','completed','cancelled'];
                 if (in_array($st, $allowed, true)) {
-                    $normExpr = "LOWER(REPLACE($statusExpr,' ','_'))";
+                    $statusLc = "LOWER(TRIM($statusExpr))";
+                    $normExpr = "LOWER(REPLACE($statusLc,' ','_'))";
                     $cond = "$normExpr = '" . $conn->real_escape_string($st) . "'";
-                    if ($st === 'to_ship') {
-                        // Also include common equivalent 'shipped'
-                        $cond = "(($cond) OR LOWER($statusExpr) = 'shipped')";
+                    if ($st === 'to_receive') {
+                        // Include common equivalents 'received', 'delivered', and 'shipped'
+                        $cond = "(($cond) OR $statusLc IN ('received','delivered','shipped'))";
                     }
                     $wheres[] = $cond;
                 }
