@@ -542,7 +542,8 @@ switch ($action) {
             $statusLc = "LOWER($statusRaw)";
             $statusNormExpr = "CASE
                 WHEN $statusRaw = '' THEN 'to_pay'
-                WHEN $statusLc IN ('received','delivered') THEN 'to_receive'
+                WHEN $statusLc IN ('processing') THEN 'to_receive'
+                WHEN $statusLc IN ('delivered') THEN 'completed'
                 WHEN $statusLc IN ('shipped') THEN 'to_ship'
                 WHEN REPLACE($statusLc,' ','_') IN ('to_ship','toship') OR $statusLc IN ('ship','shipping') THEN 'to_ship'
                 WHEN REPLACE($statusLc,' ','_') IN ('to_pay','topay') THEN 'to_pay'
@@ -571,17 +572,7 @@ switch ($action) {
                 $st = strtolower(trim($_GET['status']));
                 $allowed = ['to_pay','to_ship','to_receive','completed','cancelled'];
                 if (in_array($st, $allowed, true)) {
-                    $statusLc = "LOWER(TRIM($statusExpr))";
-                    $normExpr = "LOWER(REPLACE($statusLc,' ','_'))";
-                    $cond = "$normExpr = '" . $conn->real_escape_string($st) . "'";
-                    if ($st === 'to_ship') {
-                        // Include DB equivalent 'shipped'
-                        $cond = "(($cond) OR $statusLc IN ('shipped','ship','shipping'))";
-                    } elseif ($st === 'to_receive') {
-                        // Include DB equivalents
-                        $cond = "(($cond) OR $statusLc IN ('received','delivered'))";
-                    }
-                    $wheres[] = $cond;
+                    $wheres[] = "$statusNormExpr = '" . $conn->real_escape_string($st) . "'";
                 }
             }
             $whereSql = count($wheres) ? ('WHERE ' . implode(' AND ', $wheres)) : '';
@@ -654,11 +645,17 @@ switch ($action) {
                             if ($kw){
                                 foreach($opts as $opt){ if (stripos($opt, $kw)!==false){ $target = $opt; break; } }
                             }
-                            // Special: if still no match for to_receive, prefer 'received' then 'delivered'
-                            if ($target === $status && $status === 'to_receive'){
-                                foreach(['received','delivered'] as $alt){
-                                    foreach($opts as $opt){ if (strcasecmp($opt, $alt)===0 || stripos($opt,$alt)!==false){ $target = $opt; break 2; } }
+                            // Special mappings to align with your ENUMs
+                            if ($status === 'to_receive'){
+                                // Prefer 'processing' if available (To Receive stage)
+                                foreach($opts as $opt){ if (strcasecmp($opt, 'processing')===0){ $target = $opt; break; } }
+                                // If still unchanged and 'received' exists, use it; DO NOT auto-pick 'delivered'
+                                if ($target === $status){
+                                    foreach($opts as $opt){ if (strcasecmp($opt, 'received')===0){ $target = $opt; break; } }
                                 }
+                            } elseif ($status === 'completed') {
+                                // Prefer 'delivered' if available for Completed stage
+                                foreach($opts as $opt){ if (strcasecmp($opt, 'delivered')===0){ $target = $opt; break; } }
                             }
                         }
                     }
@@ -682,7 +679,7 @@ switch ($action) {
             $check2->close();
             $current = $row2 && isset($row2['status']) ? $row2['status'] : null;
 
-            // If already equal (idempotent), success
+            // If already equal (idempotent), success (verified by SELECT)
             if (is_string($current) && strtolower(trim($current)) === strtolower($target)) {
                 echo json_encode(['success'=>true,'order_id'=>$order_id,'status'=>$target,'note'=>($affected===0?'No change needed':null)]);
                 break;
@@ -691,7 +688,8 @@ switch ($action) {
             // If not equal and first update didn't take effect, try common variants (for ENUM schemas)
             if ($ok && $affected === 0) {
                 $variants = [$target, strtoupper(str_replace('_',' ', $status)), strtolower(str_replace('_',' ', $status)), ucwords(str_replace('_',' ', $status))];
-                if ($status === 'to_receive') { array_unshift($variants, 'received', 'delivered'); }
+                if ($status === 'to_receive') { array_unshift($variants, 'processing', 'received'); }
+                if ($status === 'completed') { array_unshift($variants, 'delivered', 'complete', 'completed', 'done'); }
                 $did = false; $lastErr = '';
                 foreach ($variants as $v) {
                     $u = $conn->prepare("UPDATE orders SET status=? WHERE order_id=?");
@@ -714,10 +712,15 @@ switch ($action) {
                 break;
             }
 
-            if ($ok && $affected > 0) {
+            // Final verification: re-read and only succeed if matches target
+            $vchk = $conn->prepare("SELECT status FROM orders WHERE order_id=?");
+            $vchk->bind_param("i", $order_id);
+            $vchk->execute(); $vres = $vchk->get_result(); $vrow = $vres? $vres->fetch_assoc(): null; $vchk->close();
+            $vcur = $vrow && isset($vrow['status']) ? $vrow['status'] : null;
+            if (is_string($vcur) && strtolower(trim($vcur)) === strtolower($target)) {
                 echo json_encode(['success'=>true,'order_id'=>$order_id,'status'=>$target]);
             } else {
-                echo json_encode(['error'=>'Failed to update status: '.$err, 'order_id'=>$order_id,'current_status'=>$current, 'enum_options'=>$enumOpts]);
+                echo json_encode(['error'=>'Failed to update status (post-verify mismatch)', 'order_id'=>$order_id,'current_status'=>$vcur, 'enum_options'=>$enumOpts]);
             }
         } catch (Exception $e) { echo json_encode(['error'=>'Error updating order: '.$e->getMessage()]); }
         break;

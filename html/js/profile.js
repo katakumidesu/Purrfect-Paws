@@ -622,12 +622,13 @@
     const raw = String(s||'to_pay').toLowerCase().trim();
     // replace any non-letters with underscore, then collapse repeats
     let t = raw.replace(/[^a-z]/g,'_').replace(/_+/g,'_');
-    // map common variants
-    if (t === 'shipped' || t === 'ship' || t === 'shipping') return 'to_receive';
-    if (t === 'received' || t === 'receive' || t === 'delivered' || t === 'delivery') return 'to_receive';
+    // map common variants (aligned with backend)
+    if (t === 'shipped' || t === 'ship' || t === 'shipping') return 'to_ship';
+    if (t === 'processing' || t === 'received' || t === 'receive') return 'to_receive';
+    if (t === 'delivered' || t === 'delivery') return 'completed';
     if (t === 'to_ship' || t === 'toship') return 'to_ship';
     if (t === 'to_receive' || t === 'toreceive') return 'to_receive';
-    if (t === 'completed' || t === 'complete') return 'completed';
+    if (t === 'completed' || t === 'complete' || t === 'done') return 'completed';
     if (t === 'cancelled' || t === 'canceled' || t === 'cancel') return 'cancelled';
     if (t === 'to_pay' || t === 'topay') return 'to_pay';
     return t || 'to_pay';
