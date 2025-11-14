@@ -748,6 +748,37 @@
           </div>
         </div>`;
       }
+      else if (o.status === 'to_receive'){
+        // Shopee-like "To Receive" card
+        return `
+        <div class="order to-receive" style="border:1px solid #e9eef2;border-radius:8px;margin-bottom:12px;background:#fff;">
+          <div class="tr-head" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #f1f3f5;">
+            <div style="display:flex;align-items:center;gap:8px;"></div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="color:#2f9e44;font-weight:600;">Parcel has been delivered</span>
+              <span style="color:#c92a2a;font-weight:700;">TO RECEIVE</span>
+            </div>
+          </div>
+          <div class="tr-body" style="padding:10px 14px;">
+            ${(o.items||[]).map(it=>`
+              <div class="oi" style="display:flex;gap:12px;align-items:center;padding:10px 0;">
+                <img src="${it.image||'../HTML/images/catbed.jpg'}" onerror="this.src='../HTML/images/catbed.jpg'" alt="" style="width:72px;height:72px;border:1px solid #eee;border-radius:6px;object-fit:cover;">
+                <div style="flex:1;min-width:0;">
+                  <div class="name" style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(it.name||'')}</div>
+                  <div class="meta" style="color:#6b8897;font-size:12px;">x${it.quantity||1}</div>
+                </div>
+                <div class="price" style="color:#333;font-weight:600;">${money(it.price||0)}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="tr-foot" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-top:1px solid #f1f3f5;">
+            <div style="color:#6b8897;">Order Total: <strong style="color:#111;">${money(o.total||0)}</strong></div>
+            <div class="actions" style="display:flex;gap:8px;">
+              <button class="btn outline danger mark-received" data-oid="${o.order_id}" style="padding:10px 16px;border:1px solid #ff6b6b;color:#c92a2a;background:#fff;border-radius:6px;font-size:14px;">Order Received</button>
+            </div>
+          </div>
+        </div>`;
+      }
       return `
       <div class="order" style="border:1px solid #e9eef2;border-radius:8px;margin-bottom:12px;">
         <div class="order-h" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px dashed #e9eef2;background:#fff;">
@@ -772,7 +803,15 @@
       </div>`;
     }).join('');
 
-    // Wire up cancel buttons for To Pay orders (open modal)
+    // Wire up "Order Received" to open modal confirmation
+    wrap.querySelectorAll('.mark-received').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const oid = parseInt(btn.getAttribute('data-oid')||'0',10);
+        openReceiveModal(oid);
+      });
+    });
+
+    // Wire up cancel buttons
     wrap.querySelectorAll('.cancel-order').forEach(btn=>{
       btn.addEventListener('click', ()=> openCancelModal(btn.getAttribute('data-key')) );
     });
@@ -868,6 +907,61 @@
       updatePurchaseTabCounts();
       const current = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
       await renderPurchases(current);
+    });
+  }
+
+  // --- Receive Confirmation Modal ---
+  function openReceiveModal(orderId){
+    let modal = document.getElementById('prModal');
+    if (!modal){
+      modal = document.createElement('div');
+      modal.id = 'prModal';
+      modal.className = 'pc-modal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:99999;';
+      document.body.appendChild(modal);
+    }
+    const panelStyle = 'background:#fff;border-radius:12px;width:420px;max-width:95vw;padding:16px 16px 12px;box-shadow:0 14px 34px rgba(2,8,23,.18);font-family:inherit;border:1px solid #e9eef2;';
+    const noteStyle = 'background:#fff7e6;border:1px solid #ffe0b2;color:#8d6e63;padding:10px 12px;border-radius:6px;font-size:13px;margin:8px 0 12px;';
+    const btnBase = 'display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;transition:all .15s ease;box-shadow:0 2px 6px rgba(0,0,0,.08);';
+    modal.innerHTML = `
+      <div class="panel" style="${panelStyle}">
+        <h3 style="margin:0 0 8px;">Confirm Receipt</h3>
+        <div class="note" style="${noteStyle}">Confirm receipt after you've checked the received items.</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;">
+          <button type="button" id="prNotNow" style="${btnBase}background:#f7f7f7;border:1px solid #dfe3e6;color:#444;">NOT NOW</button>
+          <button type="button" id="prConfirm" style="${btnBase}background:#fff;border:1px solid #ff6b6b;color:#c92a2a;">ORDER RECEIVED</button>
+        </div>
+      </div>`;
+    modal.style.display = 'flex';
+    const close = ()=>{ const m = document.getElementById('prModal'); if (m) m.remove(); };
+    modal.addEventListener('click', (e)=>{ if (e.target===modal) close(); });
+    document.getElementById('prNotNow').addEventListener('click', close);
+    document.getElementById('prConfirm').addEventListener('click', async ()=>{
+      const oid = parseInt(orderId||0,10);
+      // Update local cache optimistically
+      const local = getOrders();
+      let changed = false;
+      for (const o of local){ if (parseInt(o.order_id||0,10) === oid){ o.status='completed'; changed = true; break; } }
+      if (changed) saveOrders(local);
+      updatePurchaseTabCounts();
+      try{
+        if (oid){
+          await fetch('../crud/crud.php', {
+            method:'POST',
+            headers:{ 'Content-Type':'application/json' },
+            credentials:'same-origin',
+            keepalive:true,
+            body: JSON.stringify({ action:'update_order_status', order_id: oid, status:'completed' })
+          });
+        }
+      }catch(_){ }
+      // Switch to Completed tab
+      const tabs = document.querySelectorAll('.p-head .tabs a');
+      tabs.forEach(x=>x.classList.remove('active'));
+      const t = document.querySelector('.p-head .tabs a[data-tab="completed"]');
+      if (t){ t.classList.add('active'); }
+      await renderPurchases('completed');
+      close();
     });
   }
 
