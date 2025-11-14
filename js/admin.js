@@ -69,6 +69,27 @@ async function loadDashboard(){
         const totalUsers = Array.isArray(users) ? users.length : 0;
         const totalOrders = Array.isArray(orders) ? orders.length : 0;
         const lowStock = Array.isArray(products) ? products.filter(p => p.stock < 10).length : 0;
+        // Compute lightweight analytics for current month
+        const arr = Array.isArray(orders) ? orders : [];
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = now.getMonth();
+        const start = new Date(y, m, 1);
+        const end = new Date(y, m + 1, 0);
+        const daysInMonth = end.getDate();
+        const dailyTotal = Array.from({ length: daysInMonth }, () => 0);
+        const statusCount = { to_pay: 0, to_ship: 0, to_receive: 0, completed: 0, cancelled: 0 };
+        for (let i = 0; i < arr.length; i++) {
+            const o = arr[i];
+            const d = o.date ? new Date(o.date) : null;
+            const total = Number(o.total || 0) || 0;
+            const s = String(o.status || '').toLowerCase();
+            if (statusCount[s] !== undefined) statusCount[s] += 1;
+            if (d && d.getFullYear() === y && d.getMonth() === m) {
+                const di = d.getDate() - 1;
+                if (di >= 0 && di < dailyTotal.length) dailyTotal[di] += total;
+            }
+        }
         
     mainContent.innerHTML = `
             <div class="dashboard-header">
@@ -105,7 +126,35 @@ async function loadDashboard(){
                     </div>
                 </div>
             </div>
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-top:14px;">
+                <div style="border:1px solid #333;border-radius:12px;background:#222;padding:12px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;"><div style="font-weight:600;color:#fff">This month revenue</div><div style="font-size:12px;color:#aaa">${start.toLocaleDateString()} - ${end.toLocaleDateString()}</div></div>
+                    <canvas id="dash_line" height="110"></canvas>
+                </div>
+                <div style="border:1px solid #333;border-radius:12px;background:#222;padding:12px;">
+                    <div style="font-weight:600;margin-bottom:8px;color:#fff">Orders by status</div>
+                    <canvas id="dash_pie" height="110"></canvas>
+                </div>
+            </div>
         `;
+        // Lazy load Chart.js and render widgets
+        try {
+            if (!window.Chart) {
+                await new Promise((res) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/chart.js'; s.onload = () => res(); document.head.appendChild(s); });
+            }
+            const daysLabels = Array.from({ length: daysInMonth }, (_, i) => (i + 1).toString().padStart(2, '0'));
+            const ctxL = document.getElementById('dash_line')?.getContext('2d');
+            if (ctxL) {
+                new Chart(ctxL, { type: 'line', data: { labels: daysLabels, datasets: [{ label: 'Revenue', data: dailyTotal, borderColor: '#facc15', backgroundColor: 'rgba(250,204,21,.12)', tension: .35, fill: true }] }, options:{ plugins:{ legend:{ labels:{ color:'#fff' } } }, scales:{ x:{ ticks:{ color:'#ddd' } }, y:{ ticks:{ color:'#ddd' } } } } });
+            }
+            const ctxP = document.getElementById('dash_pie')?.getContext('2d');
+            if (ctxP) {
+                const pieLabels = ['To Pay','To Ship','To Receive','Completed','Cancelled'];
+                const pieData = [statusCount.to_pay, statusCount.to_ship, statusCount.to_receive, statusCount.completed, statusCount.cancelled];
+                const pieColors = ['#f59e0b','#3b82f6','#10b981','#22c55e','#ef4444'];
+                new Chart(ctxP, { type: 'doughnut', data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: pieColors }] }, options: { plugins: { legend: { position: 'bottom', labels:{ color:'#fff' } } } } });
+            }
+        } catch(_) {}
     } catch (error) {
         mainContent.innerHTML = `<h2>Dashboard</h2><p>Error loading dashboard: ${error.message}</p>`;
     }
