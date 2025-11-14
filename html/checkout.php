@@ -318,10 +318,10 @@ if (!isset($_SESSION['user_id'])) {
           <form id="addrForm" class="addr-form">
             <div class="grid">
               <div>
-                <input name="fullname" required placeholder="Full Name">
+                <input name="fullname" type="text" required placeholder="Full Name" pattern="^[A-Za-z\\s\\-\.'\\u00C0-\\u024F]+$" title="Letters only" oninput="this.value=this.value.replace(/[^A-Za-z\\s\\-\.'\u00C0-\u024F]/g,'')">
               </div>
               <div>
-                <input name="phone" required placeholder="Phone Number">
+                <input name="phone" type="tel" required placeholder="09123456789" inputmode="numeric" maxlength="11" pattern="^09\\d{9}$" title="Enter PH mobile starting with 09 (11 digits)" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
               </div>
               <div class="full">
                 <div class="ph-picker" id="phPicker">
@@ -370,6 +370,19 @@ if (!isset($_SESSION['user_id'])) {
         </div>`;
       const form = document.getElementById('addrForm');
       if (window.AddressModal){ AddressModal.wireLabelPills(modal); AddressModal.initPhPicker(modal); }
+      // Autofill phone from session if available; normalize to 09XXXXXXXXX
+      try{
+        const phField = form.querySelector('input[name="phone"]');
+        const sessionPhone = <?= json_encode($_SESSION['phone'] ?? '') ?>;
+        if (phField && sessionPhone){
+          let norm = String(sessionPhone).replace(/[^0-9]/g,'');
+          // Convert +639XXXXXXXXX to 09XXXXXXXXX if needed
+          if (norm.startsWith('639') && norm.length >= 12) norm = '0' + norm.slice(2);
+          if (norm.startsWith('9') && norm.length === 10) norm = '0' + norm; // 9XXXXXXXXX -> 09XXXXXXXXX
+          norm = norm.slice(0,11);
+          if (/^09\d{9}$/.test(norm)) phField.value = norm;
+        }
+      }catch(_){}
       form.addEventListener('submit', async (e)=>{
         e.preventDefault();
         const fd = new FormData(form);

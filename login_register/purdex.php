@@ -53,20 +53,21 @@ function isActiveForm($formName, $activeForm) {
                 <?= showError($errors['register']); ?>
                 <?= showSuccess($successMessage); ?>
 
-                <input type="text" name="name" class="name" placeholder="Full Name" required>
+                <input type="text" name="name" class="name" placeholder="Full Name" required pattern="^[A-Za-z\s\-\.'\\u00C0-\\u024F]+$" title="Letters only" oninput="this.value=this.value.replace(/[^A-Za-z\s\-\.'\u00C0-\u024F]/g,'')">
                 <input type="text" name="username" class="username" placeholder="Username" required>
                 <input type="email" name="email" class="email" placeholder="Email" required>
                 
-                <!-- ✅ Philippine phone number pattern -->
+                <!-- ✅ Philippine phone number pattern: must start with 09 and be 11 digits -->
                 <input 
                     type="tel" 
                     name="phone" 
                     class="phone" 
-                    placeholder="09xxxxxxxxx" 
-                    pattern="\d{11}" 
-                    title="Enter an 11-digit phone number"
+                    placeholder="09123456789" 
+                    pattern="^09\d{9}$" 
+                    title="Enter PH mobile starting with 09 (11 digits)"
                     maxlength="11"
-                    oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11)"
+                    inputmode="numeric"
+                    oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)"
                     required>
 
                 <input 
