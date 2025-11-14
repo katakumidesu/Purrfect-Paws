@@ -617,7 +617,22 @@
   const ORDERS_KEY = () => `purrfectOrders:${window.PURR_USER_ID||'anon'}`;
   function getOrders(){ try { return JSON.parse(sessionStorage.getItem(ORDERS_KEY())||'[]'); } catch(e){ return []; } }
   function saveOrders(arr){ sessionStorage.setItem(ORDERS_KEY(), JSON.stringify(arr||[])); }
-  function money(n){ return '$'+Number(n||0).toFixed(2); }
+  function money(n){ return '₱'+Number(n||0).toFixed(2); }
+  function normalizeStatus(s){
+    const raw = String(s||'to_pay').toLowerCase().trim();
+    // replace any non-letters with underscore, then collapse repeats
+    let t = raw.replace(/[^a-z]/g,'_').replace(/_+/g,'_');
+    // map common variants (aligned with backend)
+    if (t === 'shipped' || t === 'ship' || t === 'shipping') return 'to_ship';
+    if (t === 'processing' || t === 'received' || t === 'receive') return 'to_receive';
+    if (t === 'delivered' || t === 'delivery') return 'completed';
+    if (t === 'to_ship' || t === 'toship') return 'to_ship';
+    if (t === 'to_receive' || t === 'toreceive') return 'to_receive';
+    if (t === 'completed' || t === 'complete' || t === 'done') return 'completed';
+    if (t === 'cancelled' || t === 'canceled' || t === 'cancel') return 'cancelled';
+    if (t === 'to_pay' || t === 'topay') return 'to_pay';
+    return t || 'to_pay';
+  }
   function initPurchases(){
     const tabs = $$('.p-head .tabs a');
     tabs.forEach(a=>a.addEventListener('click', async (e)=>{
@@ -655,43 +670,51 @@
   async function renderPurchases(tab){
     const wrap = $('#p-orders');
     if (!wrap) return;
-    // Sync latest statuses from server for this user
-    await syncOrdersFromServer();
     // Show search only on "All" tab
     const searchWrap = document.querySelector('.p-search');
     const searchInput = document.getElementById('p-search');
     if (searchWrap){ searchWrap.style.display = (tab==='all') ? '' : 'none'; }
     if (tab !== 'all' && searchInput){ searchInput.value = ''; }
     const q = (tab==='all' && searchInput ? (searchInput.value||'').toLowerCase() : '');
-    // If the local cache is empty, seed it once from the server so Admin actions appear here
-    let cached = getOrders();
-    if (!Array.isArray(cached) || cached.length === 0){
-      try{
-        const res = await fetch(`../crud/crud.php?action=get_orders&user_id=${encodeURIComponent(window.PURR_USER_ID||'')}&_=${Date.now()}`);
-        const arr = await res.json();
-        if (Array.isArray(arr) && arr.length){
-          const seeded = arr.filter(o=>o && o.order_id!=null).map(o=>({
-            order_id: o.order_id,
-            date: o.date || o.created_at || Date.now(),
-            total: Number(o.total||0),
-            status: String(o.status||'to_pay'),
-            items: Array.isArray(o.items) ? o.items.map(it=>({
-              name: it.product_name || it.name || '',
-              quantity: Number(it.quantity||1),
-              price: Number(it.price||0),
-              image: it.image_url || it.image || ''
-            })) : []
-          }));
-          if (seeded.length){ saveOrders(seeded); cached = seeded; }
-        }
-      }catch(_){ /* ignore */ }
+
+    // Always fetch latest orders for this user, then filter by tab locally
+    let orders = [];
+    try{
+      // Ask server to pre-filter by status when not on 'all'
+      const base = `../crud/crud.php?action=get_orders&user_id=${encodeURIComponent(String(window.PURR_USER_ID||''))}`;
+      const url = base + (tab && tab!=='all' ? `&status=${encodeURIComponent(tab)}` : '') + `&_=${Date.now()}`;
+      let res = await fetch(url);
+      let arr = await res.json();
+      // If nothing returned, retry without user filter (fallback) then filter client-side
+      if (!Array.isArray(arr) || arr.length === 0){
+        res = await fetch(`../crud/crud.php?action=get_orders&_=${Date.now()}`);
+        arr = await res.json();
+      }
+      if (Array.isArray(arr)){
+        orders = arr
+          .filter(o => String(o.user_id||'') === String(window.PURR_USER_ID||''))
+          .map(o=>({
+          order_id: o.order_id,
+          date: o.date || o.created_at || Date.now(),
+          total: Number(o.total||0),
+          status: normalizeStatus(o.status),
+          items: Array.isArray(o.items)? o.items.map(it=>({
+            name: it.product_name || it.name || '',
+            quantity: Number(it.quantity||1),
+            price: Number(it.price||0),
+            image: it.image_url || it.image || ''
+          })) : []
+        }));
+        // Cache for fallback only
+        saveOrders(orders);
+      }
+    }catch(_){
+      const cached = getOrders();
+      orders = Array.isArray(cached)? cached : [];
     }
-    let orders = (Array.isArray(cached)? cached : []).map(o=> ({...o, status: (o.status||'to_pay')}));
-    if (tab==='to_pay') orders = orders.filter(o=>o.status==='to_pay');
-    if (tab==='to_ship') orders = orders.filter(o=>o.status==='to_ship');
-    if (tab==='to_receive') orders = orders.filter(o=>o.status==='to_receive');
-    if (tab==='completed') orders = orders.filter(o=>o.status==='completed');
-    if (tab==='cancelled') orders = orders.filter(o=>o.status==='cancelled');
+
+    // Client-side status filter
+    if (tab && tab !== 'all') orders = orders.filter(o=>o.status===tab);
     if (q) orders = orders.filter(o => (o.items||[]).some(it => (it.name||'').toLowerCase().includes(q)) );
     if (!orders.length){ wrap.innerHTML = '<div class="address-empty" style="display:flex"><div class="empty-inner"><p class="empty-main">No orders yet.</p></div></div>'; return; }
 
@@ -766,17 +789,14 @@
       modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:99999;';
       document.body.appendChild(modal);
     }
-    const panelStyle = 'background:#fff;border-radius:8px;width:420px;max-width:95vw;padding:16px 16px 12px;box-shadow:0 10px 30px rgba(0,0,0,.15);font-family:inherit;';
+    const panelStyle = 'background:#fff;border-radius:12px;width:420px;max-width:95vw;padding:16px 16px 12px;box-shadow:0 14px 34px rgba(2,8,23,.18);font-family:inherit;border:1px solid #e9eef2;';
     const noteStyle = 'background:#fff7e6;border:1px solid #ffe0b2;color:#8d6e63;padding:10px 12px;border-radius:6px;font-size:13px;margin:8px 0 12px;';
-    const btnBase = 'padding:10px 16px;border-radius:6px;font-weight:600;cursor:pointer;';
+    const btnBase = 'display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;transition:all .15s ease;box-shadow:0 2px 6px rgba(0,0,0,.08);';
 
     const reasons = [
       'Need to change delivery address',
-      'Need to input/change voucher code',
-      'Need to modify order (size, color, quantity, etc.)',
-      'Payment procedure too troublesome',
       'Found cheaper elsewhere',
-      "Don\'t want to buy anymore",
+      "Don't want to buy anymore",
       'Others'
     ];
 
@@ -793,8 +813,8 @@
               </label>
             `).join('')}
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
-            <button type="button" id="pcNotNow" style="${btnBase}background:#f7f7f7;border:1px solid #e0e0e0;color:#555;">NOT NOW</button>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;">
+            <button type="button" id="pcNotNow" style="${btnBase}background:#f7f7f7;border:1px solid #dfe3e6;color:#444;">NOT NOW</button>
             <button type="submit" id="pcConfirm" style="${btnBase}background:#fff;border:1px solid #ff6b6b;color:#c92a2a;">CANCEL ORDER</button>
           </div>
         </form>
@@ -808,9 +828,9 @@
 
     // Disable confirm until a reason is selected (like Shopee)
     const confirmBtn = modal.querySelector('#pcConfirm');
-    if (confirmBtn){ confirmBtn.disabled = true; confirmBtn.style.opacity = '0.6'; }
+    if (confirmBtn){ confirmBtn.disabled = true; confirmBtn.style.opacity = '0.6'; confirmBtn.style.cursor = 'not-allowed'; }
     modal.querySelectorAll('input[name="reason"]').forEach(r => r.addEventListener('change', ()=>{
-      if (confirmBtn){ confirmBtn.disabled = false; confirmBtn.style.opacity = '1'; }
+      if (confirmBtn){ confirmBtn.disabled = false; confirmBtn.style.opacity = '1'; confirmBtn.style.cursor = 'pointer'; }
     }));
 
     modal.querySelector('#pcForm').addEventListener('submit', async (e)=>{
@@ -823,22 +843,31 @@
         oid = orders[idx].order_id || null;
         saveOrders(orders);
       }
-      // Tell server so Admin page reflects the cancellation (when order_id is known)
-      if (oid){
-        try {
+      // Tell server so Admin page reflects the cancellation and restock executes.
+      // If we don't have order_id saved locally, try to locate it from the server by matching.
+      try {
+        if (!oid){
+          const uid = String(window.PURR_USER_ID || '');
+          const res = await fetch('../crud/crud.php?action=get_orders&user_id=' + encodeURIComponent(uid) + '&status=to_pay&_=' + Date.now(), { credentials:'same-origin' });
+          const list = await res.json();
+          const arr = Array.isArray(list) ? list : [];
+          const cand = arr.find(o => Math.abs(Number(o.total||0) - Number((orders[idx]||{}).total||0)) < 0.01);
+          if (cand && cand.order_id) { oid = cand.order_id; }
+        }
+        if (oid){
           await fetch('../crud/crud.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'update_order_status', order_id: oid, status: 'cancelled' }),
+            body: JSON.stringify({ action: 'update_order_status', order_id: parseInt(oid,10), status: 'cancelled' }),
             keepalive: true,
             credentials: 'same-origin'
           });
-        } catch (_) {}
-      }
+        }
+      } catch(_){}
       close();
       updatePurchaseTabCounts();
       const current = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
-      renderPurchases(current);
+      await renderPurchases(current);
     });
   }
 

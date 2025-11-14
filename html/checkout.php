@@ -63,28 +63,22 @@ if (!isset($_SESSION['user_id'])) {
     .pm-row.total .val{color:#ff3e1f;font-size:20px}
     .pm-footer{display:flex;justify-content:flex-end;padding:14px}
     /* Payment method chooser */
-    .pm-modal{position:fixed;inset:0;background:rgba(15,25,35,.45);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:10000;animation:fadeIn .18s ease-out}
-    .pm-panel{background:#fff;border-radius:12px;min-width:460px;max-width:92vw;box-shadow:0 18px 40px rgba(0,0,0,.22);overflow:hidden;transform:translateY(6px);animation:slideUp .18s ease-out}
-    .pm-panel .hd{padding:14px 16px;border-bottom:1px solid #eef2f6;font-weight:800;color:#0b2a3a;display:flex;align-items:center;justify-content:space-between}
-    .pm-close{background:none;border:none;font-size:18px;cursor:pointer;color:#6b8897}
-    .pm-close:hover{color:#2d3e4a}
-    .pm-tabs{display:flex;gap:10px;padding:14px 16px;border-bottom:1px solid #f1f4f7;flex-wrap:wrap}
-    .pm-tab{padding:10px 14px;border:1px solid #d9e2ec;border-radius:8px;background:#fbfdff;color:#22303a;cursor:pointer;font-weight:700;letter-spacing:.2px}
-    .pm-tab:hover{background:#f1f8ff}
-    .pm-tab.active{border-color:#ff875f;background:#fff5f1;color:#c43e1c;box-shadow:inset 0 0 0 1px #ffd9cc}
-    .pm-desc{padding:18px 16px;color:#17212a}
-    .pm-desc .row{display:flex;align-items:flex-start;gap:12px}
-    .pm-desc .icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:#f4f8fb;color:#0b65c2}
-    .pm-desc .txt h4{margin:0 0 6px 0;font-size:16px}
-    .pm-desc .txt p{margin:0;color:#51626f}
-    .pm-actions{display:flex;justify-content:flex-end;gap:10px;padding:12px 16px;border-top:1px solid #eef2f6;background:#fbfdff}
-    .btn-plain{background:none;border:none;color:#1a73e8;cursor:pointer;font-weight:600}
-    .btn-plain:hover{text-decoration:underline}
-    .btn-accent{background:var(--brand-strong);color:#003044;border:none;padding:10px 16px;border-radius:8px;font-weight:800;cursor:pointer}
-    .btn-accent:hover{background:#3fb2ea}
+    .pm-modal{position:fixed;inset:0;background:rgba(17,24,39,.55);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:10000}
+    .pm-panel{background:#fff;border:1px solid #e8eef3;border-radius:14px;min-width:420px;max-width:90vw;box-shadow:0 18px 40px rgba(2,8,23,.18);transform:translateY(8px);opacity:0;transition:transform .22s ease,opacity .22s ease}
+    .pm-modal.show .pm-panel{transform:translateY(0);opacity:1}
+    .pm-panel .hd{padding:14px 16px;border-bottom:1px solid #eef3f6;font-weight:800;color:#003a57;background:linear-gradient(180deg,#fbfdff,transparent)}
+    .pm-tabs{display:flex;gap:8px;padding:12px 14px;border-bottom:1px solid #f0f3f7;flex-wrap:wrap;background:#f7fafc;border-top-left-radius:14px;border-top-right-radius:14px}
+    .pm-tab{padding:10px 14px;border:1px solid #d9e2ec;border-radius:999px;background:#fff;color:#2c3e50;cursor:pointer;font-weight:700;transition:all .18s ease;box-shadow:inset 0 0 0 0 rgba(92,191,239,.0)}
+    .pm-tab:hover{border-color:#bcd3e1;box-shadow:inset 0 0 0 1px rgba(92,191,239,.35)}
+    .pm-tab.active{border-color:#5cbfef;background:#eaf6ff;color:#003a57;box-shadow:inset 0 0 0 1px #5cbfef}
+    .pm-desc{padding:16px 16px;color:#1f2d3a}
+    .pm-actions{display:flex;justify-content:flex-end;gap:10px;padding:12px 14px;border-top:1px solid #eef3f6;background:#fbfdff;border-bottom-left-radius:14px;border-bottom-right-radius:14px}
+    .btn-plain{background:none;border:none;color:#1a73e8;cursor:pointer;font-weight:700;padding:8px 10px}
+    .btn-plain:hover{color:#0b65c2;text-decoration:underline}
+    .btn-accent{background:var(--brand-strong);color:#003044;border:none;padding:10px 16px;border-radius:8px;font-weight:800;cursor:pointer;box-shadow:0 6px 14px rgba(92,191,239,.35);transition:transform .15s ease,box-shadow .15s ease}
+    .btn-accent:hover{transform:translateY(-1px);box-shadow:0 10px 18px rgba(92,191,239,.4)}
+    .btn-plain:focus,.btn-accent:focus,.pm-tab:focus{outline:3px solid rgba(92,191,239,.35);outline-offset:2px}
     @media(max-width:520px){.pm-panel{min-width:0;width:94vw}}
-    @keyframes slideUp{from{transform:translateY(18px);opacity:.6}to{transform:translateY(0);opacity:1}}
-    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
     @media(max-width: 880px){.checkout-grid{grid-template-columns:1fr}}
     /* Address modal styles are shared via css/address-modal.css */
   </style>
@@ -101,7 +95,7 @@ if (!isset($_SESSION['user_id'])) {
         </ul>
         
 <div class="nav-right">
-    <!-- 🧑‍💼 User dropdown OR Login -->
+    <!-- User dropdown OR Login -->
     <?php if (isset($_SESSION['user_id'])): ?>
         <?php
         $profileImage = isset($_SESSION['profile_image']) && !empty($_SESSION['profile_image'])
@@ -124,7 +118,7 @@ if (!isset($_SESSION['user_id'])) {
         <a href="../login_register/purdex.php"><button><i class="fa-solid fa-cat"></i> Login</button></a>
     <?php endif; ?>
 
-    <!-- 🛒 Cart icon -->
+    <!-- Cart icon -->
     <a href="cart.php" class="cart-icon" style="position:relative;">
         <i class="fa-solid fa-cart-shopping"></i>
         <span class="cart-badge" style="display:none;">0</span>
@@ -157,7 +151,7 @@ if (!isset($_SESSION['user_id'])) {
           <div class="pm-body">
             <div class="pm-row total">
               <span>Total Payment:</span>
-              <span class="val" id="pmTotalPayment">$0.00</span>
+              <span class="val" id="pmTotalPayment">₱0.00</span>
             </div>
           </div>
           <div class="pm-footer">
@@ -169,20 +163,12 @@ if (!isset($_SESSION['user_id'])) {
     <!-- Payment method modal -->
     <div id="pmModal" class="pm-modal" aria-hidden="true">
       <div class="pm-panel" role="dialog" aria-modal="true">
-        <div class="hd">Payment Method <button class="pm-close" id="pmClose" aria-label="Close">×</button></div>
+        <div class="hd">Payment Method</div>
         <div class="pm-tabs">
           <button type="button" class="pm-tab active" data-method="Cash on Delivery">Cash on Delivery</button>
           <button type="button" class="pm-tab" data-method="GCash">GCash</button>
         </div>
-        <div class="pm-desc" id="pmDesc">
-          <div class="row">
-            <div class="icon"><i class="fa fa-truck"></i></div>
-            <div class="txt">
-              <h4>Cash on Delivery</h4>
-              <p>Pay with cash to our courier upon delivery of your items.</p>
-            </div>
-          </div>
-        </div>
+        <div class="pm-desc" id="pmDesc">Cash on Delivery</div>
         <div class="pm-actions">
           <button type="button" class="btn-plain" id="pmCancel">Cancel</button>
           <button type="button" class="btn-accent" id="pmApply">Apply</button>
@@ -237,11 +223,13 @@ if (!isset($_SESSION['user_id'])) {
     </div>
 </footer>
 
-  <script src="../js/cart.js?v=no-tax"></script>
-  <script src="js/address-modal.js"></script>
   <script>
     // Namespace orders per logged-in user so browser sessions don't mix
     window.PURR_USER_ID = <?= json_encode((string)($_SESSION['user_id'] ?? 'anon')) ?>;
+  </script>
+  <script src="../js/cart.js?v=no-tax"></script>
+  <script src="js/address-modal.js"></script>
+  <script>
     const ORDERS_KEY = () => `purrfectOrders:${window.PURR_USER_ID||'anon'}`;
     const SELECTED_ADDR_KEY = () => `purrfectSelectedAddr:${window.PURR_USER_ID||'anon'}`;
     async function fetchAddresses(){
@@ -412,12 +400,12 @@ if (!isset($_SESSION['user_id'])) {
       const sums = calculateTotals(items);
       const totalPay = sums.total; // shipping currently 0
       const el = document.getElementById('pmTotalPayment');
-      if (el) el.textContent = `$${totalPay.toFixed(2)}`;
+      if (el) el.textContent = `₱${totalPay.toFixed(2)}`;
     }
 
     function renderCartToCheckout(){
       const all = getCart();
-      const selected = (()=>{ try { return JSON.parse(sessionStorage.getItem('purrfectSelected')||'[]'); } catch(e){ return []; } })();
+      const selected = (()=>{ try { return JSON.parse(sessionStorage.getItem(SELECTED_KEY())||'[]'); } catch(e){ return []; } })();
       const items = selected.length ? all.filter(it => selected.includes(it.name)) : all;
       const wrap = document.getElementById('orderItems');
       if(!items || items.length===0){
@@ -442,9 +430,9 @@ if (!isset($_SESSION['user_id'])) {
             <div class="title">${esc(it.name)}</div>
           </div>
           <div class="order-cols values">
-            <span class="col">$${Number(it.price).toFixed(2)}</span>
+            <span class="col">₱${Number(it.price).toFixed(2)}</span>
             <span class="col">${it.quantity}</span>
-            <span class="col">$${(it.price*it.quantity).toFixed(2)}</span>
+            <span class="col">₱${(it.price*it.quantity).toFixed(2)}</span>
           </div>
         </div>
       `).join('');
@@ -454,7 +442,7 @@ if (!isset($_SESSION['user_id'])) {
 
     document.getElementById('placeOrder').addEventListener('click', async function(){
       const all = getCart();
-      const selected = (()=>{ try { return JSON.parse(sessionStorage.getItem('purrfectSelected')||'[]'); } catch(e){ return []; } })();
+      const selected = (()=>{ try { return JSON.parse(sessionStorage.getItem(SELECTED_KEY())||'[]'); } catch(e){ return []; } })();
       const items = selected.length ? all.filter(it => selected.includes(it.name)) : all;
       if(!items || items.length===0){ alert('Your cart is empty'); return; }
       const sums = calculateTotals(items);
@@ -486,18 +474,14 @@ if (!isset($_SESSION['user_id'])) {
       // Remove only purchased items from cart if a subset was selected
       if (selected.length){
         const remaining = all.filter(it => !selected.includes(it.name));
-        sessionStorage.setItem('purrfectCart', JSON.stringify(remaining));
-        sessionStorage.removeItem('purrfectSelected');
+        sessionStorage.setItem(CART_KEY(), JSON.stringify(remaining));
+        sessionStorage.removeItem(SELECTED_KEY());
       } else {
-        sessionStorage.removeItem('purrfectCart');
+        sessionStorage.removeItem(CART_KEY());
       }
       if (typeof updateCartBadge === 'function') updateCartBadge();
       window.location.href = '../profile_php/profile.php#purchases:to_pay';
     });
-
-    // Init
-    renderAddress();
-    renderCartToCheckout();
 
     // Payment method chooser logic
     window.PAYMENT_METHOD = 'Cash on Delivery';
@@ -506,33 +490,24 @@ if (!isset($_SESSION['user_id'])) {
     const pmCurrent = document.getElementById('pmCurrentMethod');
     const pmDesc = document.getElementById('pmDesc');
     const pmCancel = document.getElementById('pmCancel');
-    const pmClose = document.getElementById('pmClose');
     const pmApply = document.getElementById('pmApply');
-    function openPm(){ pmModal.style.display='flex'; }
-    function closePm(){ pmModal.style.display='none'; }
+    function openPm(){
+      pmModal.style.display='flex';
+      requestAnimationFrame(()=> pmModal.classList.add('show'));
+      const firstTab = document.querySelector('.pm-tab');
+      if(firstTab) firstTab.focus();
+      document.addEventListener('keydown', onPmKey);
+    }
+    function closePm(){
+      pmModal.classList.remove('show');
+      setTimeout(()=>{ pmModal.style.display='none'; }, 180);
+      document.removeEventListener('keydown', onPmKey);
+    }
+    function onPmKey(e){ if(e.key==='Escape') closePm(); }
     function setActive(btn){
       document.querySelectorAll('.pm-tab').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      const m = btn.getAttribute('data-method');
-      if (m === 'GCash'){
-        pmDesc.innerHTML = `
-          <div class="row">
-            <div class="icon"><i class="fa fa-wallet"></i></div>
-            <div class="txt">
-              <h4>GCash</h4>
-              <p>Pay via GCash e-wallet. We will confirm payment details after placing your order.</p>
-            </div>
-          </div>`;
-      } else {
-        pmDesc.innerHTML = `
-          <div class="row">
-            <div class="icon"><i class="fa fa-truck"></i></div>
-            <div class="txt">
-              <h4>Cash on Delivery</h4>
-              <p>Pay with cash to our courier upon delivery of your items.</p>
-            </div>
-          </div>`;
-      }
+      pmDesc.textContent = btn.getAttribute('data-method');
     }
     if (pmChange){ pmChange.addEventListener('click', (e)=>{ e.preventDefault(); openPm(); }); }
     pmModal.addEventListener('click', (e)=>{ if (e.target===pmModal) closePm(); });
@@ -540,7 +515,6 @@ if (!isset($_SESSION['user_id'])) {
       btn.addEventListener('click', ()=> setActive(btn));
     });
     if (pmCancel) pmCancel.onclick = closePm;
-    if (pmClose) pmClose.onclick = closePm;
     if (pmApply) pmApply.onclick = ()=>{
       const active = document.querySelector('.pm-tab.active');
       const method = active ? active.getAttribute('data-method') : 'Cash on Delivery';
@@ -548,6 +522,11 @@ if (!isset($_SESSION['user_id'])) {
       if (pmCurrent) pmCurrent.textContent = method;
       closePm();
     };
+    // Initialize address and cart on first load
+    document.addEventListener('DOMContentLoaded', () => {
+      try { renderAddress(); } catch(_) {}
+      try { renderCartToCheckout(); } catch(_) {}
+    });
   </script>
 </body>
 </html>

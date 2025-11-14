@@ -1,15 +1,30 @@
 // Shopping Cart Functionality
 const TAX_RATE = 0; // tax disabled
 
+// Namespace storage per logged-in user so carts don't mix between accounts
+function USER_ID(){
+    return (typeof window !== 'undefined' && window.PURR_USER_ID && String(window.PURR_USER_ID) !== 'undefined')
+        ? String(window.PURR_USER_ID)
+        : 'anon';
+}
+const CART_KEY = () => `purrfectCart:${USER_ID()}`;
+const SELECTED_KEY = () => `purrfectSelected:${USER_ID()}`;
+
+// One-time cleanup: remove legacy global keys to prevent cross-user mixing
+try {
+    if (sessionStorage.getItem('purrfectCart')) sessionStorage.removeItem('purrfectCart');
+    if (sessionStorage.getItem('purrfectSelected')) sessionStorage.removeItem('purrfectSelected');
+} catch (e) {}
+
 // Get cart from sessionStorage
 function getCart() {
-    const cart = sessionStorage.getItem('purrfectCart');
+    const cart = sessionStorage.getItem(CART_KEY());
     return cart ? JSON.parse(cart) : [];
 }
 
 // Save cart to sessionStorage
 function saveCart(cart) {
-    sessionStorage.setItem('purrfectCart', JSON.stringify(cart));
+    sessionStorage.setItem(CART_KEY(), JSON.stringify(cart));
     updateCartBadge();
 }
 
@@ -74,9 +89,9 @@ function calculateTotals(items) {
 
 // Helpers for selection
 function getSelectedNames(){
-    try{ return JSON.parse(sessionStorage.getItem('purrfectSelected') || '[]'); }catch(e){ return []; }
+    try{ return JSON.parse(sessionStorage.getItem(SELECTED_KEY()) || '[]'); }catch(e){ return []; }
 }
-function setSelectedNames(arr){ sessionStorage.setItem('purrfectSelected', JSON.stringify(arr||[])); }
+function setSelectedNames(arr){ sessionStorage.setItem(SELECTED_KEY(), JSON.stringify(arr||[])); }
 function selectedItemsOnly(){
     const selected = getSelectedNames();
     if (selected.length === 0) return [];
@@ -125,11 +140,11 @@ function renderCart() {
                         <a class=\"cart-link\" href=\"product-detail.php?name=${encodeURIComponent(item.name)}\" style=\"text-decoration: none; color: inherit;\">\
                             <p>${escapeHtml(item.name)}</p>
                         </a>
-                        <small>Price: $${item.price.toFixed(2)}</small>
+                        <small>Price: ₱${item.price.toFixed(2)}</small>
                     </div>
                 </div>
             </td>
-            <td style=\"text-align:center;white-space:nowrap;\">$${item.price.toFixed(2)}</td>
+            <td style=\"text-align:center;white-space:nowrap;\">₱${item.price.toFixed(2)}</td>
             <td style=\"text-align:center;\">
                 <div class=\"qty-controls\">
                     <button type=\"button\" class=\"qty-dec\" data-name=\"${escapeHtml(item.name)}\">-</button>
@@ -138,7 +153,7 @@ function renderCart() {
                 </div>
             </td>
             </td>
-            <td class=\"item-subtotal\" style=\"text-align:center;\">$${(item.price * item.quantity).toFixed(2)}</td>
+            <td class=\"item-subtotal\" style=\"text-align:center;\">₱${(item.price * item.quantity).toFixed(2)}</td>
             <td style=\"text-align:center;\"><button class=\"link-delete\" data-name=\"${escapeHtml(item.name)}\">Delete</button></td>
         </tr>
     `).join('');
@@ -326,7 +341,7 @@ bar.innerHTML = `
                 <button class="link-delete" id="deleteSelected">Delete</button>
             </div>
             <div class="checkout-right" style="display:flex;align-items:center;gap:12px;">
-                <div class="checkout-bar-total"><span>Total (${selectedCount} item${selectedCount!==1?'s':''}):</span> <strong>$${total.toFixed(2)}</strong></div>
+                <div class="checkout-bar-total"><span>Total (${selectedCount} item${selectedCount!==1?'s':''}):</span> <strong>₱${total.toFixed(2)}</strong></div>
                 <button class="checkout-btn" ${items.length===0?'disabled':''} onclick="proceedToCheckout()">Check Out</button>
             </div>
         </div>

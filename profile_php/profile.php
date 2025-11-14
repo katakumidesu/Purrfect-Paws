@@ -290,7 +290,7 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
 
 <script src="../js/cart.js"></script>
 <script src="../HTML/js/address-modal.js"></script>
-<script src="../HTML/js/profile.js"></script>
+<script src="../HTML/js/profile.js?v=php-currency"></script>
 
 </body>
 </html>

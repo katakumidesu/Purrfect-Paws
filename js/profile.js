@@ -345,23 +345,23 @@ function saveOrders(arr){ sessionStorage.setItem('purrfectOrders', JSON.stringif
 // Cancel modal (Shopee-like)
 function openCancelModal(orderKey){
   const modal = document.getElementById('pcModal') || Object.assign(document.createElement('div'), { id:'pcModal', className:'pc-modal' });
+  const panelStyle = 'background:#fff;border-radius:12px;width:420px;max-width:95vw;padding:16px 16px 12px;box-shadow:0 14px 34px rgba(2,8,23,.18);border:1px solid #e9eef2;';
+  const noteStyle = 'background:#fff7e6;border:1px solid #ffe0b2;color:#8d6e63;padding:10px 12px;border-radius:6px;font-size:13px;margin:8px 0 12px;';
+  const btnBase = 'display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;transition:all .15s ease;box-shadow:0 2px 6px rgba(0,0,0,.08);';
   modal.innerHTML = `
-    <div class="panel">
-      <h3>Select Cancellation Reason</h3>
-      <div class="note">Please select a cancellation reason. Please take note that this will cancel all items in the order and the action cannot be undone.</div>
+    <div class="panel" style="${panelStyle}">
+      <h3 style="margin:0 0 8px;">Select Cancellation Reason</h3>
+      <div class="note" style="${noteStyle}">Please select a cancellation reason. Please take note that this will cancel all items in the order and the action cannot be undone.</div>
       <form id="pcForm">
         ${[
           'Need to change delivery address',
-          'Need to input/change voucher code',
-          'Need to modify order (size, color, quantity, etc.)',
-          'Payment procedure too troublesome',
           'Found cheaper elsewhere',
           "Don\'t want to buy anymore",
           'Others'
-        ].map((txt,i)=>`<label class=\"row\"><input type=\"radio\" name=\"reason\" value=\"${txt.replace(/\"/g,'&quot;')}\" ${i===0?'checked':''}> <span>${txt}</span></label>`).join('')}
-        <footer class="actions">
-          <button type="button" class="btn outline" id="pcNotNow">NOT NOW</button>
-          <button type="submit" class="btn danger" id="pcConfirm">CANCEL ORDER</button>
+        ].map((txt,i)=>`<label class=\"row\" style=\"display:flex;gap:8px;align-items:flex-start;\"><input type=\"radio\" name=\"reason\" value=\"${txt.replace(/\"/g,'&quot;')}\" ${i===0?'checked':''}> <span>${txt}</span></label>`).join('')}
+        <footer class="actions" style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;">
+          <button type="button" class="btn outline" id="pcNotNow" style="${btnBase}background:#f7f7f7;border:1px solid #dfe3e6;color:#444;">NOT NOW</button>
+          <button type="submit" class="btn danger" id="pcConfirm" style="${btnBase}background:#fff;border:1px solid #ff6b6b;color:#c92a2a;">CANCEL ORDER</button>
         </footer>
       </form>
     </div>`;
@@ -369,11 +369,34 @@ function openCancelModal(orderKey){
   modal.style.display = 'flex';
   modal.addEventListener('click', (e)=>{ if (e.target===modal) closeCancelModal(); });
   document.getElementById('pcNotNow').onclick = closeCancelModal;
-  document.getElementById('pcForm').onsubmit = (e)=>{
+  document.getElementById('pcForm').onsubmit = async (e)=>{
     e.preventDefault();
     const orders = getOrders();
     const idx = orders.findIndex(o=> String(o.date) === String(orderKey));
-    if (idx>-1){ orders[idx].status = 'cancelled'; saveOrders(orders); }
+    let oid = null;
+    if (idx>-1){
+      orders[idx].status = 'cancelled';
+      oid = orders[idx].order_id || null;
+      saveOrders(orders);
+    }
+    try {
+      if (!oid){
+        const res = await fetch('../crud/crud.php?action=get_orders&status=to_pay&_=' + Date.now(), { credentials:'same-origin' });
+        const list = await res.json();
+        const arr = Array.isArray(list) ? list : [];
+        const cand = arr.find(o => Math.abs(Number(o.total||0) - Number((orders[idx]||{}).total||0)) < 0.01);
+        if (cand && cand.order_id) { oid = cand.order_id; }
+      }
+      if (oid){
+        await fetch('../crud/crud.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'update_order_status', order_id: parseInt(oid,10), status: 'cancelled' }),
+          keepalive: true,
+          credentials: 'same-origin'
+        });
+      }
+    } catch(_){ }
     closeCancelModal();
     updatePurchaseTabCounts();
     const current = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';

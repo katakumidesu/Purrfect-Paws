@@ -56,7 +56,7 @@ function renderProducts(list) {
         </a>
         <h4>${name}</h4>
         <div class="rating">${getStars(rating)}</div>
-        <p><strong>$ ${price.toFixed(2)}</strong></p>
+        <p><strong>₱ ${price.toFixed(2)}</strong></p>
         <a href="product-detail.php?name=${encodeURIComponent(name)}">
           <button class="purchase-btn">Purchase</button>
         </a>
