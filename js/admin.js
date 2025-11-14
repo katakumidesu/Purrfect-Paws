@@ -793,9 +793,9 @@ function renderOrderRow(o){
             </td>
             <td>
                 <div class="action-buttons">
-                    ${st==='to_pay' ? `<button type="button" class="btn btn-primary" onclick="changeOrderStatus(${o.order_id},'to_ship')">Approve → To Ship</button>` : ''}
-                    ${st==='to_ship' ? `<button type="button" class="btn" onclick="changeOrderStatus(${o.order_id},'to_receive')">Mark To Receive</button>` : ''}
-                    ${st==='to_receive' ? `<button type="button" class="btn" onclick="changeOrderStatus(${o.order_id},'completed')">Complete</button>` : ''}
+                    ${st==='to_pay' ? `<button type="button" class="btn btn-primary" onclick="openStatusModal(${o.order_id},'to_ship')">Approve → To Ship</button>` : ''}
+                    ${st==='to_ship' ? `<button type="button" class="btn" onclick="openStatusModal(${o.order_id},'to_receive')">Mark To Receive</button>` : ''}
+                    ${st==='to_receive' ? `<button type="button" class="btn" onclick="openStatusModal(${o.order_id},'completed')">Complete</button>` : ''}
                     ${st==='to_pay' || st==='to_ship' ? `<button type="button" class="btn btn-delete" onclick="changeOrderStatus(${o.order_id},'cancelled')">Cancel</button>` : ''}
                 </div>
             </td>
@@ -852,9 +852,8 @@ async function changeOrderStatus(orderId, status){
         if (idx>-1){ ordersCache[idx].status = status; }
         const trOk = document.querySelector(`tr[data-order-id="${orderId}"]`);
         if (trOk && idx>-1){ trOk.outerHTML = renderOrderRow(ordersCache[idx]); }
-        alert('Order updated: ' + (res?.message || status));
         // Optional: background refresh to sync other rows without flashing this one
-        try { fetchAPI('get_orders').then(list => { if (Array.isArray(list)) { ordersCache = list; } }); } catch(_){}
+        try { fetchAPI('get_orders').then(list => { if (Array.isArray(list)) { ordersCache = list; } }); } catch(_){ }
     } else {
         // Roll back optimistic change
         if (idx>-1 && prev){ ordersCache[idx] = prev; }
@@ -862,29 +861,76 @@ async function changeOrderStatus(orderId, status){
         if (tr2 && idx>-1){ tr2.outerHTML = renderOrderRow(prev || ordersCache[idx]); }
         const detail = (res && (res.current_status!==undefined)) ? ` (current_status: ${res.current_status})` : '';
         if (res && res.tried) { try { console.warn('Update variants tried:', res.tried); } catch(_){} }
-        alert((res?.message || res?.error || 'Failed to update') + detail);
     }
 }
 
 function viewOrderItems(orderId){
-    // ... (rest of the code remains the same)
-    const items = Array.isArray(o?.items) ? o.items : [];
-    const html = items.length? items.map(it=>`
-        <div style="display:flex;align-items:center;gap:10px;margin:8px 0;">
-            <img src="${it.image_url||'../HTML/images/catbed.jpg'}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;" onerror="this.src='../HTML/images/catbed.jpg'">
-            <div style="flex:1;">
-                <div style="font-weight:600;">${escapeHtml(it.product_name||'')}</div>
-                <div style="color:#aaa;font-size:12px;">Qty: ${it.quantity} • ₱${Number(it.price||0).toFixed(2)}</div>
+    try {
+        const order = ordersCache.find(o => String(o.order_id) === String(orderId));
+        const items = Array.isArray(order?.items) ? order.items : [];
+        const html = items.length ? items.map(it=>`
+            <div style="display:flex;align-items:center;gap:10px;margin:8px 0;">
+                <img src="${it.image_url||it.image||'../HTML/images/catbed.jpg'}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;" onerror="this.src='../HTML/images/catbed.jpg'">
+                <div style="flex:1;">
+                    <div style="font-weight:600;">${escapeHtml(it.product_name||it.name||'')}</div>
+                    <div style="color:#aaa;font-size:12px;">Qty: ${Number(it.quantity||0)} • ₱${Number(it.price||0).toFixed(2)}</div>
+                </div>
+                <div style="font-weight:600;">₱${(Number(it.price||0)*Number(it.quantity||0)).toFixed(2)}</div>
             </div>
-            <div style="font-weight:600;">₱${(Number(it.price||0)*Number(it.quantity||0)).toFixed(2)}</div>
-        </div>
-    `).join('') : '<div style="color:#aaa;">No items found for this order.</div>';
-    const body = document.getElementById('orderItemsBody');
-    if (body){ body.innerHTML = html; document.getElementById('orderItemsModal').classList.remove('hidden'); }
+        `).join('') : '<div style="color:#aaa;">No items found for this order.</div>';
+        const body = document.getElementById('orderItemsBody');
+        const modal = document.getElementById('orderItemsModal');
+        if (body && modal){ body.innerHTML = html; modal.classList.remove('hidden'); }
+    } catch (e) {
+        alert('Unable to load order details.');
+    }
 }
 // Expose functions for inline onclick handlers
 window.changeOrderStatus = changeOrderStatus;
 window.viewOrderItems = viewOrderItems;
+window.openStatusModal = openStatusModal;
+
+// Lightweight confirmation modal for status updates
+function openStatusModal(orderId, status){
+    const labels = { to_ship: 'Approved → To Ship', to_receive: 'Marked To Receive', completed: 'Completed' };
+    let modal = document.getElementById('admStatusModal');
+    if (!modal){
+        modal = document.createElement('div');
+        modal.id = 'admStatusModal';
+        // Toast container at bottom-right (no overlay)
+        modal.style.cssText = 'position:fixed;right:16px;bottom:16px;display:flex;align-items:center;justify-content:center;z-index:99999;background:transparent;pointer-events:none;';
+        document.body.appendChild(modal);
+    }
+    const panelStyle = 'pointer-events:auto;display:flex;gap:10px;align-items:center;background:#111;color:#fff;border-radius:10px;min-width:280px;max-width:360px;padding:10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-family:inherit;border:1px solid rgba(255,255,255,.08);';
+    modal.innerHTML = `
+      <div class="panel" style="${panelStyle}">
+        <div style="width:28px;height:28px;border-radius:8px;background:#1a73e8;display:flex;align-items:center;justify-content:center;flex:0 0 auto;">
+          <span style="display:block;width:12px;height:12px;border-radius:50%;background:#fff;"></span>
+        </div>
+        <div style="min-width:0;flex:1 1 auto;">
+          <div id="admStatusTitle" style="font-weight:700;font-size:13px;line-height:1.2;margin:0 0 2px;">Updating...</div>
+          <div id="admStatusMsg" style="opacity:.9;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Please wait while we update the order status.</div>
+        </div>
+      </div>`;
+    modal.style.display = 'flex';
+    const close = ()=>{ const m=document.getElementById('admStatusModal'); if (m) m.remove(); };
+
+    (async ()=>{
+      try{
+        await changeOrderStatus(orderId, status);
+        const t = document.getElementById('admStatusTitle');
+        const m = document.getElementById('admStatusMsg');
+        if (t) t.textContent = labels[status] || 'Updated';
+        if (m) m.textContent = 'Order status updated successfully.';
+      }catch(err){
+        const t = document.getElementById('admStatusTitle');
+        const m = document.getElementById('admStatusMsg');
+        if (t) t.textContent = 'Update Failed';
+        if (m) m.textContent = 'There was a problem updating the order. Please try again.';
+      }
+      setTimeout(close, 2000);
+    })();
+}
 
 // ---------------- ANALYTICS ----------------
 async function loadAnalytics(){
