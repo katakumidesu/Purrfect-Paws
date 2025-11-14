@@ -90,6 +90,28 @@ async function loadDashboard(){
                 if (di >= 0 && di < dailyTotal.length) dailyTotal[di] += total;
             }
         }
+
+        // Build monthly series like Reports (same result)
+        const byMonth = Array.from({length:12}, () => ({rev:0, count:0}));
+        for (let i=0;i<arr.length;i++){
+            const o = arr[i];
+            // Try a wider set of potential date fields
+            const dateFields = ['order_date','date','created_at','updated_at','ordered_at','order_time','placed_at','timestamp','createdAt','updatedAt'];
+            let raw = null;
+            for (let f=0; f<dateFields.length; f++){ if (o[dateFields[f]]) { raw = o[dateFields[f]]; break; } }
+            const d = raw ? new Date(typeof raw==='string' ? String(raw).replace(' ','T') : raw) : null;
+            const mm = (!d || isNaN(d)) ? (new Date()).getMonth() : d.getMonth();
+            const rev = (function(){
+                const raw = (o.amount!=null? o.amount : (o.total!=null? o.total : o.total_amount));
+                const n = parseFloat(String(raw==null?0:raw).replace(/[^0-9.-]/g,''));
+                return isFinite(n)? n : 0;
+            })();
+            byMonth[mm].rev += rev;
+            byMonth[mm].count += 1;
+        }
+        const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const revData = byMonth.map(x=>x.rev);
+        const cntData = byMonth.map(x=>x.count);
         
     mainContent.innerHTML = `
             <div class="dashboard-header">
@@ -128,8 +150,8 @@ async function loadDashboard(){
             </div>
             <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-top:14px;">
                 <div style="border:1px solid #333;border-radius:12px;background:#222;padding:12px;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;"><div style="font-weight:600;color:#fff">This month revenue</div><div style="font-size:12px;color:#aaa">${start.toLocaleDateString()} - ${end.toLocaleDateString()}</div></div>
-                    <canvas id="dash_line" height="110"></canvas>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;"><div style="font-weight:600;color:#fff">Total Sales</div></div>
+                    <canvas id="dash_sales_line" height="110"></canvas>
                 </div>
                 <div style="border:1px solid #333;border-radius:12px;background:#222;padding:12px;">
                     <div style="font-weight:600;margin-bottom:8px;color:#fff">Orders by status</div>
@@ -142,10 +164,16 @@ async function loadDashboard(){
             if (!window.Chart) {
                 await new Promise((res) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/chart.js'; s.onload = () => res(); document.head.appendChild(s); });
             }
-            const daysLabels = Array.from({ length: daysInMonth }, (_, i) => (i + 1).toString().padStart(2, '0'));
-            const ctxL = document.getElementById('dash_line')?.getContext('2d');
-            if (ctxL) {
-                new Chart(ctxL, { type: 'line', data: { labels: daysLabels, datasets: [{ label: 'Revenue', data: dailyTotal, borderColor: '#facc15', backgroundColor: 'rgba(250,204,21,.12)', tension: .35, fill: true }] }, options:{ plugins:{ legend:{ labels:{ color:'#fff' } } }, scales:{ x:{ ticks:{ color:'#ddd' } }, y:{ ticks:{ color:'#ddd' } } } } });
+            const ctxTS = document.getElementById('dash_sales_line')?.getContext('2d');
+            if (ctxTS) {
+                new Chart(ctxTS, {
+                    type: 'line',
+                    data: { labels: monthLabels, datasets: [
+                        { label: 'Revenue', data: revData, borderColor: '#0ea5e9', backgroundColor: 'rgba(14,165,233,.12)', tension: 0.35, fill: true },
+                        { label: 'Orders', data: cntData, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,.12)', tension: 0.35 }
+                    ] },
+                    options: { responsive: true, plugins:{ legend:{ labels:{ color:'#fff' } } }, scales:{ x:{ ticks:{ color:'#ddd' } }, y:{ ticks:{ color:'#ddd' } } } }
+                });
             }
             const ctxP = document.getElementById('dash_pie')?.getContext('2d');
             if (ctxP) {
