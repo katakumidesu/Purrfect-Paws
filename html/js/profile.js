@@ -724,7 +724,13 @@
     if (q) orders = orders.filter(o => (o.items||[]).some(it => (it.name||'').toLowerCase().includes(q)) );
     if (!orders.length){ wrap.innerHTML = '<div class="address-empty" style="display:flex"><div class="empty-inner"><p class="empty-main">No orders yet.</p></div></div>'; return; }
 
-    const statusLabel = (s)=>({to_pay:'To Pay', to_ship:'To Ship', to_receive:'To Receive', completed:'Completed', cancelled:'Cancelled'})[s]||'—';
+    const statusLabel = (s)=>({
+      to_pay: 'To Pay',
+      to_ship: 'To Ship',
+      to_receive: 'To Receive',
+      completed: 'ORDER HAS BEEN DELIVERED',
+      cancelled: 'Cancelled'
+    })[s]||'—';
     const ratedMap = getRatedMap();
 
     wrap.innerHTML = orders.map((o,idx)=>{
@@ -762,7 +768,7 @@
           <div class="tr-head" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #f1f3f5;">
             <div style="display:flex;align-items:center;gap:8px;"></div>
             <div style="display:flex;align-items:center;gap:10px;">
-              <span style="color:#2f9e44;font-weight:600;">Parcel has been delivered</span>
+              <span style="color:#2f9e44;font-weight:600;">ORDER IS ON THE WAY</span>
               <span style="color:#c92a2a;font-weight:700;">TO RECEIVE</span>
             </div>
           </div>

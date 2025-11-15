@@ -30,6 +30,7 @@ menuItems.forEach(item => {
             case "dashboard": loadDashboard(); break;
             case "inventory": loadInventory(); break;
             case "orders": loadOrders(); break;
+            case "delivery": loadDelivery(); break;
             case "users": loadUsers(); break;
             case "analytics": loadAnalytics(); break;
             case "reports": loadReports(); break;
@@ -898,9 +899,30 @@ async function changeOrderStatus(orderId, status){
 
 function viewOrderItems(orderId){
     try {
-        const order = ordersCache.find(o => String(o.order_id) === String(orderId));
+        // Try Orders tab cache first, then Delivery cache
+        let order = ordersCache.find(o => String(o.order_id) === String(orderId));
+        if (!order) {
+            order = (deliveryCache || []).find(o => String(o.order_id) === String(orderId));
+        }
+
         const items = Array.isArray(order?.items) ? order.items : [];
-        const html = items.length ? items.map(it=>`
+        const addrParts = [];
+        if (order) {
+            if (order.address_line) addrParts.push(order.address_line);
+            if (order.barangay) addrParts.push(order.barangay);
+            if (order.city) addrParts.push(order.city);
+            if (order.province) addrParts.push(order.province);
+            if (order.postal_code) addrParts.push(order.postal_code);
+        }
+        const addressHtml = order && addrParts.length
+            ? `<div style="margin-bottom:10px;padding:10px;border-radius:8px;background:#111827;color:#e5e7eb;font-size:13px;">
+                    <div style="font-weight:600;margin-bottom:4px;">Customer</div>
+                    <div>${escapeHtml(order.customer||'User')} (ID: ${order.user_id!=null? order.user_id : 'N/A'})</div>
+                    <div style="margin-top:6px;font-size:12px;color:#9ca3af;">${escapeHtml(addrParts.join(', '))}</div>
+               </div>`
+            : '';
+
+        const itemsHtml = items.length ? items.map(it=>`
             <div style="display:flex;align-items:center;gap:10px;margin:8px 0;">
                 <img src="${it.image_url||it.image||'../HTML/images/catbed.jpg'}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;" onerror="this.src='../HTML/images/catbed.jpg'">
                 <div style="flex:1;">
@@ -910,9 +932,10 @@ function viewOrderItems(orderId){
                 <div style="font-weight:600;">₱${(Number(it.price||0)*Number(it.quantity||0)).toFixed(2)}</div>
             </div>
         `).join('') : '<div style="color:#aaa;">No items found for this order.</div>';
+
         const body = document.getElementById('orderItemsBody');
         const modal = document.getElementById('orderItemsModal');
-        if (body && modal){ body.innerHTML = html; modal.classList.remove('hidden'); }
+        if (body && modal){ body.innerHTML = itemsHtml + addressHtml; modal.classList.remove('hidden'); }
     } catch (e) {
         alert('Unable to load order details.');
     }
@@ -921,6 +944,146 @@ function viewOrderItems(orderId){
 window.changeOrderStatus = changeOrderStatus;
 window.viewOrderItems = viewOrderItems;
 window.openStatusModal = openStatusModal;
+
+// ---------------- DELIVERY (ADMIN) ----------------
+let deliveryCache = [];
+
+function filterDeliveriesByStatus(status) {
+    if (!Array.isArray(deliveryCache) || deliveryCache.length === 0) return [];
+    if (!status || status === 'all') return deliveryCache;
+    return deliveryCache.filter(o => String(o.status || '').toLowerCase() === status);
+}
+
+function renderDeliveryRow(o) {
+    // Normalized order status for logic/filtering
+    const st = (o.status && String(o.status).trim()) ? String(o.status).toLowerCase() : 'to_pay';
+    const canArrange = (st === 'to_ship');
+    const badgeClass = st === 'completed' ? 'available' : (st === 'cancelled' ? 'low-stock' : '');
+
+    // Prefer delivery_status from delivery table for display if present
+    const deliveryStatusRaw = (o.delivery_status != null) ? String(o.delivery_status).trim() : '';
+    const labelMap = {
+        to_receive: 'ORDER IS ON THE WAY',
+        completed: 'ORDER HAS BEEN DELIVERED'
+    };
+    const fallbackText = labelMap[st] || st.replace('_',' ');
+    const statusText = deliveryStatusRaw !== '' ? deliveryStatusRaw : fallbackText;
+    const deliveryId = `D-${o.order_id}`;
+    return `
+        <tr data-order-id="${o.order_id}">
+            <td>${deliveryId}</td>
+            <td>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div style="width:36px;height:36px;border-radius:999px;background:#333;display:flex;align-items:center;justify-content:center;font-size:18px;">🐾</div>
+                    <div>
+                        <div style="font-weight:600;">Order #${o.order_id}</div>
+                        <div style="font-size:12px;color:#aaa;">${escapeHtml(o.customer||'User')} • ₱${Number(o.total||0).toFixed(2)}</div>
+                    </div>
+                </div>
+            </td>
+            <td>${escapeHtml(o.customer||'User')}</td>
+            <td class="price">${fmtCurrency(o.total)}</td>
+            <td><span class="status-badge ${badgeClass}">${statusText}</span></td>
+            <td style="white-space:nowrap;">${escapeHtml(o.shipping_method || 'Standard')}</td>
+            <td>
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-secondary" onclick="viewOrderItems(${o.order_id})">View</button>
+                    ${canArrange ? `<button type="button" class="btn btn-primary" onclick="openStatusModal(${o.order_id}, 'to_receive')">Arrange Delivery</button>` : ''}
+                </div>
+            </td>
+        </tr>`;
+}
+
+async function loadDelivery(statusFilter = 'all') {
+    try {
+        const orders = await fetchAPI('get_orders');
+        if (orders?.error) {
+            mainContent.innerHTML = `<div class="inventory-header"><h2>Delivery</h2></div><p class="error">${orders.error}</p>`;
+            return;
+        }
+        deliveryCache = Array.isArray(orders) ? orders : [];
+        const filtered = filterDeliveriesByStatus(statusFilter);
+        const rows = filtered.length ? filtered.map(renderDeliveryRow).join('') : '<tr><td colspan="6" class="text-center">No deliveries found for this filter.</td></tr>';
+
+        const tabs = [
+            { id: 'all', label: 'All' },
+            { id: 'to_pay', label: 'To Pay' },
+            { id: 'to_ship', label: 'To Ship' },
+            { id: 'to_receive', label: 'To Receive' },
+            { id: 'completed', label: 'Completed' },
+            { id: 'cancelled', label: 'Cancelled' }
+        ];
+
+        const tabsHtml = tabs.map(t => `
+            <button type="button" class="btn ${statusFilter === t.id ? 'btn-primary' : 'btn-secondary'}" data-filter="${t.id}">
+                ${t.label}
+            </button>
+        `).join('');
+
+        mainContent.innerHTML = `
+            <div class="inventory-header">
+                <h2>Delivery</h2>
+                <div class="inventory-actions">
+                    <div class="search-box">
+                        <i class="fa fa-search"></i>
+                        <input type="text" id="deliverySearch" placeholder="Search order or customer...">
+                    </div>
+                </div>
+            </div>
+            <div style="margin-bottom:15px; display:flex; flex-wrap:wrap; gap:8px;">
+                ${tabsHtml}
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Delivery ID</th>
+                            <th>Order</th>
+                            <th>Customer</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Delivery Service</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="deliveryTableBody">${rows}</tbody>
+                </table>
+            </div>
+            <div id="orderItemsModal" class="modal hidden"><div class="modal-content"><span class="closeBtn" onclick="document.getElementById('orderItemsModal').classList.add('hidden')">&times;</span><h2>Order Items</h2><div id="orderItemsBody" style="margin-top:10px"></div></div></div>
+        `;
+
+        // Wire filter buttons
+        document.querySelectorAll('button[data-filter]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const f = btn.getAttribute('data-filter');
+                loadDelivery(f);
+            });
+        });
+
+        // Wire search
+        const searchInput = document.getElementById('deliverySearch');
+        if (searchInput) {
+            searchInput.addEventListener('keyup', () => {
+                const term = searchInput.value.toLowerCase();
+                const list = filterDeliveriesByStatus(statusFilter);
+                const filteredRows = list.filter(o => {
+                    const name = String(o.customer || '').toLowerCase();
+                    const idStr = String(o.order_id || '');
+                    return name.includes(term) || idStr.includes(term);
+                }).map(renderDeliveryRow).join('');
+                const tbody = document.getElementById('deliveryTableBody');
+                if (tbody) {
+                    tbody.innerHTML = filteredRows || '<tr><td colspan="6" class="text-center">No deliveries match your search.</td></tr>';
+                }
+            });
+        }
+    } catch (e) {
+        mainContent.innerHTML = `<div class="inventory-header"><h2>Delivery</h2></div><p class="error">Failed to load deliveries: ${e.message}</p>`;
+    }
+}
+
+// expose
+window.loadDelivery = loadDelivery;
 
 // Lightweight confirmation modal for status updates
 function openStatusModal(orderId, status){

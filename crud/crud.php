@@ -641,6 +641,22 @@ switch ($action) {
             if ($hasUserId) { $hasUserId->close(); }
             if ($hasCustomerId) { $hasCustomerId->close(); }
 
+            // Ensure user_addresses table exists so we can join default address (safe no-op if already there)
+            $conn->query("CREATE TABLE IF NOT EXISTS user_addresses (
+  address_id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  fullname VARCHAR(255) DEFAULT '',
+  phone VARCHAR(64) DEFAULT '',
+  label VARCHAR(32) DEFAULT 'Home',
+  address_line VARCHAR(255) DEFAULT '',
+  barangay VARCHAR(128) DEFAULT '',
+  city VARCHAR(128) DEFAULT '',
+  province VARCHAR(128) DEFAULT '',
+  postal_code VARCHAR(32) DEFAULT '',
+  is_default TINYINT(1) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
             // Optional filters: user_id and status
             $wheres = [];
             if (isset($_GET['user_id']) && $_GET['user_id'] !== '') {
@@ -656,8 +672,22 @@ switch ($action) {
             }
             $whereSql = count($wheres) ? ('WHERE ' . implode(' AND ', $wheres)) : '';
 
-            $sql = "SELECT o.order_id, $userCol AS user_id, $dateExpr AS date, $totalExpr AS total, $statusNormExpr AS status, COALESCE(u.name,'User') AS customer
-                    FROM orders o LEFT JOIN users u ON u.user_id = ($userCol)
+            $sql = "SELECT o.order_id,
+                           $userCol AS user_id,
+                           $dateExpr AS date,
+                           $totalExpr AS total,
+                           $statusNormExpr AS status,
+                           COALESCE(u.name,'User') AS customer,
+                           ua.address_line,
+                           ua.barangay,
+                           ua.city,
+                           ua.province,
+                           ua.postal_code,
+                           d.status AS delivery_status
+                    FROM orders o
+                    LEFT JOIN users u ON u.user_id = ($userCol)
+                    LEFT JOIN user_addresses ua ON ua.user_id = ($userCol) AND ua.is_default = 1
+                    LEFT JOIN delivery d ON d.order_id = o.order_id
                     $whereSql
                     ORDER BY o.order_id DESC";
             $res = $conn->query($sql);
@@ -749,6 +779,49 @@ switch ($action) {
             $affected = $stmt->affected_rows; // may be 0 if same value
             $err = $stmt->error;
             $stmt->close();
+
+            // Sync with delivery table: upsert delivery status for this order
+            try {
+                // Check if a delivery row already exists
+                $checkDel = $conn->prepare("SELECT delivery_id FROM delivery WHERE order_id = ? LIMIT 1");
+                if ($checkDel) {
+                    $checkDel->bind_param("i", $order_id);
+                    $checkDel->execute();
+                    $resDel = $checkDel->get_result();
+                    $rowDel = $resDel ? $resDel->fetch_assoc() : null;
+                    $checkDel->close();
+
+                    $now = date('Y-m-d H:i:s');
+                    // Map internal status to friendly delivery text
+                    $apiStatus = strtoupper($status);
+                    if ($status === 'to_receive') {
+                        $apiStatus = 'ORDER IS ON THE WAY';
+                    } elseif ($status === 'completed') {
+                        $apiStatus = 'ORDER HAS BEEN DELIVERED';
+                    }
+
+                    if ($rowDel) {
+                        // Update existing delivery row
+                        $updDel = $conn->prepare("UPDATE delivery SET status = ?, delivery_date = ? WHERE delivery_id = ?");
+                        if ($updDel) {
+                            $delId = intval($rowDel['delivery_id']);
+                            $updDel->bind_param("ssi", $apiStatus, $now, $delId);
+                            $updDel->execute();
+                            $updDel->close();
+                        }
+                    } else {
+                        // Insert new delivery row with minimal data
+                        $insDel = $conn->prepare("INSERT INTO delivery (order_id, status, delivery_date) VALUES (?, ?, ?)");
+                        if ($insDel) {
+                            $insDel->bind_param("iss", $order_id, $apiStatus, $now);
+                            $insDel->execute();
+                            $insDel->close();
+                        }
+                    }
+                }
+            } catch (Exception $de) {
+                // Fail silently for delivery sync so main status update still works
+            }
 
             // Re-read current status
             $check2 = $conn->prepare("SELECT status FROM orders WHERE order_id=?");

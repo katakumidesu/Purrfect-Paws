@@ -29,6 +29,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
             <li class="active" data-section="dashboard"><i class="fa fa-home"></i> <span>Dashboard</span></li>
             <li data-section="inventory"><i class="fa fa-box"></i> <span>Inventory</span></li>
             <li data-section="orders"><i class="fa fa-file-invoice"></i> <span>Orders</span></li>
+            <li data-section="delivery"><i class="fa fa-truck"></i> <span>Delivery</span></li>
             <li data-section="users"><i class="fa fa-users"></i> <span>Users</span></li>
             <li data-section="analytics"><i class="fa fa-chart-bar"></i> <span>Analytics</span></li>
             <li data-section="reports"><i class="fa fa-chart-line"></i> <span>Reports</span></li>
