@@ -57,8 +57,8 @@ if (!isset($_SESSION['user_id'])) {
         <ul>
             <li><a href="index.php">Home</a></li>
             <li><a href="product.php">Shop</a></li>
-            <li><a href="#gallery">Gallery</a></li>
-            <li><a href="#contact">Contact Us</a></li>
+            <li><a href="../html/gallery.php">Gallery</a></li>
+           
         </ul>
         
 <div class="nav-right">
