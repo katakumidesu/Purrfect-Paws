@@ -112,6 +112,16 @@ async function loadDashboard(){
         const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         const revData = byMonth.map(x=>x.rev);
         const cntData = byMonth.map(x=>x.count);
+        // Build orders-by-day for current month
+        const dayCounts = Array.from({length: daysInMonth}, ()=>0);
+        for (let i=0;i<arr.length;i++){
+            const o = arr[i];
+            const dateFields = ['order_date','date','created_at','updated_at','ordered_at','order_time','placed_at','timestamp','createdAt','updatedAt'];
+            let raw = null; for (let f=0; f<dateFields.length; f++){ if (o[dateFields[f]]) { raw = o[dateFields[f]]; break; } }
+            let d = raw ? new Date(typeof raw==='string' ? String(raw).replace(' ','T') : raw) : null;
+            if (!d || isNaN(d)) d = new Date();
+            if (d.getFullYear()===y && d.getMonth()===m){ const di = d.getDate()-1; if (di>=0 && di<dayCounts.length) dayCounts[di] = (dayCounts[di]||0)+1; }
+        }
         
     mainContent.innerHTML = `
             <div class="dashboard-header">
@@ -984,14 +994,27 @@ async function loadAnalytics(){
 
         for (var i=0;i<arr.length;i++){
             var o = arr[i];
-            var d = o.date ? new Date(o.date) : null;
-            var total = Number(o.total||0) || 0;
+            // Robust date parse; fallback to current month if missing
+            var raw = o.order_date || o.date || o.created_at || o.updated_at || null;
+            var d = raw ? new Date(typeof raw==='string' ? String(raw).replace(' ','T') : raw) : null;
+            var inThisMonth = false;
+            if (d && !isNaN(d)) { inThisMonth = (d.getFullYear()===y && d.getMonth()===m); }
+            else { d = new Date(); inThisMonth = (d.getFullYear()===y && d.getMonth()===m); }
+
+            // Robust amount parse
+            var aRaw = (o.amount!=null? o.amount : (o.total!=null? o.total : o.total_amount));
+            var total = parseFloat(String(aRaw==null?0:aRaw).replace(/[^0-9.-]/g,'')) || 0;
+
             var s = String(o.status||'').toLowerCase();
             if (statusRev[s]!==undefined) statusRev[s] += total;
-            if (d && d.getFullYear()===y && d.getMonth()===m){
-                thisMonthCount += 1; thisMonthValue += total; if (total>highestOrder) highestOrder = total;
+
+            if (inThisMonth){
+                thisMonthCount += 1;
+                thisMonthValue += total;
+                if (total>highestOrder) highestOrder = total;
                 var di = d.getDate()-1; if (di>=0 && di<dailyTotal.length) dailyTotal[di] += total;
             }
+
             var items = o.items||[];
             for (var k=0;k<items.length;k++){
                 var it = items[k];
@@ -1016,11 +1039,11 @@ async function loadAnalytics(){
         +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Average order value</div><div style="font-size:24px;font-weight:700">\u20B1' + avgOrder.toFixed(2) + '</div></div>'
         +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Highest order value</div><div style="font-size:24px;font-weight:700">\u20B1' + highestOrder.toFixed(2) + '</div></div>'
         + '</div>'
-        + '<div style="border:1px solid #eee;border-radius:12px;background:#fff;margin-top:14px;padding:12px;">'
+        + '<div style="border:1px solid #eee;border-radius:12px;background:#fff;margin-top:12px;padding:10px 12px;">'
         +   '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;"><div style="font-weight:600">This month at a glance</div><div style="font-size:12px;color:#6b7280">' + start.toLocaleDateString() + ' - ' + end.toLocaleDateString() + '</div></div>'
-        +   '<div style="display:grid;grid-template-columns:3fr 1fr;gap:12px;align-items:center">'
-        +     '<canvas id="an_line" height="120"></canvas>'
-        +     '<div style="border-left:1px solid #f1f5f9;padding-left:12px">'
+        +   '<div style="display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:10px;align-items:center">'
+        +     '<canvas id="an_line" height="80"></canvas>'
+        +     '<div style="border-left:1px solid #f1f5f9;padding-left:10px">'
         +        '<div style="font-size:12px;color:#6b7280">Total</div>'
         +        '<div style="font-size:20px;font-weight:700">\u20B1' + thisMonthValue.toFixed(2) + '</div>'
         +        '<div style="font-size:12px;color:#6b7280;margin-top:10px">Orders</div>'
@@ -1064,10 +1087,35 @@ async function loadAnalytics(){
         var ctxC = document.getElementById('an_bar_count').getContext('2d');
         var dayCounts = Array.from({length: daysInMonth}, function(){ return 0; });
         for (var d=0; d<arr.length; d++){
-            var od = arr[d].date ? new Date(arr[d].date) : null;
-            if (od && od.getFullYear()===y && od.getMonth()===m){ var di2 = od.getDate()-1; dayCounts[di2] = (dayCounts[di2]||0) + 1; }
+            var obj = arr[d];
+            var rd = obj.order_date || obj.date || obj.created_at || obj.updated_at || null;
+            var od = rd ? new Date(typeof rd==='string' ? String(rd).replace(' ','T') : rd) : null;
+            if (!od || isNaN(od)) od = new Date(); // fallback to today so it's counted
+            if (od.getFullYear()===y && od.getMonth()===m){ var di2 = od.getDate()-1; dayCounts[di2] = (dayCounts[di2]||0) + 1; }
         }
-        new Chart(ctxC, { type:'bar', data:{ labels: daysLabels, datasets:[{ label:'Orders', data: dayCounts, backgroundColor:'#0f172a' }] } });
+        window.__charts = window.__charts || {};
+        if (window.__charts.an_bar_count) { try { window.__charts.an_bar_count.destroy(); } catch(_){} }
+        var maxCount = Math.max.apply(null, dayCounts);
+        window.__charts.an_bar_count = new Chart(ctxC, {
+            type:'bar',
+            data:{ labels: daysLabels, datasets:[{ label:'Orders', data: dayCounts, backgroundColor:'#0f172a' }] },
+            options:{ scales:{ y:{ beginAtZero:true, suggestedMax: (isFinite(maxCount)? maxCount : 0) + 1 } } }
+        });
+
+        // Auto-refresh analytics every 15s while Analytics tab is active
+        try {
+            if (window.__analyticsTimer) { clearInterval(window.__analyticsTimer); }
+            window.__analyticsTimer = setInterval(function(){
+                try {
+                    var active = document.querySelector('.menu li.active');
+                    if (active && active.getAttribute('data-section') === 'analytics') {
+                        loadAnalytics();
+                    } else {
+                        clearInterval(window.__analyticsTimer);
+                    }
+                } catch(_){}
+            }, 15000);
+        } catch(_){}
     } catch (e) {
         mainContent.innerHTML = '<div class="inventory-header"><h2>Analytics</h2></div><p style="color:#ef4444">Failed to load analytics: ' + (e.message||e) + '</p>';
     }
