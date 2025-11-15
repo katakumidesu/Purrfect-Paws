@@ -617,7 +617,13 @@
   const ORDERS_KEY = () => `purrfectOrders:${window.PURR_USER_ID||'anon'}`;
   function getOrders(){ try { return JSON.parse(sessionStorage.getItem(ORDERS_KEY())||'[]'); } catch(e){ return []; } }
   function saveOrders(arr){ sessionStorage.setItem(ORDERS_KEY(), JSON.stringify(arr||[])); }
-  function money(n){ return '₱'+Number(n||0).toFixed(2); }
+  function money(n){ return '\u20b1'+Number(n||0).toFixed(2); }
+  // Track which orders have been rated so we can swap Rate → Buy Again
+  function getRatedMap(){ try { return JSON.parse(localStorage.getItem('pp_rated_orders')||'{}'); } catch(e){ return {}; } }
+  function saveRatedMap(map){ try { localStorage.setItem('pp_rated_orders', JSON.stringify(map||{})); } catch(e){} }
+  // Store per-product reviews for Product Ratings section
+  function getProductReviews(){ try { return JSON.parse(localStorage.getItem('pp_product_reviews')||'[]'); } catch(e){ return []; } }
+  function saveProductReviews(list){ try { localStorage.setItem('pp_product_reviews', JSON.stringify(Array.isArray(list)? list : [])); } catch(e){} }
   function normalizeStatus(s){
     const raw = String(s||'to_pay').toLowerCase().trim();
     // replace any non-letters with underscore, then collapse repeats
@@ -719,6 +725,7 @@
     if (!orders.length){ wrap.innerHTML = '<div class="address-empty" style="display:flex"><div class="empty-inner"><p class="empty-main">No orders yet.</p></div></div>'; return; }
 
     const statusLabel = (s)=>({to_pay:'To Pay', to_ship:'To Ship', to_receive:'To Receive', completed:'Completed', cancelled:'Cancelled'})[s]||'—';
+    const ratedMap = getRatedMap();
 
     wrap.innerHTML = orders.map((o,idx)=>{
       if (o.status === 'to_pay'){
@@ -779,6 +786,9 @@
           </div>
         </div>`;
       }
+      // Default card (to_ship, completed, cancelled)
+      const isCompleted = o.status === 'completed';
+      const rated = !!ratedMap[String(o.order_id||o.date)];
       return `
       <div class="order" style="border:1px solid #e9eef2;border-radius:8px;margin-bottom:12px;">
         <div class="order-h" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px dashed #e9eef2;background:#fff;">
@@ -798,7 +808,11 @@
         </div>
         <div class="order-f" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-top:1px solid #e9eef2;background:#fff;">
           <div class="order-total">Order Total: <strong>${money(o.total||0)}</strong></div>
-          <div class="actions"><button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(((o.items||[])[0]||{}).name||'')}'" style="padding:6px 10px;border:1px solid #1a73e8;color:#1a73e8;background:#fff;border-radius:6px;">Buy Again</button></div>
+          <div class="actions">
+            ${isCompleted && !rated
+              ? `<button class="btn rate-btn" data-key="${o.order_id||o.date}" style="padding:6px 12px;border-radius:6px;border:1px solid #f97316;background:#f97316;color:#fff;">Rate</button>`
+              : `<button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(((o.items||[])[0]||{}).name||'')}'" style="padding:6px 10px;border:1px solid #1a73e8;color:#1a73e8;background:#fff;border-radius:6px;">Buy Again</button>`}
+          </div>
         </div>
       </div>`;
     }).join('');
@@ -815,6 +829,11 @@
     wrap.querySelectorAll('.cancel-order').forEach(btn=>{
       btn.addEventListener('click', ()=> openCancelModal(btn.getAttribute('data-key')) );
     });
+    // Wire up Rate buttons (Completed tab)
+    wrap.querySelectorAll('.rate-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=> openRateModal(btn.getAttribute('data-key')) );
+    });
+    updatePurchaseTabCounts();
   }
 
   // --- Cancel Order Modal (Shopee-like) ---
@@ -964,6 +983,96 @@
       close();
     });
   }
+
+  // --- Product Rating Modal (Shopee-like) ---
+  function openRateModal(orderKey){
+    const orders = getOrders();
+    const o = orders.find(x=> String(x.order_id||x.date) === String(orderKey));
+    const firstItem = (o&&o.items&&o.items[0]) || {};
+    let modal = document.getElementById('rateModal');
+    if (!modal){
+      modal = document.createElement('div');
+      modal.id = 'rateModal';
+      modal.className = 'pc-modal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:99999;';
+      document.body.appendChild(modal);
+    }
+    const panelStyle = 'background:#fff;border-radius:12px;width:520px;max-width:95vw;padding:18px 18px 14px;box-shadow:0 14px 34px rgba(2,8,23,.18);border:1px solid #e9eef2;';
+    const noteStyle = 'background:#fff7ed;border:1px solid #fed7aa;color:#8d6e63;padding:8px 10px;border-radius:6px;font-size:13px;margin:4px 0 10px;';
+    const starBase = 'cursor:pointer;font-size:22px;color:#e5e7eb;margin-right:4px;';
+    modal.innerHTML = `
+      <div class="panel" style="${panelStyle}">
+        <h3 style="margin:0 0 6px;">Rate Product</h3>
+        <div style="${noteStyle}">Share your feedback about this product to help other buyers.</div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
+          <img src="${firstItem.image||'../HTML/images/catbed.jpg'}" onerror="this.src='../HTML/images/catbed.jpg'" style="width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;" alt="">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(firstItem.name||'Order')}</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:2px;">Qty: ${firstItem.quantity||1}</div>
+          </div>
+        </div>
+        <form id="prForm">
+          <div style="margin-bottom:10px;">
+            <div style="font-size:13px;margin-bottom:4px;">Product Quality</div>
+            <div id="prStars">
+              ${[1,2,3,4,5].map(i=>`<i data-v="${i}" class="fa-solid fa-star" style="${starBase}"></i>`).join('')}
+            </div>
+          </div>
+          <div style="margin-bottom:10px;">
+            <div style="font-size:13px;margin-bottom:4px;">Review</div>
+            <textarea id="prText" rows="4" style="width:100%;border-radius:8px;border:1px solid #d1d5db;padding:8px;font-size:13px;resize:vertical;" placeholder="Share more thoughts on the product to help other buyers."></textarea>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;">
+            <button type="button" id="prCancel" style="padding:7px 14px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;font-size:13px;cursor:pointer;">CANCEL</button>
+            <button type="submit" id="prSubmit" style="padding:7px 16px;border-radius:8px;border:none;background:#f97316;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">SUBMIT</button>
+          </div>
+        </form>
+      </div>`;
+    modal.style.display = 'flex';
+
+    const stars = modal.querySelectorAll('#prStars i');
+    let current = 5;
+    const paint = (val)=>{
+      stars.forEach(s=>{
+        const v = Number(s.dataset.v||0);
+        s.style.color = v<=val ? '#f97316' : '#e5e7eb';
+      });
+    };
+    paint(current);
+    stars.forEach(s=> s.addEventListener('click', ()=>{ current = Number(s.dataset.v||5); paint(current); }));
+
+    const close = ()=>{ const m = document.getElementById('rateModal'); if (m) m.remove(); };
+    modal.addEventListener('click', (e)=>{ if (e.target===modal) close(); });
+    modal.querySelector('#prCancel').addEventListener('click', close);
+    modal.querySelector('#prForm').addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const text = (modal.querySelector('#prText').value||'').trim();
+      // mark order as rated so button becomes "Buy Again"
+      const map = getRatedMap();
+      map[String(orderKey)] = { rated:true, stars:current, text };
+      saveRatedMap(map);
+      // also save per-product review so Product Ratings can show it
+      const list = getProductReviews();
+      const productName = (firstItem.name||'').toString();
+      const key = productName.toLowerCase().trim();
+      if (key){
+        list.push({
+          product: productName,   // original label
+          key,                    // normalized key used for matching
+          stars: current,
+          text,
+          user: (window.PURR_USER_NAME||'User'),
+          ts: Date.now()
+        });
+        saveProductReviews(list);
+      }
+      close();
+      const currentTab = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
+      renderPurchases(currentTab);
+    });
+  }
+  // expose globally so inline onclick or listeners can use it
+  window.openRateModal = openRateModal;
 
   function updatePurchaseTabCounts(){
     const orders = getOrders().map(o=> ({...o, status: (o.status||'to_pay')}));

@@ -29,13 +29,8 @@ async function loadProducts() {
 }
 
 function computeRating(p) {
-    if (p && p.rating != null && p.rating !== '') {
-        const r = Math.max(0, Math.min(5, parseFloat(p.rating)));
-        return Math.round(r * 2) / 2;
-    }
-    const base = (p && p.product_id) ? Number(p.product_id) : String(p.name || '').split('').reduce((s,c)=>s+c.charCodeAt(0),0);
-    const choices = [3.5, 4, 4.5, 5];
-    return choices[base % choices.length];
+    // Force all products to display as 5-star rating
+    return 5;
 }
 
 // ⭐ Generate star icons
@@ -76,6 +71,7 @@ async function displayProductDetails() {
     const productContainer = document.getElementById("product-details");
     
     if (product) {
+        const avgRating = 5;
         productContainer.innerHTML = `
             <div class="product-container single-product">
                 <div class="product-image">
@@ -132,6 +128,79 @@ async function displayProductDetails() {
         `;
         relatedContainer.appendChild(div);
     });
+
+    // Big Product Ratings block under related products (full width of related section)
+    if (product) {
+        // Read any saved reviews for this product from localStorage (written from profile rating modal)
+        let reviews = [];
+        try {
+            const raw = window.localStorage.getItem('pp_product_reviews');
+            const arr = raw ? JSON.parse(raw) : [];
+            const key = product.name.toLowerCase().trim();
+            if (Array.isArray(arr)) {
+                reviews = arr.filter(r => r && (r.key === key || (r.product||'').toLowerCase().trim() === key));
+            }
+        } catch (e) {
+            reviews = [];
+        }
+        // Compute Shopee-like average rating (win rate) from reviews; fall back to 5 if none yet
+        let avgRating = 5;
+        if (reviews.length > 0) {
+            const sum = reviews.reduce((acc, r) => acc + Number(r.stars || 0), 0);
+            avgRating = sum / reviews.length;
+        }
+        const ratingsSection = document.createElement('section');
+        ratingsSection.className = 'product-ratings';
+        ratingsSection.style.margin = '24px auto 0';
+        ratingsSection.style.background = '#fff7ed';
+        ratingsSection.style.border = '1px solid #fed7aa';
+        ratingsSection.style.borderRadius = '10px';
+        ratingsSection.style.padding = '24px 28px';
+        ratingsSection.style.boxShadow = '0 8px 20px rgba(15,23,42,0.08)';
+        ratingsSection.style.width = '100%';
+        ratingsSection.style.maxWidth = '720px';
+        ratingsSection.style.display = 'flex';
+        ratingsSection.style.flexDirection = 'column';
+        ratingsSection.style.alignItems = 'center';
+
+        const hasReviews = reviews.length > 0;
+        const ratingCountText = hasReviews
+            ? `(${reviews.length} rating${reviews.length>1?'s':''})`
+            : '(0 ratings)';
+        const reviewHtml = hasReviews
+            ? reviews
+                .sort((a,b) => (b.ts||0) - (a.ts||0))
+                .map(r => `
+                    <div class="pr-review" style="padding:10px 0;border-bottom:1px solid #f1f5f9;">
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                        <strong>${(r.user||'User')}</strong>
+                        <span style="font-size:12px;color:#9ca3af;">${new Date(r.ts||Date.now()).toLocaleString()}</span>
+                      </div>
+                      <div style="font-size:14px;color:#f97316;margin-bottom:4px;">
+                        ${'★'.repeat(Math.max(1,Math.min(5,Number(r.stars||0))))}
+                      </div>
+                      <div style="font-size:14px;color:#374151;white-space:pre-wrap;">${(r.text||'').replace(/[<>]/g,'')}</div>
+                    </div>
+                  `).join('')
+            : '<p>No written reviews yet. Be the first to rate this product.</p>';
+
+        ratingsSection.innerHTML = `
+            <h2 style="margin-bottom:18px;font-size:24px;text-align:center;width:100%;">Product Ratings</h2>
+            <div style="display:flex;align-items:center;gap:22px;margin-bottom:18px;justify-content:center;width:100%;">
+                <div style="font-size:42px;font-weight:700;color:#f97316;">${avgRating.toFixed(1)}</div>
+                <div style="font-size:18px;">out of 5</div>
+                <div class="rating" style="font-size:22px;display:flex;align-items:center;gap:8px;">
+                    <span>${getStars(avgRating)}</span>
+                    <span style="font-size:14px;color:#6b7280;">${ratingCountText}</span>
+                </div>
+            </div>
+            <div class="rating-list" style="border-top:1px solid #f1f5f9;padding-top:14px;font-size:14px;color:#6b7280;width:100%;max-width:640px;">
+                ${reviewHtml}
+            </div>
+        `;
+        const relatedSection = document.querySelector('.related-section');
+        (relatedSection || relatedContainer.parentElement || document.body).appendChild(ratingsSection);
+    }
 }
 
 // Load and display products when page loads

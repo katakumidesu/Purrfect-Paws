@@ -342,6 +342,8 @@ function getOrders(){
 }
 function money(n){ return '₱'+Number(n||0).toFixed(2); }
 function saveOrders(arr){ sessionStorage.setItem('purrfectOrders', JSON.stringify(arr||[])); }
+function getRatedMap(){ try{return JSON.parse(localStorage.getItem('pp_rated_orders')||'{}');}catch(_){return{};} }
+function saveRatedMap(m){ try{localStorage.setItem('pp_rated_orders', JSON.stringify(m||{}));}catch(_){}}
 // Cancel modal (Shopee-like)
 function openCancelModal(orderKey){
   const modal = document.getElementById('pcModal') || Object.assign(document.createElement('div'), { id:'pcModal', className:'pc-modal' });
@@ -405,6 +407,71 @@ function openCancelModal(orderKey){
 }
 function closeCancelModal(){ const m = document.getElementById('pcModal'); if (m) m.remove(); }
 
+// Rating modal (Shopee-like)
+function openRateModal(orderKey){
+  const orders = getOrders();
+  const o = orders.find(x=> String(x.id||x.date) === String(orderKey));
+  const firstItem = (o&&o.items&&o.items[0]) || {};
+  const modal = document.getElementById('prModal') || Object.assign(document.createElement('div'), { id:'prModal', className:'pc-modal' });
+  const panelStyle = 'background:#fff;border-radius:12px;width:520px;max-width:95vw;padding:18px 18px 14px;box-shadow:0 14px 34px rgba(2,8,23,.18);border:1px solid #e9eef2;';
+  const noteStyle = 'background:#fff7ed;border:1px solid #fed7aa;color:#8d6e63;padding:8px 10px;border-radius:6px;font-size:13px;margin:4px 0 10px;';
+  const starBase = 'cursor:pointer;font-size:22px;color:#e5e7eb;margin-right:4px;';
+  modal.innerHTML = `
+    <div class="panel" style="${panelStyle}">
+      <h3 style="margin:0 0 6px;">Rate Product</h3>
+      <div style="${noteStyle}">Share your feedback about this product to help other buyers.</div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
+        <img src="${firstItem.image||'../HTML/images/catbed.jpg'}" onerror="this.src='../HTML/images/catbed.jpg'" style="width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;" alt="">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(firstItem.name||'Order')}</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:2px;">Qty: ${firstItem.quantity||1}</div>
+        </div>
+      </div>
+      <form id="prForm">
+        <div style="margin-bottom:10px;">
+          <div style="font-size:13px;margin-bottom:4px;">Product Quality</div>
+          <div id="prStars">
+            ${[1,2,3,4,5].map(i=>`<i data-v="${i}" class="fa-solid fa-star" style="${starBase}"></i>`).join('')}
+          </div>
+        </div>
+        <div style="margin-bottom:10px;">
+          <div style="font-size:13px;margin-bottom:4px;">Review</div>
+          <textarea id="prText" rows="4" style="width:100%;border-radius:8px;border:1px solid #d1d5db;padding:8px;font-size:13px;resize:vertical;" placeholder="Share more thoughts on the product to help other buyers."></textarea>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;">
+          <button type="button" id="prCancel" style="padding:7px 14px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;font-size:13px;cursor:pointer;">CANCEL</button>
+          <button type="submit" id="prSubmit" style="padding:7px 16px;border-radius:8px;border:none;background:#f97316;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">SUBMIT</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.style.display = 'flex';
+
+  const stars = modal.querySelectorAll('#prStars i');
+  let current = 5;
+  const paint = (val)=>{
+    stars.forEach(s=>{
+      const v = Number(s.dataset.v||0);
+      s.style.color = v<=val ? '#f97316' : '#e5e7eb';
+    });
+  };
+  paint(current);
+  stars.forEach(s=> s.addEventListener('click', ()=>{ current = Number(s.dataset.v||5); paint(current); }));
+
+  modal.addEventListener('click', (e)=>{ if (e.target===modal) closeRateModal(); });
+  document.getElementById('prCancel').onclick = closeRateModal;
+  document.getElementById('prForm').onsubmit = (e)=>{
+    e.preventDefault();
+    const map = getRatedMap();
+    map[String(orderKey)] = { rated:true, stars:current, text: (document.getElementById('prText').value||'').trim() };
+    saveRatedMap(map);
+    closeRateModal();
+    const currentTab = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
+    renderPurchases(currentTab);
+  };
+}
+function closeRateModal(){ const m = document.getElementById('prModal'); if (m) m.remove(); }
+
 // Update tab counts like Shopee (e.g., To Pay (1))
 function updatePurchaseTabCounts(){
   const orders = getOrders().map(o=> ({...o, status: (o.status||'completed')}));
@@ -454,6 +521,7 @@ function renderPurchases(tab){
   }
 
   const statusLabel = (s)=>({to_pay:'To Pay', to_receive:'To Receive', completed:'Completed', cancelled:'Cancelled'})[s]||'—';
+  const ratedMap = getRatedMap();
 
   wrap.innerHTML = orders.map((o,idx)=>{
     if (o.status === 'to_pay'){
@@ -507,7 +575,11 @@ function renderPurchases(tab){
       </div>
       <div class="order-f">
         <div class="order-total">Order Total: <strong>${money(o.total||0)}</strong></div>
-        <div class="actions"><button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(((o.items||[])[0]||{}).name||'')}'">Buy Again</button></div>
+        <div class="actions">
+          ${o.status==='completed' && !ratedMap[String(o.id||o.date)]
+            ? `<button class="btn rate-btn" data-key="${o.id||o.date}">Rate</button>`
+            : `<button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(((o.items||[])[0]||{}).name||'')}'">Buy Again</button>`}
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -515,6 +587,9 @@ function renderPurchases(tab){
   // Wire up cancel buttons
   wrap.querySelectorAll('.cancel-order').forEach(btn=>{
     btn.addEventListener('click', ()=> openCancelModal(btn.getAttribute('data-key')) );
+  });
+  wrap.querySelectorAll('.rate-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> openRateModal(btn.getAttribute('data-key')) );
   });
   updatePurchaseTabCounts();
 }

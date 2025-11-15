@@ -128,9 +128,9 @@ session_start();
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
-                <i class="fa-regular fa-star"></i>
+                <i class="fa-solid fa-star"></i>
             </div>
-            <p><strong>$ 100.00 </strong></p>
+            <p><strong>₱ 100.00 </strong></p>
             <a href="product-detail.php?name=Cat Scratch Post">   
             <button class="purchase-btn">Purchase</button>
             </a>
@@ -144,9 +144,9 @@ session_start();
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
-                <i class="fa-regular fa-star"></i>
+                <i class="fa-solid fa-star"></i>
             </div>
-            <p><strong>$ 10.00 </strong></p>
+            <p><strong>₱ 10.00 </strong></p>
             <a href="product-detail.php?name=Cat Mouse Toy">
             <button class="purchase-btn">Purchase</button>
             </a>
@@ -160,9 +160,9 @@ session_start();
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
-                <i class="fa-solid fa-star-half-stroke"></i>
+                <i class="fa-solid fa-star"></i>
             </div>
-            <p><strong>$ 45.00 </strong></p>
+            <p><strong>₱ 45.00 </strong></p>
             <a href="product-detail.php?name=Cat Bed">
             <button class="purchase-btn">Purchase</button>
             </a>
@@ -176,9 +176,9 @@ session_start();
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
-                <i class="fa-regular fa-star"></i>
+                <i class="fa-solid fa-star"></i>
             </div>
-            <p><strong>$ 200.00 </strong></p>
+            <p><strong>₱ 200.00 </strong></p>
             <a href="product-detail.php?name=Cat Tree">
             <button class="purchase-btn">Purchase</button>
             </a>
@@ -191,10 +191,10 @@ session_start();
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
-                <i class="fa-solid fa-star-half-stroke"></i>
-                <i class="fa-regular fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
             </div>
-            <p><strong>$ 15.00 </strong></p>
+            <p><strong>₱ 15.00 </strong></p>
             <a href="product-detail.php?name=Wiggly Worm Cat Teaser Wand">
             <button class="purchase-btn">Purchase</button>
             </a>
@@ -208,9 +208,9 @@ session_start();
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
-                <i class="fa-regular fa-star"></i>
+                <i class="fa-solid fa-star"></i>
             </div>
-            <p><strong>$ 35.00 </strong></p>
+            <p><strong>₱ 35.00 </strong></p>
             <a href="product-detail.php?name=Cat Food Bowl">
             <button class="purchase-btn">Purchase</button>
             </a>
@@ -224,9 +224,9 @@ session_start();
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
-                <i class="fa-regular fa-star"></i>
+                <i class="fa-solid fa-star"></i>
             </div>
-            <p><strong>$ 99.00 </strong></p>
+            <p><strong>₱ 99.00 </strong></p>
             <a href="product-detail.php?name=Cat Litter Box">
             <button class="purchase-btn">Purchase</button>
             </a>
@@ -240,9 +240,9 @@ session_start();
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
                 <i class="fa-solid fa-star"></i>
-                <i class="fa-regular fa-star"></i>
+                <i class="fa-solid fa-star"></i>
             </div>
-            <p><strong>$ 160.20 </strong></p>
+            <p><strong>₱ 160.20 </strong></p>
             <a href="product-detail.php?name=Cat Carrier">
             <button class="purchase-btn">Purchase</button>
             </a>

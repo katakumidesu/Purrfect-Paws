@@ -43,7 +43,10 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
   <script src="https://kit.fontawesome.com/df5d6157cf.js" crossorigin="anonymous"></script>
   <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
-  <script>window.PURR_USER_ID = <?= json_encode((string)$user_id) ?>;</script>
+  <script>
+    window.PURR_USER_ID = <?= json_encode((string)$user_id) ?>;
+    window.PURR_USER_NAME = <?= json_encode((string)($user['username'] ?? ($user['name'] ?? 'User'))) ?>;
+  </script>
 
 </head>
 
@@ -290,7 +293,7 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
 
 <script src="../js/cart.js"></script>
 <script src="../HTML/js/address-modal.js"></script>
-<script src="../HTML/js/profile.js?v=php-currency"></script>
+<script src="../HTML/js/profile.js?v=rating-flow-1"></script>
 
 </body>
 </html>
