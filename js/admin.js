@@ -4,6 +4,15 @@ if (toggleSidebar) {
 toggleSidebar.addEventListener("click", () => sidebar.classList.toggle("collapsed"));
 }
 
+function fmtNumber(v){
+    const n = Number(v)||0;
+    return n.toLocaleString('en-PH');
+}
+function fmtCurrency(v){
+    const n = Number(v)||0;
+    return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 const menuItems = document.querySelectorAll(".menu li");
 const mainContent = document.getElementById("mainContent");
 
@@ -133,28 +142,28 @@ async function loadDashboard(){
                     <div class="card-icon"><i class="fa fa-box"></i></div>
                     <div class="card-content">
                         <h3>Total Products</h3>
-                        <p class="card-value">${totalProducts}</p>
+                        <p class="card-value">${fmtNumber(totalProducts)}</p>
                     </div>
                 </div>
                 <div class="card">
                     <div class="card-icon"><i class="fa fa-users"></i></div>
                     <div class="card-content">
                         <h3>Total Users</h3>
-                        <p class="card-value">${totalUsers}</p>
+                        <p class="card-value">${fmtNumber(totalUsers)}</p>
                     </div>
                 </div>
                 <div class="card">
                     <div class="card-icon"><i class="fa fa-file-invoice"></i></div>
                     <div class="card-content">
                         <h3>Total Orders</h3>
-                        <p class="card-value">${totalOrders}</p>
+                        <p class="card-value">${fmtNumber(totalOrders)}</p>
                     </div>
                 </div>
                 <div class="card">
                     <div class="card-icon"><i class="fa fa-exclamation-triangle"></i></div>
                     <div class="card-content">
                         <h3>Low Stock Items</h3>
-                        <p class="card-value">${lowStock}</p>
+                        <p class="card-value">${fmtNumber(lowStock)}</p>
                     </div>
                 </div>
             </div>
@@ -269,7 +278,7 @@ function renderInventoryTable(productsList) {
                                     <div class="product-desc">${escapeHtml(p.description || '').substring(0, 50)}${p.description && p.description.length > 50 ? '...' : ''}</div>
                                 </td>
                                 <td>${escapeHtml(p.category_name || 'Uncategorized')}</td>
-                                <td class="price">₱${parseFloat(p.price).toFixed(2)}</td>
+                                <td class="price">${fmtCurrency(p.price)}</td>
                                 <td class="stock ${p.stock < 10 ? 'low-stock' : ''}">${p.stock}</td>
                                 <td>
                                     <span class="status-badge ${p.stock > 10 ? 'available' : 'low-stock'}">
@@ -327,7 +336,7 @@ function filterProducts() {
                 <div class="product-desc">${escapeHtml(p.description || '').substring(0, 50)}${p.description && p.description.length > 50 ? '...' : ''}</div>
             </td>
             <td>${escapeHtml(p.category_name || 'Uncategorized')}</td>
-            <td class="price">$${parseFloat(p.price).toFixed(2)}</td>
+            <td class="price">${fmtCurrency(p.price)}</td>
             <td class="stock ${p.stock < 10 ? 'low-stock' : ''}">${p.stock}</td>
             <td>
                 <span class="status-badge ${p.stock > 10 ? 'available' : 'low-stock'}">
@@ -825,7 +834,7 @@ function renderOrderRow(o){
             <td>#${o.order_id}</td>
             <td>${escapeHtml(o.customer||'User')} (ID:${o.user_id})</td>
             <td style="text-align:center; width: 120px;"><button type="button" class="btn btn-secondary" onclick="viewOrderItems(${o.order_id})">Details</button></td>
-            <td class="price">₱${Number(o.total||0).toFixed(2)}</td>
+            <td class="price">${fmtCurrency(o.total)}</td>
             <td>
                 <span class="status-badge ${st==='to_pay'?'low-stock': st==='completed'?'available':''}">${st.replace('_',' ')}</span>
             </td>
@@ -1034,10 +1043,10 @@ async function loadAnalytics(){
         +   '<div><button class="btn" onclick="window.print()" style="padding:8px 12px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;cursor:pointer">Export CSV</button></div>'
         + '</div>'
         + '<div class="dashboard-cards" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:10px;">'
-        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Orders this month</div><div style="font-size:24px;font-weight:700">' + thisMonthCount + '</div></div>'
-        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Total order value</div><div style="font-size:24px;font-weight:700">\u20B1' + thisMonthValue.toFixed(2) + '</div></div>'
-        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Average order value</div><div style="font-size:24px;font-weight:700">\u20B1' + avgOrder.toFixed(2) + '</div></div>'
-        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Highest order value</div><div style="font-size:24px;font-weight:700">\u20B1' + highestOrder.toFixed(2) + '</div></div>'
+        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Orders this month</div><div style="font-size:24px;font-weight:700">' + fmtNumber(thisMonthCount) + '</div></div>'
+        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Total order value</div><div style="font-size:24px;font-weight:700">' + fmtCurrency(thisMonthValue) + '</div></div>'
+        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Average order value</div><div style="font-size:24px;font-weight:700">' + fmtCurrency(avgOrder) + '</div></div>'
+        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Highest order value</div><div style="font-size:24px;font-weight:700">' + fmtCurrency(highestOrder) + '</div></div>'
         + '</div>'
         + '<div style="border:1px solid #eee;border-radius:12px;background:#fff;margin-top:12px;padding:10px 12px;">'
         +   '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;"><div style="font-weight:600">This month at a glance</div><div style="font-size:12px;color:#6b7280">' + start.toLocaleDateString() + ' - ' + end.toLocaleDateString() + '</div></div>'
@@ -1045,9 +1054,9 @@ async function loadAnalytics(){
         +     '<canvas id="an_line" height="80"></canvas>'
         +     '<div style="border-left:1px solid #f1f5f9;padding-left:10px">'
         +        '<div style="font-size:12px;color:#6b7280">Total</div>'
-        +        '<div style="font-size:20px;font-weight:700">\u20B1' + thisMonthValue.toFixed(2) + '</div>'
+        +        '<div style="font-size:20px;font-weight:700">' + fmtCurrency(thisMonthValue) + '</div>'
         +        '<div style="font-size:12px;color:#6b7280;margin-top:10px">Orders</div>'
-        +        '<div style="font-size:20px;font-weight:700">' + thisMonthCount + '</div>'
+        +        '<div style="font-size:20px;font-weight:700">' + fmtNumber(thisMonthCount) + '</div>'
         +     '</div>'
         +   '</div>'
         + '</div>'
@@ -1158,22 +1167,22 @@ async function loadReports(){
         + '<div class="dashboard-cards" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:10px;">'
         +   '<div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff">'
         +     '<div style="font-size:12px;color:#6b7280;margin-bottom:6px">Net income</div>'
-        +     '<div style="font-size:22px;font-weight:700">\u20B1' + netIncome.toFixed(2) + '</div>'
-        +     '<div style="font-size:12px;color:#16a34a;margin-top:6px">This month: \u20B1' + thisMonthRev.toFixed(2) + '</div>'
+        +     '<div style="font-size:22px;font-weight:700">' + fmtCurrency(netIncome) + '</div>'
+        +     '<div style="font-size:12px;color:#16a34a;margin-top:6px">This month: ' + fmtCurrency(thisMonthRev) + '</div>'
         +   '</div>'
         +   '<div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff">'
         +     '<div style="font-size:12px;color:#6b7280;margin-bottom:6px">Orders this month</div>'
-        +     '<div style="font-size:22px;font-weight:700">' + thisMonthCount + '</div>'
-        +     '<div style="font-size:12px;color:#6b7280;margin-top:6px">vs last month ' + lastMonthCount + '</div>'
+        +     '<div style="font-size:22px;font-weight:700">' + fmtNumber(thisMonthCount) + '</div>'
+        +     '<div style="font-size:12px;color:#6b7280;margin-top:6px">vs last month ' + fmtNumber(lastMonthCount) + '</div>'
         +   '</div>'
         +   '<div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff">'
         +     '<div style="font-size:12px;color:#6b7280;margin-bottom:6px">Average Order</div>'
-        +     '<div style="font-size:22px;font-weight:700">\u20B1' + avgOrder.toFixed(2) + '</div>'
+        +     '<div style="font-size:22px;font-weight:700">' + fmtCurrency(avgOrder) + '</div>'
         +     '<div style="font-size:12px;color:#6b7280;margin-top:6px">Completed only</div>'
         +   '</div>'
         +   '<div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff">'
         +     '<div style="font-size:12px;color:#6b7280;margin-bottom:6px">Growth Rate</div>'
-        +     '<div style="font-size:22px;font-weight:700">' + growthRate.toFixed(2) + '%</div>'
+        +     '<div style="font-size:22px;font-weight:700">' + growthRate.toFixed(2).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '%</div>'
         +     '<div style="font-size:12px;color:#16a34a;margin-top:6px">vs last month</div>'
         +   '</div>'
         + '</div>'
