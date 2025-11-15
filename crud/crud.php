@@ -682,12 +682,10 @@ switch ($action) {
                            ua.barangay,
                            ua.city,
                            ua.province,
-                           ua.postal_code,
-                           d.status AS delivery_status
+                           ua.postal_code
                     FROM orders o
                     LEFT JOIN users u ON u.user_id = ($userCol)
                     LEFT JOIN user_addresses ua ON ua.user_id = ($userCol) AND ua.is_default = 1
-                    LEFT JOIN delivery d ON d.order_id = o.order_id
                     $whereSql
                     ORDER BY o.order_id DESC";
             $res = $conn->query($sql);
