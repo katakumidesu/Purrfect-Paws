@@ -85,7 +85,6 @@ async function displayProductDetails() {
                     <a href="#" class="purchase-btn-2">Add To Cart</a>
                     <h3>Description:</h3>
                     <p>${product.description}</p>
-                    <h3>Product Details <i class="fa fa-indent"></i></h3>
                 </div>
             </div>
         `;
