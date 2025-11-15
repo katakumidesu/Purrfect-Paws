@@ -55,7 +55,6 @@ session_start();
             <li><a href="index.php">Home</a></li>
             <li><a href="product.php">Shop</a></li>
             <li><a href="#gallery">Gallery</a></li>
-            <li><a href="#contact">Contact Us</a></li>
         </ul>
         
 <div class="nav-right">

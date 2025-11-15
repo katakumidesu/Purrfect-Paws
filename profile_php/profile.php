@@ -61,7 +61,6 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
           <li><a href="../HTML/index.php">Home</a></li>
           <li><a href="../HTML/product.php">Shop</a></li>
           <li><a href="#gallery">Gallery</a></li>
-          <li><a href="#contact">Contact Us</a></li>
       </ul>
 
       <div class="nav-right">
