@@ -254,18 +254,19 @@ session_start();
      <section class="gallery" id="gallery">
         <h2>Gallery</h2>
         <div class="gallery-container">
-            <a href="../html/gallery.php"><img src="images/meme1.jpg" alt="Cat 1"></a>
-            <a href="../html/gallery.php"><img src="images/meme2.jpg" alt="Cat 2"></a>
-            <a href="../html/gallery.php"><img src="images/meme3.jpg" alt="Cat 3"></a>
-            <a href="../html/gallery.php"><img src="images/meme4.jpg" alt="Cat 4"></a>
-            <a href="../html/gallery.php"><img src="images/meme5.jpg" alt="Cat 5"></a>
-            <a href="../html/gallery.php"><img src="images/meme6.jpg" alt="Cat 6"></a>
-            <a href="../html/gallery.php"><img src="images/meme7.jpg" alt="Cat 7"></a>
-            <a href="../html/gallery.php"><img src="images/meme8.jpg" alt="Cat 8"></a>
-            <a href="../html/gallery.php"><img src="images/meme9.jpg" alt="Cat 9"></a>
-            <a href="../html/gallery.php"><img src="images/mixie1.png" alt="Cat 10"></a>
-            <a href="../html/gallery.php"><img src="images/mixie2.png" alt="Cat 11"></a>
-            <a href="../html/gallery.php"><img src="images/meme10.jpg" alt="Cat 12"></a>
+
+             <a href= ../html/gallery.php><img src="images/meme1.jpg" alt="Cat 1"></a>
+             <a href= ../html/gallery.php><img src="images/meme2.jpg" alt="Cat 2"></a>
+             <a href= ../html/gallery.php><img src="images/meme3.jpg" alt="Cat 3"></a>
+             <a href= ../html/gallery.php><img src="images/meme4.jpg" alt="Cat 4"></a>
+             <a href= ../html/gallery.php><img src="images/meme5.jpg" alt="Cat 5"></a>
+             <a href= ../html/gallery.php><img src="images/meme6.jpg" alt="Cat 6"></a>
+             <a href= ../html/gallery.php><img src="images/meme7.jpg" alt="Cat 7"></a>
+             <a href= ../html/gallery.php><img src="images/meme8.jpg" alt="Cat 8"></a>
+             <a href= ../html/gallery.php><img src="images/meme9.jpg" alt="Cat 9"></a>
+             <a href= ../html/gallery.php><img src="images/mixie1.png" alt="Cat 10"></a>
+             <a href= ../html/gallery.php><img src="images/mixie2.png" alt="Cat 11"></a>
+             <a href= ../html/gallery.php><img src="images/meme10.jpg" alt="Cat 12"></a>
         </div>
         </section>
     
