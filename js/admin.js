@@ -922,6 +922,26 @@ function viewOrderItems(orderId){
                </div>`
             : '';
 
+        const pmText = order && order.payment_method ? String(order.payment_method) : '';
+        let proofPath = order && order.payment_proof ? String(order.payment_proof) : '';
+        if (proofPath && !/^https?:\/\//i.test(proofPath)){
+            // Make relative paths work from admin/ by prefixing HTML base
+            proofPath = '../HTML/' + proofPath.replace(/^\/+/, '');
+        }
+        const paymentHtml = pmText
+            ? `<div style="margin:10px 0 6px;padding:8px 10px;border-radius:8px;background:#0f172a;color:#e5e7eb;font-size:13px;">
+                    <div style="font-weight:600;margin-bottom:2px;">Payment Method</div>
+                    <div>${escapeHtml(pmText)}</div>
+                    ${proofPath ? `<div style="margin-top:8px;">
+                        <div style="font-weight:600;margin-bottom:4px;font-size:12px;">Payment Proof</div>
+                        <img src="${proofPath}" alt="Payment proof" style="max-width:100%;border-radius:8px;border:1px solid #1f2937;object-fit:contain;">
+                    </div>` : ''}
+               </div>`
+            : (proofPath ? `<div style="margin:10px 0 6px;padding:8px 10px;border-radius:8px;background:#0f172a;color:#e5e7eb;font-size:13px;">
+                    <div style="font-weight:600;margin-bottom:4px;font-size:12px;">Payment Proof</div>
+                    <img src="${proofPath}" alt="Payment proof" style="max-width:100%;border-radius:8px;border:1px solid #1f2937;object-fit:contain;">
+               </div>` : '');
+
         const itemsHtml = items.length ? items.map(it=>`
             <div style="display:flex;align-items:center;gap:10px;margin:8px 0;">
                 <img src="${it.image_url||it.image||'../HTML/images/catbed.jpg'}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;" onerror="this.src='../HTML/images/catbed.jpg'">
@@ -935,7 +955,7 @@ function viewOrderItems(orderId){
 
         const body = document.getElementById('orderItemsBody');
         const modal = document.getElementById('orderItemsModal');
-        if (body && modal){ body.innerHTML = itemsHtml + addressHtml; modal.classList.remove('hidden'); }
+        if (body && modal){ body.innerHTML = itemsHtml + paymentHtml + addressHtml; modal.classList.remove('hidden'); }
     } catch (e) {
         alert('Unable to load order details.');
     }

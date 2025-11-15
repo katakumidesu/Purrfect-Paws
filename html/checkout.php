@@ -154,6 +154,28 @@ if (!isset($_SESSION['user_id'])) {
               <span class="val" id="pmTotalPayment">₱0.00</span>
             </div>
           </div>
+          <!-- GCash payment modal (shown only when GCash is selected and user clicks Place Order) -->
+          <div id="gcashPanel" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.65);z-index:10050;align-items:center;justify-content:center;">
+            <div style="background:#0f4fd6;color:#fff;border-radius:16px;padding:18px 18px;max-width:360px;width:90%;box-shadow:0 18px 40px rgba(15,23,42,.55);">
+              <div style="font-weight:700;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                <span style="font-size:18px;">GCash Payment</span>
+                <button type="button" id="gcashClose" style="background:none;border:none;color:#bfdbfe;font-size:18px;cursor:pointer;">&times;</button>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+                <div style="background:#fff;border-radius:16px;padding:12px;max-width:260px;width:100%;">
+                  <img src="images/gcash.jpg" alt="GCash QR" style="width:100%;border-radius:12px;object-fit:contain;">
+                </div>
+                <div style="width:100%;max-width:320px;text-align:left;">
+                  <label for="gcashProof" style="font-size:13px;display:block;margin-bottom:6px;">Upload payment screenshot</label>
+                  <input type="file" id="gcashProof" accept="image/*" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #dbeafe;background:#eff6ff;color:#111;">
+                  <small style="display:block;margin-top:4px;font-size:11px;opacity:.9;">Please upload your GCash payment screenshot before proceeding.</small>
+                </div>
+                <button type="button" id="gcashProceed" class="btn-accent" style="margin-top:4px;">
+                  Proceed Payment
+                </button>
+              </div>
+            </div>
+          </div>
           <div class="pm-footer">
             <button id="placeOrder" class="place-order"><i class="fa fa-check-circle"></i> Place Order</button>
           </div>
@@ -453,7 +475,7 @@ if (!isset($_SESSION['user_id'])) {
       updatePaymentPanel(items);
     }
 
-    document.getElementById('placeOrder').addEventListener('click', async function(){
+    async function placeOrderInternal(paymentProofPath){
       const all = getCart();
       const selected = (()=>{ try { return JSON.parse(sessionStorage.getItem(SELECTED_KEY())||'[]'); } catch(e){ return []; } })();
       const items = selected.length ? all.filter(it => selected.includes(it.name)) : all;
@@ -468,7 +490,14 @@ if (!isset($_SESSION['user_id'])) {
         const resp = await fetch('../crud/crud.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'create_order', items, total: sums.total, user_id: window.PURR_USER_ID }),
+          body: JSON.stringify({
+            action: 'create_order',
+            items,
+            total: sums.total,
+            user_id: window.PURR_USER_ID,
+            payment_method: window.PAYMENT_METHOD || 'Cash on Delivery',
+            payment_proof: paymentProofPath || null
+          }),
           keepalive: true,
           credentials: 'same-origin'
         });
@@ -494,7 +523,57 @@ if (!isset($_SESSION['user_id'])) {
       }
       if (typeof updateCartBadge === 'function') updateCartBadge();
       window.location.href = '../profile_php/profile.php#purchases:to_pay';
+    }
+
+    // Place Order button behavior: handle GCash vs COD
+    document.getElementById('placeOrder').addEventListener('click', async function(){
+      if (window.PAYMENT_METHOD === 'GCash'){
+        const panel = document.getElementById('gcashPanel');
+        if (panel){
+          panel.style.display = 'flex';
+        }
+        return;
+      }
+      await placeOrderInternal(null);
     });
+
+    // GCash proceed button: require proof upload, then place order
+    const gcashPanelEl = document.getElementById('gcashPanel');
+    const gcashClose = document.getElementById('gcashClose');
+    const gcashBtn = document.getElementById('gcashProceed');
+    if (gcashBtn){
+      gcashBtn.addEventListener('click', async ()=>{
+        const proof = document.getElementById('gcashProof');
+        if (!proof || !proof.files || proof.files.length === 0){
+          alert('Please upload your GCash payment screenshot before proceeding.');
+          return;
+        }
+        // Upload proof first
+        try {
+          const fd = new FormData();
+          fd.append('proof', proof.files[0]);
+          const upResp = await fetch('upload_payment.php', { method: 'POST', body: fd });
+          const upData = await upResp.json();
+          if (!upResp.ok || !upData.success || !upData.path){
+            alert('Failed to upload payment proof. Please try again.');
+            return;
+          }
+          // Proceed to place order with proof path
+          await placeOrderInternal(upData.path);
+        } catch (e) {
+          alert('Error uploading payment proof. Please try again.');
+          return;
+        }
+      });
+    }
+    if (gcashPanelEl){
+      gcashPanelEl.addEventListener('click', (e)=>{
+        if (e.target === gcashPanelEl){ gcashPanelEl.style.display = 'none'; }
+      });
+    }
+    if (gcashClose && gcashPanelEl){
+      gcashClose.addEventListener('click', ()=>{ gcashPanelEl.style.display = 'none'; });
+    }
 
     // Payment method chooser logic
     window.PAYMENT_METHOD = 'Cash on Delivery';

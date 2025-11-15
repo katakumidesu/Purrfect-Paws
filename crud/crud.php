@@ -474,6 +474,15 @@ switch ($action) {
                 total DECIMAL(10,2) NOT NULL,
                 status VARCHAR(20) NOT NULL DEFAULT 'to_pay'
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            // Payments table (mirror structure to create_order case, including optional proof_path)
+            $conn->query("CREATE TABLE IF NOT EXISTS payments (
+                payment_id INT AUTO_INCREMENT PRIMARY KEY,
+                order_id INT NOT NULL,
+                amount DECIMAL(10,2) NOT NULL,
+                payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                method VARCHAR(50) NOT NULL,
+                proof_path VARCHAR(255) NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
             $conn->query("CREATE TABLE IF NOT EXISTS order_items (
                 item_id INT AUTO_INCREMENT PRIMARY KEY,
                 order_id INT NOT NULL,
@@ -569,6 +578,27 @@ switch ($action) {
                     }
                 }
                 if (count($insufficient)>0){ $conn->rollback(); echo json_encode(['error'=>'insufficient_stock','details'=>$insufficient]); break; }
+            }
+
+            // Insert payment record for this order
+            $method = isset($data['payment_method']) && $data['payment_method'] !== ''
+                ? substr($data['payment_method'], 0, 50)
+                : 'Cash on Delivery';
+            $proofPath = isset($data['payment_proof']) && $data['payment_proof'] !== ''
+                ? substr($data['payment_proof'], 0, 255)
+                : null;
+            $payStmt = $conn->prepare("INSERT INTO payments (order_id, amount, method, proof_path) VALUES (?,?,?,?)");
+            if ($payStmt){
+                $payStmt->bind_param("idss", $order_id, $total, $method, $proofPath);
+                if (!$payStmt->execute()){
+                    // If payment insert fails, roll back to keep data consistent
+                    $err = $payStmt->error;
+                    $payStmt->close();
+                    $conn->rollback();
+                    echo json_encode(['error'=>'Failed to record payment: '.$err]);
+                    break;
+                }
+                $payStmt->close();
             }
 
             $conn->commit();
@@ -682,10 +712,13 @@ switch ($action) {
                            ua.barangay,
                            ua.city,
                            ua.province,
-                           ua.postal_code
+                           ua.postal_code,
+                           p.method AS payment_method,
+                           p.proof_path AS payment_proof
                     FROM orders o
                     LEFT JOIN users u ON u.user_id = ($userCol)
                     LEFT JOIN user_addresses ua ON ua.user_id = ($userCol) AND ua.is_default = 1
+                    LEFT JOIN payments p ON p.order_id = o.order_id
                     $whereSql
                     ORDER BY o.order_id DESC";
             $res = $conn->query($sql);
