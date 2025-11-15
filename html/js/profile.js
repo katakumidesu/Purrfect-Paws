@@ -1044,14 +1044,14 @@
     const close = ()=>{ const m = document.getElementById('rateModal'); if (m) m.remove(); };
     modal.addEventListener('click', (e)=>{ if (e.target===modal) close(); });
     modal.querySelector('#prCancel').addEventListener('click', close);
-    modal.querySelector('#prForm').addEventListener('submit', (e)=>{
+    modal.querySelector('#prForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
       const text = (modal.querySelector('#prText').value||'').trim();
       // mark order as rated so button becomes "Buy Again"
       const map = getRatedMap();
       map[String(orderKey)] = { rated:true, stars:current, text };
       saveRatedMap(map);
-      // also save per-product review so Product Ratings can show it
+      // also save per-product review locally so Product Ratings can show it immediately
       const list = getProductReviews();
       const productName = (firstItem.name||'').toString();
       const key = productName.toLowerCase().trim();
@@ -1066,6 +1066,26 @@
         });
         saveProductReviews(list);
       }
+
+      // send rating to backend so it is saved in the database
+      try {
+        await fetch('../crud/crud.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            action: 'add_rating',
+            product_name: productName,
+            stars: current,
+            text,
+            user_id: window.PURR_USER_ID || null,
+            username: window.PURR_USER_NAME || 'User'
+          })
+        });
+      } catch (_) {
+        // ignore network errors here; local state is already updated
+      }
+
       close();
       const currentTab = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
       renderPurchases(currentTab);

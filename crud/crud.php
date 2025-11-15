@@ -834,6 +834,82 @@ switch ($action) {
         } catch (Exception $e) { echo json_encode(['error'=>'Error updating order: '.$e->getMessage()]); }
         break;
 
+    // ===== PRODUCT RATINGS (from customer reviews) =====
+    case 'add_rating':
+        try {
+            $productName = trim((string)($data['product_name'] ?? ''));
+            $stars = isset($data['stars']) ? floatval($data['stars']) : 0;
+            $review = trim((string)($data['text'] ?? ''));
+            $userId = isset($data['user_id']) ? intval($data['user_id']) : 0;
+            $username = trim((string)($data['username'] ?? ''));
+
+            if ($productName === '' || $stars <= 0) {
+                echo json_encode(['error' => 'Invalid rating input']);
+                break;
+            }
+
+            // Create table if not exists (simple, schema-safe)
+            $conn->query("CREATE TABLE IF NOT EXISTS product_ratings (
+                rating_id INT AUTO_INCREMENT PRIMARY KEY,
+                product_name VARCHAR(255) NOT NULL,
+                user_id INT NULL,
+                username VARCHAR(255) NULL,
+                stars TINYINT NOT NULL,
+                review TEXT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $stars = max(1, min(5, intval(round($stars))));
+
+            $ins = $conn->prepare("INSERT INTO product_ratings (product_name, user_id, username, stars, review) VALUES (?,?,?,?,?)");
+            if ($ins) {
+                $ins->bind_param("sisis", $productName, $userId, $username, $stars, $review);
+                $ok = $ins->execute();
+                $err = $ins->error;
+                $ins->close();
+                if (!$ok) {
+                    echo json_encode(['error' => 'Failed to save rating: '.$err]);
+                    break;
+                }
+            }
+
+            // Compute new average rating for this product
+            $avg = 0.0; $count = 0;
+            $stmt = $conn->prepare("SELECT AVG(stars) AS avg_rating, COUNT(*) AS cnt FROM product_ratings WHERE product_name = ?");
+            if ($stmt) {
+                $stmt->bind_param("s", $productName);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                if ($res && $row = $res->fetch_assoc()) {
+                    $avg = floatval($row['avg_rating'] ?? 0);
+                    $count = intval($row['cnt'] ?? 0);
+                }
+                $stmt->close();
+            }
+
+            // Update products.rating column if it exists and matching product row is found
+            if ($avg > 0) {
+                $col = $conn->query("SHOW COLUMNS FROM products LIKE 'rating'");
+                if ($col && $col->num_rows > 0) {
+                    $col->close();
+                    $avgNorm = max(0, min(5, round($avg * 2) / 2));
+                    // Try by exact name match first
+                    $upd = $conn->prepare("UPDATE products SET rating=? WHERE name=?");
+                    if ($upd) {
+                        $upd->bind_param("ds", $avgNorm, $productName);
+                        $upd->execute();
+                        $upd->close();
+                    }
+                } elseif ($col) {
+                    $col->close();
+                }
+            }
+
+            echo json_encode(['success'=>true,'avg_rating'=>$avg,'count'=>$count]);
+        } catch (Exception $e) {
+            echo json_encode(['error'=>'Error saving rating: '.$e->getMessage()]);
+        }
+        break;
 
     default:
         echo json_encode(['error'=>'Invalid action']);
