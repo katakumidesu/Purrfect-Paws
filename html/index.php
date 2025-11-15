@@ -47,7 +47,7 @@ session_start();
         <ul>
             <li><a href="index.php">Home</a></li>
             <li><a href="product.php">Shop</a></li>
-            <li><a href="#gallery">Gallery</a></li>
+            <li><a href="../html/gallery.php">Gallery</a></li>
         </ul>
         
 
