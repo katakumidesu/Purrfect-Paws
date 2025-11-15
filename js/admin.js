@@ -254,7 +254,6 @@ function renderInventoryTable(productsList) {
                         <th>ID</th>
                         <th>Image</th>
                         <th>Product Name</th>
-                        <th>Category</th>
                         <th>Price</th>
                         <th>Stock</th>
                         <th>Status</th>
@@ -263,7 +262,7 @@ function renderInventoryTable(productsList) {
                 </thead>
                 <tbody id="productsTableBody">
                     ${productsList.length === 0 ? 
-                        '<tr><td colspan="8" class="text-center">No products found. Click "Add Product" to get started.</td></tr>' :
+                        '<tr><td colspan="7" class="text-center">No products found. Click "Add Product" to get started.</td></tr>' :
                         productsList.map(p => `
                             <tr data-product-id="${p.product_id}">
                                 <td>${p.product_id}</td>
@@ -277,7 +276,6 @@ function renderInventoryTable(productsList) {
                                     <div class="product-name">${escapeHtml(p.name)}</div>
                                     <div class="product-desc">${escapeHtml(p.description || '').substring(0, 50)}${p.description && p.description.length > 50 ? '...' : ''}</div>
                                 </td>
-                                <td>${escapeHtml(p.category_name || 'Uncategorized')}</td>
                                 <td class="price">${fmtCurrency(p.price)}</td>
                                 <td class="stock ${p.stock < 10 ? 'low-stock' : ''}">${p.stock}</td>
                                 <td>
@@ -310,7 +308,6 @@ function filterProducts() {
     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
     const filtered = products.filter(p => 
         p.name.toLowerCase().includes(searchTerm) ||
-        (p.category_name && p.category_name.toLowerCase().includes(searchTerm)) ||
         (p.description && p.description.toLowerCase().includes(searchTerm))
     );
     
@@ -318,7 +315,7 @@ function filterProducts() {
     if (!tbody) return;
     
     if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center">No products found matching your search.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">No products found matching your search.</td></tr>';
         return;
     }
     
@@ -335,7 +332,6 @@ function filterProducts() {
                 <div class="product-name">${escapeHtml(p.name)}</div>
                 <div class="product-desc">${escapeHtml(p.description || '').substring(0, 50)}${p.description && p.description.length > 50 ? '...' : ''}</div>
             </td>
-            <td>${escapeHtml(p.category_name || 'Uncategorized')}</td>
             <td class="price">${fmtCurrency(p.price)}</td>
             <td class="stock ${p.stock < 10 ? 'low-stock' : ''}">${p.stock}</td>
             <td>
@@ -369,16 +365,6 @@ function getProductModal() {
                     <div class="form-group">
                         <label for="productName">Product Name <span class="required">*</span></label>
                         <input type="text" id="productName" name="name" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="productCategory">Category</label>
-                        <select id="productCategory" name="category_id">
-                            <option value="">Select Category</option>
-                            ${categories.map(cat => `
-                                <option value="${cat.category_id}">${escapeHtml(cat.category_name)}</option>
-                            `).join('')}
-                        </select>
                     </div>
                     
                     <div class="form-group">
@@ -446,7 +432,6 @@ function openEditProductModal(productId) {
     document.getElementById('modalTitle').textContent = 'Edit Product';
     document.getElementById('productId').value = product.product_id;
     document.getElementById('productName').value = product.name || '';
-    document.getElementById('productCategory').value = product.category_id || '';
     document.getElementById('productDescription').value = product.description || '';
     document.getElementById('productPrice').value = product.price || 0;
     document.getElementById('productStock').value = product.stock || 0;
@@ -466,7 +451,7 @@ async function saveProduct(event) {
         action: document.getElementById('productId').value ? 'edit_product' : 'add_product',
         product_id: document.getElementById('productId').value || null,
         name: document.getElementById('productName').value,
-        category_id: document.getElementById('productCategory').value || null,
+        category_id: null,
         description: document.getElementById('productDescription').value,
         price: parseFloat(document.getElementById('productPrice').value),
         stock: parseInt(document.getElementById('productStock').value),

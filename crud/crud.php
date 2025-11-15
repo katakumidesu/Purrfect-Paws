@@ -71,15 +71,40 @@ switch ($action) {
             $hasStockCol = $stockCol && $stockCol->num_rows > 0;
             if ($stockCol) { $stockCol->close(); }
 
+            // Category column on products may no longer exist; detect it first
+            $catCol = $conn->query("SHOW COLUMNS FROM products LIKE 'category_id'");
+            $hasCategoryIdCol = $catCol && $catCol->num_rows > 0;
+            if ($catCol) { $catCol->close(); }
+
+            $selectCategoryId = $hasCategoryIdCol ? 'p.category_id' : 'NULL AS category_id';
+
+            // Check if categories table still exists; if not, skip the JOIN completely
+            $catTable = $conn->query("SHOW TABLES LIKE 'categories'");
+            $hasCategoriesTable = $catTable && $catTable->num_rows > 0;
+            if ($catTable) { $catTable->close(); }
+
             $selectRating = $hasRating ? ', p.rating' : '';
-            $sql = "SELECT p.product_id, p.name, p.description, p.price, p.stock,
-                           COALESCE(p.image_url, '') AS image_url,
-                           COALESCE(c.category_name, 'Uncategorized') AS category_name,
-                           p.category_id" . $selectRating . "
-                    FROM products p
-                    LEFT JOIN categories c ON p.category_id = c.category_id
-                    " . (($availableOnly && $hasStockCol) ? "WHERE CAST(TRIM(p.stock) AS SIGNED) > 0" : "") . "
-                    ORDER BY p.product_id DESC";
+
+            if ($hasCategoriesTable) {
+                // Normal path when categories table is present
+                $sql = "SELECT p.product_id, p.name, p.description, p.price, p.stock,
+                               COALESCE(p.image_url, '') AS image_url,
+                               COALESCE(c.category_name, 'Uncategorized') AS category_name,
+                               " . $selectCategoryId . $selectRating . "
+                        FROM products p
+                        LEFT JOIN categories c ON p.category_id = c.category_id
+                        " . (($availableOnly && $hasStockCol) ? "WHERE CAST(TRIM(p.stock) AS SIGNED) > 0" : "") . "
+                        ORDER BY p.product_id DESC";
+            } else {
+                // Fallback when categories table has been removed: no JOIN, hardcode category label
+                $sql = "SELECT p.product_id, p.name, p.description, p.price, p.stock,
+                               COALESCE(p.image_url, '') AS image_url,
+                               'Uncategorized' AS category_name,
+                               " . $selectCategoryId . $selectRating . "
+                        FROM products p
+                        " . (($availableOnly && $hasStockCol) ? "WHERE CAST(TRIM(p.stock) AS SIGNED) > 0" : "") . "
+                        ORDER BY p.product_id DESC";
+            }
 
             $res = $conn->query($sql);
             if (!$res) {
