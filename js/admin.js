@@ -816,7 +816,7 @@ let ordersCache = [];
 function renderOrderRow(o){
     const st = (o.status && String(o.status).trim()) ? String(o.status) : 'to_pay';
     return `
-        <tr data-order-id="${o.order_id}">
+        <tr data-order-id="${o.order_id}" data-context="orders">
             <td>#${o.order_id}</td>
             <td>${escapeHtml(o.customer||'User')} (ID:${o.user_id})</td>
             <td style="text-align:center; width: 120px;"><button type="button" class="btn btn-secondary" onclick="viewOrderItems(${o.order_id})">Details</button></td>
@@ -828,7 +828,6 @@ function renderOrderRow(o){
                 <div class="action-buttons">
                     ${st==='to_pay' ? `<button type="button" class="btn btn-primary" onclick="openStatusModal(${o.order_id},'to_ship')">Approve → To Ship</button>` : ''}
                     ${st==='to_ship' ? `<button type="button" class="btn" onclick="openStatusModal(${o.order_id},'to_receive')">Mark To Receive</button>` : ''}
-                    ${st==='to_receive' ? `<button type="button" class="btn" onclick="openStatusModal(${o.order_id},'completed')">Complete</button>` : ''}
                     ${st==='to_pay' || st==='to_ship' ? `<button type="button" class="btn btn-delete" onclick="changeOrderStatus(${o.order_id},'cancelled')">Cancel</button>` : ''}
                 </div>
             </td>
@@ -867,12 +866,25 @@ async function loadOrders(){
 
 async function changeOrderStatus(orderId, status){
     console.log('changeOrderStatus click', orderId, status);
-    // Optimistic UI: update the single row immediately
+    // Optimistic UI: update any matching rows in both Orders and Delivery tables
     const idx = ordersCache.findIndex(o=> String(o.order_id) === String(orderId));
-    const prev = idx>-1 ? {...ordersCache[idx]} : null;
-    if (idx>-1){ ordersCache[idx].status = status; }
-    const tr = document.querySelector(`tr[data-order-id="${orderId}"]`);
-    if (tr && idx>-1){ tr.outerHTML = renderOrderRow(ordersCache[idx]); }
+    if (idx > -1) {
+        ordersCache[idx].status = status;
+    }
+    const dIdx = deliveryCache.findIndex(o=> String(o.order_id) === String(orderId));
+    if (dIdx > -1) {
+        deliveryCache[dIdx].status = status;
+    }
+
+    const rows = document.querySelectorAll(`tr[data-order-id="${orderId}"]`);
+    rows.forEach(row => {
+        const ctx = row.dataset.context || '';
+        if (ctx === 'orders' && idx > -1) {
+            row.outerHTML = renderOrderRow(ordersCache[idx]);
+        } else if (ctx === 'delivery' && dIdx > -1) {
+            row.outerHTML = renderDeliveryRow(deliveryCache[dIdx]);
+        }
+    });
 
     let res;
     try{
@@ -990,7 +1002,7 @@ function renderDeliveryRow(o) {
     const statusText = deliveryStatusRaw !== '' ? deliveryStatusRaw : fallbackText;
     const deliveryId = `D-${o.order_id}`;
     return `
-        <tr data-order-id="${o.order_id}">
+        <tr data-order-id="${o.order_id}" data-context="delivery">
             <td>${deliveryId}</td>
             <td>
                 <div style="display:flex;align-items:center;gap:10px;">

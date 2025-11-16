@@ -726,10 +726,10 @@
 
     const statusLabel = (s)=>({
       to_pay: 'To Pay',
-      to_ship: 'To Ship',
-      to_receive: 'To Receive',
-      completed: 'ORDER HAS BEEN DELIVERED',
-      cancelled: 'Cancelled'
+      to_ship: '<span style="color:#c92a2a;font-weight:700;">TO SHIP</span>',
+      to_receive: '<span style="color:#c92a2a;font-weight:700;">TO RECEIVE</span>',
+      completed: '<span style="color:#2f9e44;font-weight:600;">ORDER HAS BEEN DELIVERED</span>',
+      cancelled: '<span style="color:#c92a2a;font-weight:700;">CANCELLED</span>'
     })[s]||'—';
     const ratedMap = getRatedMap();
 
