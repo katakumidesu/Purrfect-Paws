@@ -331,7 +331,7 @@ const items = (getSelectedNames().length? getCart().filter(it=>getSelectedNames(
     const allCount = getCart().length;
     const selectedCount = items.length;
     bar.style.display = 'block';
-bar.innerHTML = `
+    bar.innerHTML = `
         <div class="checkout-bar-inner">
             <div class="checkout-left">
                 <label class="select-all-bottom">
@@ -370,7 +370,34 @@ bar.innerHTML = `
             renderCart();
         };
     }
+
+    // After (re)rendering content, update dock state based on scroll
+    updateCheckoutBarDock();
 }
+
+// Handle docking behavior: fixed while scrolling, docked above footer near page bottom
+function updateCheckoutBarDock(){
+    const bar = document.getElementById('checkoutBar');
+    if (!bar || bar.style.display === 'none') return;
+    const footer = document.querySelector('footer.footer');
+    if (!footer) return;
+
+    const footerRect = footer.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const barHeight = bar.offsetHeight || 0;
+
+    // If footer is coming into view so that the fixed bar would overlap it,
+    // switch to docked mode (non-fixed) just above the footer.
+    if (footerRect.top < viewportHeight - barHeight) {
+        bar.classList.add('checkout-bar-docked');
+    } else {
+        bar.classList.remove('checkout-bar-docked');
+    }
+}
+
+// Update dock state on scroll and on resize
+window.addEventListener('scroll', updateCheckoutBarDock);
+window.addEventListener('resize', updateCheckoutBarDock);
 
 // Add CSS for animations and components
 const style = document.createElement('style');
@@ -382,6 +409,7 @@ style.textContent = `
 .btn-primary:hover{background:#3fb2ea;color:#002333}
 .btn-secondary{display:inline-block;padding:10px 20px;background:#333;color:#fff;border:none;border-radius:8px;text-decoration:none;font-weight:700}
 .checkout-bar{position:fixed;left:0;right:0;bottom:0;background:#ffffffd9;backdrop-filter:saturate(180%) blur(6px);box-shadow:0 -4px 16px rgba(0,0,0,0.08);z-index:9998;padding:10px 16px}
+.checkout-bar.checkout-bar-docked{position:static;box-shadow:none;backdrop-filter:none;background:#fff;padding:16px 16px 0;margin-top:16px}
 .checkout-bar-inner{max-width:1000px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .checkout-bar-total span{color:#666;margin-right:6px}
 .checkout-bar-total strong{font-size:18px}
