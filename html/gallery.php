@@ -177,8 +177,8 @@ session_start();
             </div>
 
             <div class="footer-col">
-                <h4>Contact</h4>
-                <p>431 Captain E. Jabulin St<br>
+                <h4 style="font-weight:bold;">Contact</h4>
+                <p style="font-weight:bold;">431 Captain E. Jabulin St<br>
                     ppaws1027@gmail.com<br>
                     0961 9400 663<br>
                 </p>

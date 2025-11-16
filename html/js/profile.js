@@ -643,22 +643,28 @@
   if (addBtn){ addBtn.addEventListener('click', ()=> openAddressModal()); }
 
   // Honor URL hash on load (e.g., #purchases or #purchases:to_pay)
-  const rawHash = (location.hash||'').replace('#','');
-  const [initialSection, initialSub] = rawHash.split(':');
-  if (sections[initialSection]){
-    showSection(initialSection);
-    // If a purchases sub-tab is indicated (e.g., to_pay), activate it
-    if (initialSection === 'purchases' && initialSub){
-      // Defer until purchases UI initializes
-      setTimeout(()=>{
-        const tabs = $$('.p-head .tabs a');
-        tabs.forEach(x=>x.classList.remove('active'));
-        const target = document.querySelector(`.p-head .tabs a[data-tab="${initialSub}"]`);
-        if (target){ target.classList.add('active'); }
-        renderPurchases(initialSub);
-      }, 0);
+  function applyHashRouting(){
+    const rawHash = (location.hash||'').replace('#','');
+    const [initialSection, initialSub] = rawHash.split(':');
+    if (sections[initialSection]){
+      showSection(initialSection);
+      // If a purchases sub-tab is indicated (e.g., to_pay), activate it
+      if (initialSection === 'purchases' && initialSub){
+        // Defer until purchases UI initializes
+        setTimeout(()=>{
+          const tabs = $$('.p-head .tabs a');
+          tabs.forEach(x=>x.classList.remove('active'));
+          const target = document.querySelector(`.p-head .tabs a[data-tab="${initialSub}"]`);
+          if (target){ target.classList.add('active'); }
+          renderPurchases(initialSub);
+        }, 0);
+      }
     }
   }
+
+  applyHashRouting();
+  // Also react when hash changes (e.g., clicking "My Purchase" in navbar dropdown)
+  window.addEventListener('hashchange', applyHashRouting);
 
   // Ensure purchases render after navigation (e.g., from checkout redirect)
   window.addEventListener('pageshow', async () => {
