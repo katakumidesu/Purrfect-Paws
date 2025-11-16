@@ -71,15 +71,40 @@ switch ($action) {
             $hasStockCol = $stockCol && $stockCol->num_rows > 0;
             if ($stockCol) { $stockCol->close(); }
 
+            // Category column on products may no longer exist; detect it first
+            $catCol = $conn->query("SHOW COLUMNS FROM products LIKE 'category_id'");
+            $hasCategoryIdCol = $catCol && $catCol->num_rows > 0;
+            if ($catCol) { $catCol->close(); }
+
+            $selectCategoryId = $hasCategoryIdCol ? 'p.category_id' : 'NULL AS category_id';
+
+            // Check if categories table still exists; if not, skip the JOIN completely
+            $catTable = $conn->query("SHOW TABLES LIKE 'categories'");
+            $hasCategoriesTable = $catTable && $catTable->num_rows > 0;
+            if ($catTable) { $catTable->close(); }
+
             $selectRating = $hasRating ? ', p.rating' : '';
-            $sql = "SELECT p.product_id, p.name, p.description, p.price, p.stock,
-                           COALESCE(p.image_url, '') AS image_url,
-                           COALESCE(c.category_name, 'Uncategorized') AS category_name,
-                           p.category_id" . $selectRating . "
-                    FROM products p
-                    LEFT JOIN categories c ON p.category_id = c.category_id
-                    " . (($availableOnly && $hasStockCol) ? "WHERE CAST(TRIM(p.stock) AS SIGNED) > 0" : "") . "
-                    ORDER BY p.product_id DESC";
+
+            if ($hasCategoriesTable) {
+                // Normal path when categories table is present
+                $sql = "SELECT p.product_id, p.name, p.description, p.price, p.stock,
+                               COALESCE(p.image_url, '') AS image_url,
+                               COALESCE(c.category_name, 'Uncategorized') AS category_name,
+                               " . $selectCategoryId . $selectRating . "
+                        FROM products p
+                        LEFT JOIN categories c ON p.category_id = c.category_id
+                        " . (($availableOnly && $hasStockCol) ? "WHERE CAST(TRIM(p.stock) AS SIGNED) > 0" : "") . "
+                        ORDER BY p.product_id DESC";
+            } else {
+                // Fallback when categories table has been removed: no JOIN, hardcode category label
+                $sql = "SELECT p.product_id, p.name, p.description, p.price, p.stock,
+                               COALESCE(p.image_url, '') AS image_url,
+                               'Uncategorized' AS category_name,
+                               " . $selectCategoryId . $selectRating . "
+                        FROM products p
+                        " . (($availableOnly && $hasStockCol) ? "WHERE CAST(TRIM(p.stock) AS SIGNED) > 0" : "") . "
+                        ORDER BY p.product_id DESC";
+            }
 
             $res = $conn->query($sql);
             if (!$res) {
@@ -449,6 +474,15 @@ switch ($action) {
                 total DECIMAL(10,2) NOT NULL,
                 status VARCHAR(20) NOT NULL DEFAULT 'to_pay'
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            // Payments table (mirror structure to create_order case, including optional proof_path)
+            $conn->query("CREATE TABLE IF NOT EXISTS payments (
+                payment_id INT AUTO_INCREMENT PRIMARY KEY,
+                order_id INT NOT NULL,
+                amount DECIMAL(10,2) NOT NULL,
+                payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                method VARCHAR(50) NOT NULL,
+                proof_path VARCHAR(255) NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
             $conn->query("CREATE TABLE IF NOT EXISTS order_items (
                 item_id INT AUTO_INCREMENT PRIMARY KEY,
                 order_id INT NOT NULL,
@@ -546,6 +580,27 @@ switch ($action) {
                 if (count($insufficient)>0){ $conn->rollback(); echo json_encode(['error'=>'insufficient_stock','details'=>$insufficient]); break; }
             }
 
+            // Insert payment record for this order
+            $method = isset($data['payment_method']) && $data['payment_method'] !== ''
+                ? substr($data['payment_method'], 0, 50)
+                : 'Cash on Delivery';
+            $proofPath = isset($data['payment_proof']) && $data['payment_proof'] !== ''
+                ? substr($data['payment_proof'], 0, 255)
+                : null;
+            $payStmt = $conn->prepare("INSERT INTO payments (order_id, amount, method, proof_path) VALUES (?,?,?,?)");
+            if ($payStmt){
+                $payStmt->bind_param("idss", $order_id, $total, $method, $proofPath);
+                if (!$payStmt->execute()){
+                    // If payment insert fails, roll back to keep data consistent
+                    $err = $payStmt->error;
+                    $payStmt->close();
+                    $conn->rollback();
+                    echo json_encode(['error'=>'Failed to record payment: '.$err]);
+                    break;
+                }
+                $payStmt->close();
+            }
+
             $conn->commit();
             echo json_encode(['success'=>true,'order_id'=>$order_id]);
         } catch (Exception $e) { echo json_encode(['error'=>'Error creating order: '.$e->getMessage()]); }
@@ -616,6 +671,22 @@ switch ($action) {
             if ($hasUserId) { $hasUserId->close(); }
             if ($hasCustomerId) { $hasCustomerId->close(); }
 
+            // Ensure user_addresses table exists so we can join default address (safe no-op if already there)
+            $conn->query("CREATE TABLE IF NOT EXISTS user_addresses (
+  address_id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  fullname VARCHAR(255) DEFAULT '',
+  phone VARCHAR(64) DEFAULT '',
+  label VARCHAR(32) DEFAULT 'Home',
+  address_line VARCHAR(255) DEFAULT '',
+  barangay VARCHAR(128) DEFAULT '',
+  city VARCHAR(128) DEFAULT '',
+  province VARCHAR(128) DEFAULT '',
+  postal_code VARCHAR(32) DEFAULT '',
+  is_default TINYINT(1) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
             // Optional filters: user_id and status
             $wheres = [];
             if (isset($_GET['user_id']) && $_GET['user_id'] !== '') {
@@ -631,8 +702,23 @@ switch ($action) {
             }
             $whereSql = count($wheres) ? ('WHERE ' . implode(' AND ', $wheres)) : '';
 
-            $sql = "SELECT o.order_id, $userCol AS user_id, $dateExpr AS date, $totalExpr AS total, $statusNormExpr AS status, COALESCE(u.name,'User') AS customer
-                    FROM orders o LEFT JOIN users u ON u.user_id = ($userCol)
+            $sql = "SELECT o.order_id,
+                           $userCol AS user_id,
+                           $dateExpr AS date,
+                           $totalExpr AS total,
+                           $statusNormExpr AS status,
+                           COALESCE(u.name,'User') AS customer,
+                           ua.address_line,
+                           ua.barangay,
+                           ua.city,
+                           ua.province,
+                           ua.postal_code,
+                           p.method AS payment_method,
+                           p.proof_path AS payment_proof
+                    FROM orders o
+                    LEFT JOIN users u ON u.user_id = ($userCol)
+                    LEFT JOIN user_addresses ua ON ua.user_id = ($userCol) AND ua.is_default = 1
+                    LEFT JOIN payments p ON p.order_id = o.order_id
                     $whereSql
                     ORDER BY o.order_id DESC";
             $res = $conn->query($sql);
@@ -724,6 +810,49 @@ switch ($action) {
             $affected = $stmt->affected_rows; // may be 0 if same value
             $err = $stmt->error;
             $stmt->close();
+
+            // Sync with delivery table: upsert delivery status for this order
+            try {
+                // Check if a delivery row already exists
+                $checkDel = $conn->prepare("SELECT delivery_id FROM delivery WHERE order_id = ? LIMIT 1");
+                if ($checkDel) {
+                    $checkDel->bind_param("i", $order_id);
+                    $checkDel->execute();
+                    $resDel = $checkDel->get_result();
+                    $rowDel = $resDel ? $resDel->fetch_assoc() : null;
+                    $checkDel->close();
+
+                    $now = date('Y-m-d H:i:s');
+                    // Map internal status to friendly delivery text
+                    $apiStatus = strtoupper($status);
+                    if ($status === 'to_receive') {
+                        $apiStatus = 'ORDER IS ON THE WAY';
+                    } elseif ($status === 'completed') {
+                        $apiStatus = 'ORDER HAS BEEN DELIVERED';
+                    }
+
+                    if ($rowDel) {
+                        // Update existing delivery row
+                        $updDel = $conn->prepare("UPDATE delivery SET status = ?, delivery_date = ? WHERE delivery_id = ?");
+                        if ($updDel) {
+                            $delId = intval($rowDel['delivery_id']);
+                            $updDel->bind_param("ssi", $apiStatus, $now, $delId);
+                            $updDel->execute();
+                            $updDel->close();
+                        }
+                    } else {
+                        // Insert new delivery row with minimal data
+                        $insDel = $conn->prepare("INSERT INTO delivery (order_id, status, delivery_date) VALUES (?, ?, ?)");
+                        if ($insDel) {
+                            $insDel->bind_param("iss", $order_id, $apiStatus, $now);
+                            $insDel->execute();
+                            $insDel->close();
+                        }
+                    }
+                }
+            } catch (Exception $de) {
+                // Fail silently for delivery sync so main status update still works
+            }
 
             // Re-read current status
             $check2 = $conn->prepare("SELECT status FROM orders WHERE order_id=?");
@@ -834,6 +963,82 @@ switch ($action) {
         } catch (Exception $e) { echo json_encode(['error'=>'Error updating order: '.$e->getMessage()]); }
         break;
 
+    // ===== PRODUCT RATINGS (from customer reviews) =====
+    case 'add_rating':
+        try {
+            $productName = trim((string)($data['product_name'] ?? ''));
+            $stars = isset($data['stars']) ? floatval($data['stars']) : 0;
+            $review = trim((string)($data['text'] ?? ''));
+            $userId = isset($data['user_id']) ? intval($data['user_id']) : 0;
+            $username = trim((string)($data['username'] ?? ''));
+
+            if ($productName === '' || $stars <= 0) {
+                echo json_encode(['error' => 'Invalid rating input']);
+                break;
+            }
+
+            // Create table if not exists (simple, schema-safe)
+            $conn->query("CREATE TABLE IF NOT EXISTS product_ratings (
+                rating_id INT AUTO_INCREMENT PRIMARY KEY,
+                product_name VARCHAR(255) NOT NULL,
+                user_id INT NULL,
+                username VARCHAR(255) NULL,
+                stars TINYINT NOT NULL,
+                review TEXT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $stars = max(1, min(5, intval(round($stars))));
+
+            $ins = $conn->prepare("INSERT INTO product_ratings (product_name, user_id, username, stars, review) VALUES (?,?,?,?,?)");
+            if ($ins) {
+                $ins->bind_param("sisis", $productName, $userId, $username, $stars, $review);
+                $ok = $ins->execute();
+                $err = $ins->error;
+                $ins->close();
+                if (!$ok) {
+                    echo json_encode(['error' => 'Failed to save rating: '.$err]);
+                    break;
+                }
+            }
+
+            // Compute new average rating for this product
+            $avg = 0.0; $count = 0;
+            $stmt = $conn->prepare("SELECT AVG(stars) AS avg_rating, COUNT(*) AS cnt FROM product_ratings WHERE product_name = ?");
+            if ($stmt) {
+                $stmt->bind_param("s", $productName);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                if ($res && $row = $res->fetch_assoc()) {
+                    $avg = floatval($row['avg_rating'] ?? 0);
+                    $count = intval($row['cnt'] ?? 0);
+                }
+                $stmt->close();
+            }
+
+            // Update products.rating column if it exists and matching product row is found
+            if ($avg > 0) {
+                $col = $conn->query("SHOW COLUMNS FROM products LIKE 'rating'");
+                if ($col && $col->num_rows > 0) {
+                    $col->close();
+                    $avgNorm = max(0, min(5, round($avg * 2) / 2));
+                    // Try by exact name match first
+                    $upd = $conn->prepare("UPDATE products SET rating=? WHERE name=?");
+                    if ($upd) {
+                        $upd->bind_param("ds", $avgNorm, $productName);
+                        $upd->execute();
+                        $upd->close();
+                    }
+                } elseif ($col) {
+                    $col->close();
+                }
+            }
+
+            echo json_encode(['success'=>true,'avg_rating'=>$avg,'count'=>$count]);
+        } catch (Exception $e) {
+            echo json_encode(['error'=>'Error saving rating: '.$e->getMessage()]);
+        }
+        break;
 
     default:
         echo json_encode(['error'=>'Invalid action']);

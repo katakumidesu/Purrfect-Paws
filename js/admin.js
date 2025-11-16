@@ -4,6 +4,15 @@ if (toggleSidebar) {
 toggleSidebar.addEventListener("click", () => sidebar.classList.toggle("collapsed"));
 }
 
+function fmtNumber(v){
+    const n = Number(v)||0;
+    return n.toLocaleString('en-PH');
+}
+function fmtCurrency(v){
+    const n = Number(v)||0;
+    return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 const menuItems = document.querySelectorAll(".menu li");
 const mainContent = document.getElementById("mainContent");
 
@@ -21,6 +30,7 @@ menuItems.forEach(item => {
             case "dashboard": loadDashboard(); break;
             case "inventory": loadInventory(); break;
             case "orders": loadOrders(); break;
+            case "delivery": loadDelivery(); break;
             case "users": loadUsers(); break;
             case "analytics": loadAnalytics(); break;
             case "reports": loadReports(); break;
@@ -90,6 +100,38 @@ async function loadDashboard(){
                 if (di >= 0 && di < dailyTotal.length) dailyTotal[di] += total;
             }
         }
+
+        // Build monthly series like Reports (same result)
+        const byMonth = Array.from({length:12}, () => ({rev:0, count:0}));
+        for (let i=0;i<arr.length;i++){
+            const o = arr[i];
+            // Try a wider set of potential date fields
+            const dateFields = ['order_date','date','created_at','updated_at','ordered_at','order_time','placed_at','timestamp','createdAt','updatedAt'];
+            let raw = null;
+            for (let f=0; f<dateFields.length; f++){ if (o[dateFields[f]]) { raw = o[dateFields[f]]; break; } }
+            const d = raw ? new Date(typeof raw==='string' ? String(raw).replace(' ','T') : raw) : null;
+            const mm = (!d || isNaN(d)) ? (new Date()).getMonth() : d.getMonth();
+            const rev = (function(){
+                const raw = (o.amount!=null? o.amount : (o.total!=null? o.total : o.total_amount));
+                const n = parseFloat(String(raw==null?0:raw).replace(/[^0-9.-]/g,''));
+                return isFinite(n)? n : 0;
+            })();
+            byMonth[mm].rev += rev;
+            byMonth[mm].count += 1;
+        }
+        const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const revData = byMonth.map(x=>x.rev);
+        const cntData = byMonth.map(x=>x.count);
+        // Build orders-by-day for current month
+        const dayCounts = Array.from({length: daysInMonth}, ()=>0);
+        for (let i=0;i<arr.length;i++){
+            const o = arr[i];
+            const dateFields = ['order_date','date','created_at','updated_at','ordered_at','order_time','placed_at','timestamp','createdAt','updatedAt'];
+            let raw = null; for (let f=0; f<dateFields.length; f++){ if (o[dateFields[f]]) { raw = o[dateFields[f]]; break; } }
+            let d = raw ? new Date(typeof raw==='string' ? String(raw).replace(' ','T') : raw) : null;
+            if (!d || isNaN(d)) d = new Date();
+            if (d.getFullYear()===y && d.getMonth()===m){ const di = d.getDate()-1; if (di>=0 && di<dayCounts.length) dayCounts[di] = (dayCounts[di]||0)+1; }
+        }
         
     mainContent.innerHTML = `
             <div class="dashboard-header">
@@ -101,35 +143,35 @@ async function loadDashboard(){
                     <div class="card-icon"><i class="fa fa-box"></i></div>
                     <div class="card-content">
                         <h3>Total Products</h3>
-                        <p class="card-value">${totalProducts}</p>
+                        <p class="card-value">${fmtNumber(totalProducts)}</p>
                     </div>
                 </div>
                 <div class="card">
                     <div class="card-icon"><i class="fa fa-users"></i></div>
                     <div class="card-content">
                         <h3>Total Users</h3>
-                        <p class="card-value">${totalUsers}</p>
+                        <p class="card-value">${fmtNumber(totalUsers)}</p>
                     </div>
                 </div>
                 <div class="card">
                     <div class="card-icon"><i class="fa fa-file-invoice"></i></div>
                     <div class="card-content">
                         <h3>Total Orders</h3>
-                        <p class="card-value">${totalOrders}</p>
+                        <p class="card-value">${fmtNumber(totalOrders)}</p>
                     </div>
                 </div>
                 <div class="card">
                     <div class="card-icon"><i class="fa fa-exclamation-triangle"></i></div>
                     <div class="card-content">
                         <h3>Low Stock Items</h3>
-                        <p class="card-value">${lowStock}</p>
+                        <p class="card-value">${fmtNumber(lowStock)}</p>
                     </div>
                 </div>
             </div>
             <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-top:14px;">
                 <div style="border:1px solid #333;border-radius:12px;background:#222;padding:12px;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;"><div style="font-weight:600;color:#fff">This month revenue</div><div style="font-size:12px;color:#aaa">${start.toLocaleDateString()} - ${end.toLocaleDateString()}</div></div>
-                    <canvas id="dash_line" height="110"></canvas>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;"><div style="font-weight:600;color:#fff">Total Sales</div></div>
+                    <canvas id="dash_sales_line" height="110"></canvas>
                 </div>
                 <div style="border:1px solid #333;border-radius:12px;background:#222;padding:12px;">
                     <div style="font-weight:600;margin-bottom:8px;color:#fff">Orders by status</div>
@@ -142,10 +184,16 @@ async function loadDashboard(){
             if (!window.Chart) {
                 await new Promise((res) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/chart.js'; s.onload = () => res(); document.head.appendChild(s); });
             }
-            const daysLabels = Array.from({ length: daysInMonth }, (_, i) => (i + 1).toString().padStart(2, '0'));
-            const ctxL = document.getElementById('dash_line')?.getContext('2d');
-            if (ctxL) {
-                new Chart(ctxL, { type: 'line', data: { labels: daysLabels, datasets: [{ label: 'Revenue', data: dailyTotal, borderColor: '#facc15', backgroundColor: 'rgba(250,204,21,.12)', tension: .35, fill: true }] }, options:{ plugins:{ legend:{ labels:{ color:'#fff' } } }, scales:{ x:{ ticks:{ color:'#ddd' } }, y:{ ticks:{ color:'#ddd' } } } } });
+            const ctxTS = document.getElementById('dash_sales_line')?.getContext('2d');
+            if (ctxTS) {
+                new Chart(ctxTS, {
+                    type: 'line',
+                    data: { labels: monthLabels, datasets: [
+                        { label: 'Revenue', data: revData, borderColor: '#0ea5e9', backgroundColor: 'rgba(14,165,233,.12)', tension: 0.35, fill: true },
+                        { label: 'Orders', data: cntData, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,.12)', tension: 0.35 }
+                    ] },
+                    options: { responsive: true, plugins:{ legend:{ labels:{ color:'#fff' } } }, scales:{ x:{ ticks:{ color:'#ddd' } }, y:{ ticks:{ color:'#ddd' } } } }
+                });
             }
             const ctxP = document.getElementById('dash_pie')?.getContext('2d');
             if (ctxP) {
@@ -207,7 +255,6 @@ function renderInventoryTable(productsList) {
                         <th>ID</th>
                         <th>Image</th>
                         <th>Product Name</th>
-                        <th>Category</th>
                         <th>Price</th>
                         <th>Stock</th>
                         <th>Status</th>
@@ -216,7 +263,7 @@ function renderInventoryTable(productsList) {
                 </thead>
                 <tbody id="productsTableBody">
                     ${productsList.length === 0 ? 
-                        '<tr><td colspan="8" class="text-center">No products found. Click "Add Product" to get started.</td></tr>' :
+                        '<tr><td colspan="7" class="text-center">No products found. Click "Add Product" to get started.</td></tr>' :
                         productsList.map(p => `
                             <tr data-product-id="${p.product_id}">
                                 <td>${p.product_id}</td>
@@ -230,8 +277,7 @@ function renderInventoryTable(productsList) {
                                     <div class="product-name">${escapeHtml(p.name)}</div>
                                     <div class="product-desc">${escapeHtml(p.description || '').substring(0, 50)}${p.description && p.description.length > 50 ? '...' : ''}</div>
                                 </td>
-                                <td>${escapeHtml(p.category_name || 'Uncategorized')}</td>
-                                <td class="price">₱${parseFloat(p.price).toFixed(2)}</td>
+                                <td class="price">${fmtCurrency(p.price)}</td>
                                 <td class="stock ${p.stock < 10 ? 'low-stock' : ''}">${p.stock}</td>
                                 <td>
                                     <span class="status-badge ${p.stock > 10 ? 'available' : 'low-stock'}">
@@ -263,7 +309,6 @@ function filterProducts() {
     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
     const filtered = products.filter(p => 
         p.name.toLowerCase().includes(searchTerm) ||
-        (p.category_name && p.category_name.toLowerCase().includes(searchTerm)) ||
         (p.description && p.description.toLowerCase().includes(searchTerm))
     );
     
@@ -271,7 +316,7 @@ function filterProducts() {
     if (!tbody) return;
     
     if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center">No products found matching your search.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">No products found matching your search.</td></tr>';
         return;
     }
     
@@ -288,8 +333,7 @@ function filterProducts() {
                 <div class="product-name">${escapeHtml(p.name)}</div>
                 <div class="product-desc">${escapeHtml(p.description || '').substring(0, 50)}${p.description && p.description.length > 50 ? '...' : ''}</div>
             </td>
-            <td>${escapeHtml(p.category_name || 'Uncategorized')}</td>
-            <td class="price">$${parseFloat(p.price).toFixed(2)}</td>
+            <td class="price">${fmtCurrency(p.price)}</td>
             <td class="stock ${p.stock < 10 ? 'low-stock' : ''}">${p.stock}</td>
             <td>
                 <span class="status-badge ${p.stock > 10 ? 'available' : 'low-stock'}">
@@ -322,16 +366,6 @@ function getProductModal() {
                     <div class="form-group">
                         <label for="productName">Product Name <span class="required">*</span></label>
                         <input type="text" id="productName" name="name" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="productCategory">Category</label>
-                        <select id="productCategory" name="category_id">
-                            <option value="">Select Category</option>
-                            ${categories.map(cat => `
-                                <option value="${cat.category_id}">${escapeHtml(cat.category_name)}</option>
-                            `).join('')}
-                        </select>
                     </div>
                     
                     <div class="form-group">
@@ -399,7 +433,6 @@ function openEditProductModal(productId) {
     document.getElementById('modalTitle').textContent = 'Edit Product';
     document.getElementById('productId').value = product.product_id;
     document.getElementById('productName').value = product.name || '';
-    document.getElementById('productCategory').value = product.category_id || '';
     document.getElementById('productDescription').value = product.description || '';
     document.getElementById('productPrice').value = product.price || 0;
     document.getElementById('productStock').value = product.stock || 0;
@@ -419,7 +452,7 @@ async function saveProduct(event) {
         action: document.getElementById('productId').value ? 'edit_product' : 'add_product',
         product_id: document.getElementById('productId').value || null,
         name: document.getElementById('productName').value,
-        category_id: document.getElementById('productCategory').value || null,
+        category_id: null,
         description: document.getElementById('productDescription').value,
         price: parseFloat(document.getElementById('productPrice').value),
         stock: parseInt(document.getElementById('productStock').value),
@@ -783,19 +816,18 @@ let ordersCache = [];
 function renderOrderRow(o){
     const st = (o.status && String(o.status).trim()) ? String(o.status) : 'to_pay';
     return `
-        <tr data-order-id="${o.order_id}">
+        <tr data-order-id="${o.order_id}" data-context="orders">
             <td>#${o.order_id}</td>
             <td>${escapeHtml(o.customer||'User')} (ID:${o.user_id})</td>
             <td style="text-align:center; width: 120px;"><button type="button" class="btn btn-secondary" onclick="viewOrderItems(${o.order_id})">Details</button></td>
-            <td class="price">₱${Number(o.total||0).toFixed(2)}</td>
+            <td class="price">${fmtCurrency(o.total)}</td>
             <td>
                 <span class="status-badge ${st==='to_pay'?'low-stock': st==='completed'?'available':''}">${st.replace('_',' ')}</span>
             </td>
             <td>
                 <div class="action-buttons">
-                    ${st==='to_pay' ? `<button type="button" class="btn btn-primary" onclick="changeOrderStatus(${o.order_id},'to_ship')">Approve → To Ship</button>` : ''}
-                    ${st==='to_ship' ? `<button type="button" class="btn" onclick="changeOrderStatus(${o.order_id},'to_receive')">Mark To Receive</button>` : ''}
-                    ${st==='to_receive' ? `<button type="button" class="btn" onclick="changeOrderStatus(${o.order_id},'completed')">Complete</button>` : ''}
+                    ${st==='to_pay' ? `<button type="button" class="btn btn-primary" onclick="openStatusModal(${o.order_id},'to_ship')">Approve → To Ship</button>` : ''}
+                    ${st==='to_ship' ? `<button type="button" class="btn" onclick="openStatusModal(${o.order_id},'to_receive')">Mark To Receive</button>` : ''}
                     ${st==='to_pay' || st==='to_ship' ? `<button type="button" class="btn btn-delete" onclick="changeOrderStatus(${o.order_id},'cancelled')">Cancel</button>` : ''}
                 </div>
             </td>
@@ -834,12 +866,25 @@ async function loadOrders(){
 
 async function changeOrderStatus(orderId, status){
     console.log('changeOrderStatus click', orderId, status);
-    // Optimistic UI: update the single row immediately
+    // Optimistic UI: update any matching rows in both Orders and Delivery tables
     const idx = ordersCache.findIndex(o=> String(o.order_id) === String(orderId));
-    const prev = idx>-1 ? {...ordersCache[idx]} : null;
-    if (idx>-1){ ordersCache[idx].status = status; }
-    const tr = document.querySelector(`tr[data-order-id="${orderId}"]`);
-    if (tr && idx>-1){ tr.outerHTML = renderOrderRow(ordersCache[idx]); }
+    if (idx > -1) {
+        ordersCache[idx].status = status;
+    }
+    const dIdx = deliveryCache.findIndex(o=> String(o.order_id) === String(orderId));
+    if (dIdx > -1) {
+        deliveryCache[dIdx].status = status;
+    }
+
+    const rows = document.querySelectorAll(`tr[data-order-id="${orderId}"]`);
+    rows.forEach(row => {
+        const ctx = row.dataset.context || '';
+        if (ctx === 'orders' && idx > -1) {
+            row.outerHTML = renderOrderRow(ordersCache[idx]);
+        } else if (ctx === 'delivery' && dIdx > -1) {
+            row.outerHTML = renderDeliveryRow(deliveryCache[dIdx]);
+        }
+    });
 
     let res;
     try{
@@ -852,9 +897,8 @@ async function changeOrderStatus(orderId, status){
         if (idx>-1){ ordersCache[idx].status = status; }
         const trOk = document.querySelector(`tr[data-order-id="${orderId}"]`);
         if (trOk && idx>-1){ trOk.outerHTML = renderOrderRow(ordersCache[idx]); }
-        alert('Order updated: ' + (res?.message || status));
         // Optional: background refresh to sync other rows without flashing this one
-        try { fetchAPI('get_orders').then(list => { if (Array.isArray(list)) { ordersCache = list; } }); } catch(_){}
+        try { fetchAPI('get_orders').then(list => { if (Array.isArray(list)) { ordersCache = list; } }); } catch(_){ }
     } else {
         // Roll back optimistic change
         if (idx>-1 && prev){ ordersCache[idx] = prev; }
@@ -862,29 +906,258 @@ async function changeOrderStatus(orderId, status){
         if (tr2 && idx>-1){ tr2.outerHTML = renderOrderRow(prev || ordersCache[idx]); }
         const detail = (res && (res.current_status!==undefined)) ? ` (current_status: ${res.current_status})` : '';
         if (res && res.tried) { try { console.warn('Update variants tried:', res.tried); } catch(_){} }
-        alert((res?.message || res?.error || 'Failed to update') + detail);
     }
 }
 
 function viewOrderItems(orderId){
-    // ... (rest of the code remains the same)
-    const items = Array.isArray(o?.items) ? o.items : [];
-    const html = items.length? items.map(it=>`
-        <div style="display:flex;align-items:center;gap:10px;margin:8px 0;">
-            <img src="${it.image_url||'../HTML/images/catbed.jpg'}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;" onerror="this.src='../HTML/images/catbed.jpg'">
-            <div style="flex:1;">
-                <div style="font-weight:600;">${escapeHtml(it.product_name||'')}</div>
-                <div style="color:#aaa;font-size:12px;">Qty: ${it.quantity} • ₱${Number(it.price||0).toFixed(2)}</div>
+    try {
+        // Try Orders tab cache first, then Delivery cache
+        let order = ordersCache.find(o => String(o.order_id) === String(orderId));
+        if (!order) {
+            order = (deliveryCache || []).find(o => String(o.order_id) === String(orderId));
+        }
+
+        const items = Array.isArray(order?.items) ? order.items : [];
+        const addrParts = [];
+        if (order) {
+            if (order.address_line) addrParts.push(order.address_line);
+            if (order.barangay) addrParts.push(order.barangay);
+            if (order.city) addrParts.push(order.city);
+            if (order.province) addrParts.push(order.province);
+            if (order.postal_code) addrParts.push(order.postal_code);
+        }
+        const addressHtml = order && addrParts.length
+            ? `<div style="margin-bottom:10px;padding:10px;border-radius:8px;background:#111827;color:#e5e7eb;font-size:13px;">
+                    <div style="font-weight:600;margin-bottom:4px;">Customer</div>
+                    <div>${escapeHtml(order.customer||'User')} (ID: ${order.user_id!=null? order.user_id : 'N/A'})</div>
+                    <div style="margin-top:6px;font-size:12px;color:#9ca3af;">${escapeHtml(addrParts.join(', '))}</div>
+               </div>`
+            : '';
+
+        const pmText = order && order.payment_method ? String(order.payment_method) : '';
+        let proofPath = order && order.payment_proof ? String(order.payment_proof) : '';
+        if (proofPath && !/^https?:\/\//i.test(proofPath)){
+            // Make relative paths work from admin/ by prefixing HTML base
+            proofPath = '../HTML/' + proofPath.replace(/^\/+/, '');
+        }
+        const paymentHtml = pmText
+            ? `<div style="margin:10px 0 6px;padding:8px 10px;border-radius:8px;background:#0f172a;color:#e5e7eb;font-size:13px;">
+                    <div style="font-weight:600;margin-bottom:2px;">Payment Method</div>
+                    <div>${escapeHtml(pmText)}</div>
+                    ${proofPath ? `<div style="margin-top:8px;">
+                        <div style="font-weight:600;margin-bottom:4px;font-size:12px;">Payment Proof</div>
+                        <img src="${proofPath}" alt="Payment proof" style="max-width:100%;border-radius:8px;border:1px solid #1f2937;object-fit:contain;">
+                    </div>` : ''}
+               </div>`
+            : (proofPath ? `<div style="margin:10px 0 6px;padding:8px 10px;border-radius:8px;background:#0f172a;color:#e5e7eb;font-size:13px;">
+                    <div style="font-weight:600;margin-bottom:4px;font-size:12px;">Payment Proof</div>
+                    <img src="${proofPath}" alt="Payment proof" style="max-width:100%;border-radius:8px;border:1px solid #1f2937;object-fit:contain;">
+               </div>` : '');
+
+        const itemsHtml = items.length ? items.map(it=>`
+            <div style="display:flex;align-items:center;gap:10px;margin:8px 0;">
+                <img src="${it.image_url||it.image||'../HTML/images/catbed.jpg'}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;" onerror="this.src='../HTML/images/catbed.jpg'">
+                <div style="flex:1;">
+                    <div style="font-weight:600;">${escapeHtml(it.product_name||it.name||'')}</div>
+                    <div style="color:#aaa;font-size:12px;">Qty: ${Number(it.quantity||0)} • ₱${Number(it.price||0).toFixed(2)}</div>
+                </div>
+                <div style="font-weight:600;">₱${(Number(it.price||0)*Number(it.quantity||0)).toFixed(2)}</div>
             </div>
-            <div style="font-weight:600;">₱${(Number(it.price||0)*Number(it.quantity||0)).toFixed(2)}</div>
-        </div>
-    `).join('') : '<div style="color:#aaa;">No items found for this order.</div>';
-    const body = document.getElementById('orderItemsBody');
-    if (body){ body.innerHTML = html; document.getElementById('orderItemsModal').classList.remove('hidden'); }
+        `).join('') : '<div style="color:#aaa;">No items found for this order.</div>';
+
+        const body = document.getElementById('orderItemsBody');
+        const modal = document.getElementById('orderItemsModal');
+        if (body && modal){ body.innerHTML = itemsHtml + paymentHtml + addressHtml; modal.classList.remove('hidden'); }
+    } catch (e) {
+        alert('Unable to load order details.');
+    }
 }
 // Expose functions for inline onclick handlers
 window.changeOrderStatus = changeOrderStatus;
 window.viewOrderItems = viewOrderItems;
+window.openStatusModal = openStatusModal;
+
+// ---------------- DELIVERY (ADMIN) ----------------
+let deliveryCache = [];
+
+function filterDeliveriesByStatus(status) {
+    if (!Array.isArray(deliveryCache) || deliveryCache.length === 0) return [];
+    if (!status || status === 'all') return deliveryCache;
+    return deliveryCache.filter(o => String(o.status || '').toLowerCase() === status);
+}
+
+function renderDeliveryRow(o) {
+    // Normalized order status for logic/filtering
+    const st = (o.status && String(o.status).trim()) ? String(o.status).toLowerCase() : 'to_pay';
+    const canArrange = (st === 'to_ship');
+    const badgeClass = st === 'completed' ? 'available' : (st === 'cancelled' ? 'low-stock' : '');
+
+    // Prefer delivery_status from delivery table for display if present
+    const deliveryStatusRaw = (o.delivery_status != null) ? String(o.delivery_status).trim() : '';
+    const labelMap = {
+        to_receive: 'ORDER IS ON THE WAY',
+        completed: 'ORDER HAS BEEN DELIVERED'
+    };
+    const fallbackText = labelMap[st] || st.replace('_',' ');
+    const statusText = deliveryStatusRaw !== '' ? deliveryStatusRaw : fallbackText;
+    const deliveryId = `D-${o.order_id}`;
+    return `
+        <tr data-order-id="${o.order_id}" data-context="delivery">
+            <td>${deliveryId}</td>
+            <td>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div style="width:36px;height:36px;border-radius:999px;background:#333;display:flex;align-items:center;justify-content:center;font-size:18px;">🐾</div>
+                    <div>
+                        <div style="font-weight:600;">Order #${o.order_id}</div>
+                        <div style="font-size:12px;color:#aaa;">${escapeHtml(o.customer||'User')} • ₱${Number(o.total||0).toFixed(2)}</div>
+                    </div>
+                </div>
+            </td>
+            <td>${escapeHtml(o.customer||'User')}</td>
+            <td class="price">${fmtCurrency(o.total)}</td>
+            <td><span class="status-badge ${badgeClass}">${statusText}</span></td>
+            <td style="white-space:nowrap;">${escapeHtml(o.shipping_method || 'Standard')}</td>
+            <td>
+                <div class="action-buttons">
+                    <button type="button" class="btn btn-secondary" onclick="viewOrderItems(${o.order_id})">View</button>
+                    ${canArrange ? `<button type="button" class="btn btn-primary" onclick="openStatusModal(${o.order_id}, 'to_receive')">Arrange Delivery</button>` : ''}
+                </div>
+            </td>
+        </tr>`;
+}
+
+async function loadDelivery(statusFilter = 'all') {
+    try {
+        const orders = await fetchAPI('get_orders');
+        if (orders?.error) {
+            mainContent.innerHTML = `<div class="inventory-header"><h2>Delivery</h2></div><p class="error">${orders.error}</p>`;
+            return;
+        }
+        deliveryCache = Array.isArray(orders) ? orders : [];
+        const filtered = filterDeliveriesByStatus(statusFilter);
+        const rows = filtered.length ? filtered.map(renderDeliveryRow).join('') : '<tr><td colspan="6" class="text-center">No deliveries found for this filter.</td></tr>';
+
+        const tabs = [
+            { id: 'all', label: 'All' },
+            { id: 'to_pay', label: 'To Pay' },
+            { id: 'to_ship', label: 'To Ship' },
+            { id: 'to_receive', label: 'To Receive' },
+            { id: 'completed', label: 'Completed' },
+            { id: 'cancelled', label: 'Cancelled' }
+        ];
+
+        const tabsHtml = tabs.map(t => `
+            <button type="button" class="btn ${statusFilter === t.id ? 'btn-primary' : 'btn-secondary'}" data-filter="${t.id}">
+                ${t.label}
+            </button>
+        `).join('');
+
+        mainContent.innerHTML = `
+            <div class="inventory-header">
+                <h2>Delivery</h2>
+                <div class="inventory-actions">
+                    <div class="search-box">
+                        <i class="fa fa-search"></i>
+                        <input type="text" id="deliverySearch" placeholder="Search order or customer...">
+                    </div>
+                </div>
+            </div>
+            <div style="margin-bottom:15px; display:flex; flex-wrap:wrap; gap:8px;">
+                ${tabsHtml}
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Delivery ID</th>
+                            <th>Order</th>
+                            <th>Customer</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Delivery Service</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="deliveryTableBody">${rows}</tbody>
+                </table>
+            </div>
+            <div id="orderItemsModal" class="modal hidden"><div class="modal-content"><span class="closeBtn" onclick="document.getElementById('orderItemsModal').classList.add('hidden')">&times;</span><h2>Order Items</h2><div id="orderItemsBody" style="margin-top:10px"></div></div></div>
+        `;
+
+        // Wire filter buttons
+        document.querySelectorAll('button[data-filter]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const f = btn.getAttribute('data-filter');
+                loadDelivery(f);
+            });
+        });
+
+        // Wire search
+        const searchInput = document.getElementById('deliverySearch');
+        if (searchInput) {
+            searchInput.addEventListener('keyup', () => {
+                const term = searchInput.value.toLowerCase();
+                const list = filterDeliveriesByStatus(statusFilter);
+                const filteredRows = list.filter(o => {
+                    const name = String(o.customer || '').toLowerCase();
+                    const idStr = String(o.order_id || '');
+                    return name.includes(term) || idStr.includes(term);
+                }).map(renderDeliveryRow).join('');
+                const tbody = document.getElementById('deliveryTableBody');
+                if (tbody) {
+                    tbody.innerHTML = filteredRows || '<tr><td colspan="6" class="text-center">No deliveries match your search.</td></tr>';
+                }
+            });
+        }
+    } catch (e) {
+        mainContent.innerHTML = `<div class="inventory-header"><h2>Delivery</h2></div><p class="error">Failed to load deliveries: ${e.message}</p>`;
+    }
+}
+
+// expose
+window.loadDelivery = loadDelivery;
+
+// Lightweight confirmation modal for status updates
+function openStatusModal(orderId, status){
+    const labels = { to_ship: 'Approved → To Ship', to_receive: 'Marked To Receive', completed: 'Completed' };
+    let modal = document.getElementById('admStatusModal');
+    if (!modal){
+        modal = document.createElement('div');
+        modal.id = 'admStatusModal';
+        // Toast container at bottom-right (no overlay)
+        modal.style.cssText = 'position:fixed;right:16px;bottom:16px;display:flex;align-items:center;justify-content:center;z-index:99999;background:transparent;pointer-events:none;';
+        document.body.appendChild(modal);
+    }
+    const panelStyle = 'pointer-events:auto;display:flex;gap:10px;align-items:center;background:#111;color:#fff;border-radius:10px;min-width:280px;max-width:360px;padding:10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-family:inherit;border:1px solid rgba(255,255,255,.08);';
+    modal.innerHTML = `
+      <div class="panel" style="${panelStyle}">
+        <div style="width:28px;height:28px;border-radius:8px;background:#1a73e8;display:flex;align-items:center;justify-content:center;flex:0 0 auto;">
+          <span style="display:block;width:12px;height:12px;border-radius:50%;background:#fff;"></span>
+        </div>
+        <div style="min-width:0;flex:1 1 auto;">
+          <div id="admStatusTitle" style="font-weight:700;font-size:13px;line-height:1.2;margin:0 0 2px;">Updating...</div>
+          <div id="admStatusMsg" style="opacity:.9;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Please wait while we update the order status.</div>
+        </div>
+      </div>`;
+    modal.style.display = 'flex';
+    const close = ()=>{ const m=document.getElementById('admStatusModal'); if (m) m.remove(); };
+
+    (async ()=>{
+      try{
+        await changeOrderStatus(orderId, status);
+        const t = document.getElementById('admStatusTitle');
+        const m = document.getElementById('admStatusMsg');
+        if (t) t.textContent = labels[status] || 'Updated';
+        if (m) m.textContent = 'Order status updated successfully.';
+      }catch(err){
+        const t = document.getElementById('admStatusTitle');
+        const m = document.getElementById('admStatusMsg');
+        if (t) t.textContent = 'Update Failed';
+        if (m) m.textContent = 'There was a problem updating the order. Please try again.';
+      }
+      setTimeout(close, 2000);
+    })();
+}
 
 // ---------------- ANALYTICS ----------------
 async function loadAnalytics(){
@@ -910,14 +1183,27 @@ async function loadAnalytics(){
 
         for (var i=0;i<arr.length;i++){
             var o = arr[i];
-            var d = o.date ? new Date(o.date) : null;
-            var total = Number(o.total||0) || 0;
+            // Robust date parse; fallback to current month if missing
+            var raw = o.order_date || o.date || o.created_at || o.updated_at || null;
+            var d = raw ? new Date(typeof raw==='string' ? String(raw).replace(' ','T') : raw) : null;
+            var inThisMonth = false;
+            if (d && !isNaN(d)) { inThisMonth = (d.getFullYear()===y && d.getMonth()===m); }
+            else { d = new Date(); inThisMonth = (d.getFullYear()===y && d.getMonth()===m); }
+
+            // Robust amount parse
+            var aRaw = (o.amount!=null? o.amount : (o.total!=null? o.total : o.total_amount));
+            var total = parseFloat(String(aRaw==null?0:aRaw).replace(/[^0-9.-]/g,'')) || 0;
+
             var s = String(o.status||'').toLowerCase();
             if (statusRev[s]!==undefined) statusRev[s] += total;
-            if (d && d.getFullYear()===y && d.getMonth()===m){
-                thisMonthCount += 1; thisMonthValue += total; if (total>highestOrder) highestOrder = total;
+
+            if (inThisMonth){
+                thisMonthCount += 1;
+                thisMonthValue += total;
+                if (total>highestOrder) highestOrder = total;
                 var di = d.getDate()-1; if (di>=0 && di<dailyTotal.length) dailyTotal[di] += total;
             }
+
             var items = o.items||[];
             for (var k=0;k<items.length;k++){
                 var it = items[k];
@@ -937,20 +1223,20 @@ async function loadAnalytics(){
         +   '<div><button class="btn" onclick="window.print()" style="padding:8px 12px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;cursor:pointer">Export CSV</button></div>'
         + '</div>'
         + '<div class="dashboard-cards" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:10px;">'
-        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Orders this month</div><div style="font-size:24px;font-weight:700">' + thisMonthCount + '</div></div>'
-        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Total order value</div><div style="font-size:24px;font-weight:700">\u20B1' + thisMonthValue.toFixed(2) + '</div></div>'
-        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Average order value</div><div style="font-size:24px;font-weight:700">\u20B1' + avgOrder.toFixed(2) + '</div></div>'
-        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Highest order value</div><div style="font-size:24px;font-weight:700">\u20B1' + highestOrder.toFixed(2) + '</div></div>'
+        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Orders this month</div><div style="font-size:24px;font-weight:700">' + fmtNumber(thisMonthCount) + '</div></div>'
+        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Total order value</div><div style="font-size:24px;font-weight:700">' + fmtCurrency(thisMonthValue) + '</div></div>'
+        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Average order value</div><div style="font-size:24px;font-weight:700">' + fmtCurrency(avgOrder) + '</div></div>'
+        +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Highest order value</div><div style="font-size:24px;font-weight:700">' + fmtCurrency(highestOrder) + '</div></div>'
         + '</div>'
-        + '<div style="border:1px solid #eee;border-radius:12px;background:#fff;margin-top:14px;padding:12px;">'
+        + '<div style="border:1px solid #eee;border-radius:12px;background:#fff;margin-top:12px;padding:10px 12px;">'
         +   '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;"><div style="font-weight:600">This month at a glance</div><div style="font-size:12px;color:#6b7280">' + start.toLocaleDateString() + ' - ' + end.toLocaleDateString() + '</div></div>'
-        +   '<div style="display:grid;grid-template-columns:3fr 1fr;gap:12px;align-items:center">'
-        +     '<canvas id="an_line" height="120"></canvas>'
-        +     '<div style="border-left:1px solid #f1f5f9;padding-left:12px">'
+        +   '<div style="display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:10px;align-items:center">'
+        +     '<canvas id="an_line" height="80"></canvas>'
+        +     '<div style="border-left:1px solid #f1f5f9;padding-left:10px">'
         +        '<div style="font-size:12px;color:#6b7280">Total</div>'
-        +        '<div style="font-size:20px;font-weight:700">\u20B1' + thisMonthValue.toFixed(2) + '</div>'
+        +        '<div style="font-size:20px;font-weight:700">' + fmtCurrency(thisMonthValue) + '</div>'
         +        '<div style="font-size:12px;color:#6b7280;margin-top:10px">Orders</div>'
-        +        '<div style="font-size:20px;font-weight:700">' + thisMonthCount + '</div>'
+        +        '<div style="font-size:20px;font-weight:700">' + fmtNumber(thisMonthCount) + '</div>'
         +     '</div>'
         +   '</div>'
         + '</div>'
@@ -990,10 +1276,35 @@ async function loadAnalytics(){
         var ctxC = document.getElementById('an_bar_count').getContext('2d');
         var dayCounts = Array.from({length: daysInMonth}, function(){ return 0; });
         for (var d=0; d<arr.length; d++){
-            var od = arr[d].date ? new Date(arr[d].date) : null;
-            if (od && od.getFullYear()===y && od.getMonth()===m){ var di2 = od.getDate()-1; dayCounts[di2] = (dayCounts[di2]||0) + 1; }
+            var obj = arr[d];
+            var rd = obj.order_date || obj.date || obj.created_at || obj.updated_at || null;
+            var od = rd ? new Date(typeof rd==='string' ? String(rd).replace(' ','T') : rd) : null;
+            if (!od || isNaN(od)) od = new Date(); // fallback to today so it's counted
+            if (od.getFullYear()===y && od.getMonth()===m){ var di2 = od.getDate()-1; dayCounts[di2] = (dayCounts[di2]||0) + 1; }
         }
-        new Chart(ctxC, { type:'bar', data:{ labels: daysLabels, datasets:[{ label:'Orders', data: dayCounts, backgroundColor:'#0f172a' }] } });
+        window.__charts = window.__charts || {};
+        if (window.__charts.an_bar_count) { try { window.__charts.an_bar_count.destroy(); } catch(_){} }
+        var maxCount = Math.max.apply(null, dayCounts);
+        window.__charts.an_bar_count = new Chart(ctxC, {
+            type:'bar',
+            data:{ labels: daysLabels, datasets:[{ label:'Orders', data: dayCounts, backgroundColor:'#0f172a' }] },
+            options:{ scales:{ y:{ beginAtZero:true, suggestedMax: (isFinite(maxCount)? maxCount : 0) + 1 } } }
+        });
+
+        // Auto-refresh analytics every 15s while Analytics tab is active
+        try {
+            if (window.__analyticsTimer) { clearInterval(window.__analyticsTimer); }
+            window.__analyticsTimer = setInterval(function(){
+                try {
+                    var active = document.querySelector('.menu li.active');
+                    if (active && active.getAttribute('data-section') === 'analytics') {
+                        loadAnalytics();
+                    } else {
+                        clearInterval(window.__analyticsTimer);
+                    }
+                } catch(_){}
+            }, 15000);
+        } catch(_){}
     } catch (e) {
         mainContent.innerHTML = '<div class="inventory-header"><h2>Analytics</h2></div><p style="color:#ef4444">Failed to load analytics: ' + (e.message||e) + '</p>';
     }
@@ -1036,22 +1347,22 @@ async function loadReports(){
         + '<div class="dashboard-cards" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:10px;">'
         +   '<div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff">'
         +     '<div style="font-size:12px;color:#6b7280;margin-bottom:6px">Net income</div>'
-        +     '<div style="font-size:22px;font-weight:700">\u20B1' + netIncome.toFixed(2) + '</div>'
-        +     '<div style="font-size:12px;color:#16a34a;margin-top:6px">This month: \u20B1' + thisMonthRev.toFixed(2) + '</div>'
+        +     '<div style="font-size:22px;font-weight:700">' + fmtCurrency(netIncome) + '</div>'
+        +     '<div style="font-size:12px;color:#16a34a;margin-top:6px">This month: ' + fmtCurrency(thisMonthRev) + '</div>'
         +   '</div>'
         +   '<div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff">'
         +     '<div style="font-size:12px;color:#6b7280;margin-bottom:6px">Orders this month</div>'
-        +     '<div style="font-size:22px;font-weight:700">' + thisMonthCount + '</div>'
-        +     '<div style="font-size:12px;color:#6b7280;margin-top:6px">vs last month ' + lastMonthCount + '</div>'
+        +     '<div style="font-size:22px;font-weight:700">' + fmtNumber(thisMonthCount) + '</div>'
+        +     '<div style="font-size:12px;color:#6b7280;margin-top:6px">vs last month ' + fmtNumber(lastMonthCount) + '</div>'
         +   '</div>'
         +   '<div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff">'
         +     '<div style="font-size:12px;color:#6b7280;margin-bottom:6px">Average Order</div>'
-        +     '<div style="font-size:22px;font-weight:700">\u20B1' + avgOrder.toFixed(2) + '</div>'
+        +     '<div style="font-size:22px;font-weight:700">' + fmtCurrency(avgOrder) + '</div>'
         +     '<div style="font-size:12px;color:#6b7280;margin-top:6px">Completed only</div>'
         +   '</div>'
         +   '<div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff">'
         +     '<div style="font-size:12px;color:#6b7280;margin-bottom:6px">Growth Rate</div>'
-        +     '<div style="font-size:22px;font-weight:700">' + growthRate.toFixed(2) + '%</div>'
+        +     '<div style="font-size:22px;font-weight:700">' + growthRate.toFixed(2).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '%</div>'
         +     '<div style="font-size:12px;color:#16a34a;margin-top:6px">vs last month</div>'
         +   '</div>'
         + '</div>'

@@ -24,15 +24,24 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-function computeRating(p) {
-  // Use DB value if present; otherwise derive a stable half-step rating from id/name
-  if (p && p.rating != null && p.rating !== '') {
-    const r = Math.max(0, Math.min(5, parseFloat(p.rating)));
-    return Math.round(r * 2) / 2; // clamp to .5 steps
-  }
-  const base = (p && p.product_id) ? Number(p.product_id) : String(p.name || '').split('').reduce((s,c)=>s+c.charCodeAt(0),0);
-  const choices = [3.5, 4, 4.5, 5];
-  return choices[base % choices.length];
+function computeRating(product) {
+    // Shopee-like win rate: average of all saved reviews for this product
+    try {
+        const raw = window.localStorage.getItem('pp_product_reviews');
+        const arr = raw ? JSON.parse(raw) : [];
+        const key = (product.name || '').toLowerCase().trim();
+        if (Array.isArray(arr)) {
+            const reviews = arr.filter(r => r && (r.key === key || (r.product || '').toLowerCase().trim() === key));
+            if (reviews.length) {
+                const sum = reviews.reduce((acc, r) => acc + Number(r.stars || 0), 0);
+                return sum / reviews.length;
+            }
+        }
+    } catch (e) {
+        // ignore parse errors and fall back to default
+    }
+    // Default: show 5.0 when there are no ratings yet
+    return 5;
 }
 
 function renderProducts(list) {
@@ -46,7 +55,7 @@ function renderProducts(list) {
 
   container.innerHTML = safeList.map(p => {
     const price = parseFloat(p.price || 0);
-   const rating = computeRating(p);
+    const rating = computeRating(p);
     const name = escapeHtml(p.name || '');
     const img = safeImg(p.image_url);
     return `

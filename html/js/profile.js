@@ -553,13 +553,7 @@
         }catch(err){ showToast('Unable to edit address', true); }
       }
       if (e.target.classList.contains('delete')){
-        if (!confirm('Delete this address?')) return;
-        const fd = new FormData(); fd.append('action','delete'); fd.append('address_id', id);
-        try{
-          const res = await fetch(API, { method:'POST', body: fd });
-          const data = await res.json();
-          if (data?.ok){ showToast('Address deleted'); loadAddresses(); } else { throw new Error(data.error||'Failed'); }
-        }catch(err){ showToast('Delete failed', true); }
+        openDeleteAddressModal(id);
       }
     });
 
@@ -578,27 +572,99 @@
     });
   }
 
+  // ----- Delete address confirmation modal -----
+  function openDeleteAddressModal(addressId) {
+    const existing = document.getElementById('addrDeleteModal');
+    const modal = existing || Object.assign(document.createElement('div'), { id: 'addrDeleteModal', className: 'pc-modal' });
+
+    const panelStyle = 'background:#111827;color:#f9fafb;border-radius:16px;width:360px;max-width:95vw;padding:18px 18px 14px;box-shadow:0 18px 40px rgba(15,23,42,.8);border:1px solid rgba(148,163,184,.4);';
+    const btnBase = 'min-width:90px;display:inline-flex;align-items:center;justify-content:center;padding:8px 14px;border-radius:999px;font-weight:600;font-size:13px;cursor:pointer;';
+
+    modal.innerHTML = `
+      <div class="panel" style="${panelStyle}">
+        <h3 style="margin:0 0 8px;font-size:16px;">Delete this address?</h3>
+        <p style="margin:0 0 14px;font-size:13px;color:#e5e7eb;">
+          This action cannot be undone. You can still add it again later.
+        </p>
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <button type="button" id="addrDelCancel"
+            style="${btnBase}background:#111827;border:1px solid #4b5563;color:#e5e7eb;">
+            Cancel
+          </button>
+          <button type="button" id="addrDelConfirm"
+            style="${btnBase}background:#f97316;border:none;color:#fff;box-shadow:0 6px 20px rgba(249,115,22,.5);">
+            Delete
+          </button>
+        </div>
+      </div>
+    `;
+
+    if (!existing) {
+      document.body.appendChild(modal);
+    }
+    modal.style.display = 'flex';
+
+    // Close when clicking outside the panel
+    modal.onclick = (e)=>{
+      if (e.target === modal) closeDeleteAddressModal();
+    };
+
+    const cancelBtn = document.getElementById('addrDelCancel');
+    const confirmBtn = document.getElementById('addrDelConfirm');
+    if (cancelBtn) cancelBtn.onclick = closeDeleteAddressModal;
+    if (confirmBtn) confirmBtn.onclick = async ()=>{
+      const fd = new FormData();
+      fd.append('action','delete');
+      fd.append('address_id', addressId);
+      try{
+        const res = await fetch('../profile_php/addresses.php', { method:'POST', body: fd });
+        const data = await res.json();
+        if (data?.ok){
+          showToast('Address deleted');
+          closeDeleteAddressModal();
+          loadAddresses();
+        } else {
+          throw new Error(data.error||'Failed');
+        }
+      }catch(err){
+        showToast('Delete failed', true);
+        closeDeleteAddressModal();
+      }
+    };
+  }
+
+  function closeDeleteAddressModal(){
+    const m = document.getElementById('addrDeleteModal');
+    if (m) m.remove();
+  }
+
   // Add Address button
   const addBtn = $('#addAddressBtn');
   if (addBtn){ addBtn.addEventListener('click', ()=> openAddressModal()); }
 
   // Honor URL hash on load (e.g., #purchases or #purchases:to_pay)
-  const rawHash = (location.hash||'').replace('#','');
-  const [initialSection, initialSub] = rawHash.split(':');
-  if (sections[initialSection]){
-    showSection(initialSection);
-    // If a purchases sub-tab is indicated (e.g., to_pay), activate it
-    if (initialSection === 'purchases' && initialSub){
-      // Defer until purchases UI initializes
-      setTimeout(()=>{
-        const tabs = $$('.p-head .tabs a');
-        tabs.forEach(x=>x.classList.remove('active'));
-        const target = document.querySelector(`.p-head .tabs a[data-tab="${initialSub}"]`);
-        if (target){ target.classList.add('active'); }
-        renderPurchases(initialSub);
-      }, 0);
+  function applyHashRouting(){
+    const rawHash = (location.hash||'').replace('#','');
+    const [initialSection, initialSub] = rawHash.split(':');
+    if (sections[initialSection]){
+      showSection(initialSection);
+      // If a purchases sub-tab is indicated (e.g., to_pay), activate it
+      if (initialSection === 'purchases' && initialSub){
+        // Defer until purchases UI initializes
+        setTimeout(()=>{
+          const tabs = $$('.p-head .tabs a');
+          tabs.forEach(x=>x.classList.remove('active'));
+          const target = document.querySelector(`.p-head .tabs a[data-tab="${initialSub}"]`);
+          if (target){ target.classList.add('active'); }
+          renderPurchases(initialSub);
+        }, 0);
+      }
     }
   }
+
+  applyHashRouting();
+  // Also react when hash changes (e.g., clicking "My Purchase" in navbar dropdown)
+  window.addEventListener('hashchange', applyHashRouting);
 
   // Ensure purchases render after navigation (e.g., from checkout redirect)
   window.addEventListener('pageshow', async () => {
@@ -617,7 +683,13 @@
   const ORDERS_KEY = () => `purrfectOrders:${window.PURR_USER_ID||'anon'}`;
   function getOrders(){ try { return JSON.parse(sessionStorage.getItem(ORDERS_KEY())||'[]'); } catch(e){ return []; } }
   function saveOrders(arr){ sessionStorage.setItem(ORDERS_KEY(), JSON.stringify(arr||[])); }
-  function money(n){ return '₱'+Number(n||0).toFixed(2); }
+  function money(n){ return '\u20b1'+Number(n||0).toFixed(2); }
+  // Track which orders have been rated so we can swap Rate → Buy Again
+  function getRatedMap(){ try { return JSON.parse(localStorage.getItem('pp_rated_orders')||'{}'); } catch(e){ return {}; } }
+  function saveRatedMap(map){ try { localStorage.setItem('pp_rated_orders', JSON.stringify(map||{})); } catch(e){} }
+  // Store per-product reviews for Product Ratings section
+  function getProductReviews(){ try { return JSON.parse(localStorage.getItem('pp_product_reviews')||'[]'); } catch(e){ return []; } }
+  function saveProductReviews(list){ try { localStorage.setItem('pp_product_reviews', JSON.stringify(Array.isArray(list)? list : [])); } catch(e){} }
   function normalizeStatus(s){
     const raw = String(s||'to_pay').toLowerCase().trim();
     // replace any non-letters with underscore, then collapse repeats
@@ -718,7 +790,14 @@
     if (q) orders = orders.filter(o => (o.items||[]).some(it => (it.name||'').toLowerCase().includes(q)) );
     if (!orders.length){ wrap.innerHTML = '<div class="address-empty" style="display:flex"><div class="empty-inner"><p class="empty-main">No orders yet.</p></div></div>'; return; }
 
-    const statusLabel = (s)=>({to_pay:'To Pay', to_ship:'To Ship', to_receive:'To Receive', completed:'Completed', cancelled:'Cancelled'})[s]||'—';
+    const statusLabel = (s)=>({
+      to_pay: 'To Pay',
+      to_ship: '<span style="color:#c92a2a;font-weight:700;">TO SHIP</span>',
+      to_receive: '<span style="color:#c92a2a;font-weight:700;">TO RECEIVE</span>',
+      completed: '<span style="color:#2f9e44;font-weight:600;">ORDER HAS BEEN DELIVERED</span>',
+      cancelled: '<span style="color:#c92a2a;font-weight:700;">CANCELLED</span>'
+    })[s]||'—';
+    const ratedMap = getRatedMap();
 
     wrap.innerHTML = orders.map((o,idx)=>{
       if (o.status === 'to_pay'){
@@ -748,6 +827,42 @@
           </div>
         </div>`;
       }
+      else if (o.status === 'to_receive'){
+        // Shopee-like "To Receive" card
+        return `
+        <div class="order to-receive" style="border:1px solid #e9eef2;border-radius:8px;margin-bottom:12px;background:#fff;">
+          <div class="tr-head" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #f1f3f5;">
+            <div style="display:flex;align-items:center;gap:8px;"></div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="color:#2f9e44;font-weight:600;">ORDER IS ON THE WAY</span>
+              <span style="color:#c92a2a;font-weight:700;">TO RECEIVE</span>
+            </div>
+          </div>
+          <div class="tr-body" style="padding:10px 14px;">
+            ${(o.items||[]).map(it=>`
+              <div class="oi" style="display:flex;gap:12px;align-items:center;padding:10px 0;">
+                <img src="${it.image||'../HTML/images/catbed.jpg'}" onerror="this.src='../HTML/images/catbed.jpg'" alt="" style="width:72px;height:72px;border:1px solid #eee;border-radius:6px;object-fit:cover;">
+                <div style="flex:1;min-width:0;">
+                  <div class="name" style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(it.name||'')}</div>
+                  <div class="meta" style="color:#6b8897;font-size:12px;">x${it.quantity||1}</div>
+                </div>
+                <div class="price" style="color:#333;font-weight:600;">${money(it.price||0)}</div>
+              </div>
+            `).join('')}
+          </div>
+          <div class="tr-foot" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-top:1px solid #f1f3f5;">
+            <div style="color:#6b8897;">Order Total: <strong style="color:#111;">${money(o.total||0)}</strong></div>
+            <div class="actions" style="display:flex;gap:8px;">
+              <button class="btn outline danger mark-received" data-oid="${o.order_id}" style="padding:10px 16px;border:1px solid #ff6b6b;color:#c92a2a;background:#fff;border-radius:6px;font-size:14px;">Order Received</button>
+            </div>
+          </div>
+        </div>`;
+      }
+      // Default card (to_ship, completed, cancelled)
+      const normStatus = normalizeStatus(o.status);
+      const isCompleted = normStatus === 'completed';
+      const isToShip = normStatus === 'to_ship';
+      const rated = !!ratedMap[String(o.order_id||o.date)];
       return `
       <div class="order" style="border:1px solid #e9eef2;border-radius:8px;margin-bottom:12px;">
         <div class="order-h" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px dashed #e9eef2;background:#fff;">
@@ -767,15 +882,34 @@
         </div>
         <div class="order-f" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-top:1px solid #e9eef2;background:#fff;">
           <div class="order-total">Order Total: <strong>${money(o.total||0)}</strong></div>
-          <div class="actions"><button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(((o.items||[])[0]||{}).name||'')}'" style="padding:6px 10px;border:1px solid #1a73e8;color:#1a73e8;background:#fff;border-radius:6px;">Buy Again</button></div>
+          <div class="actions">
+          ${isToShip
+            ? ''
+            : (isCompleted && !rated
+                ? `<button class="btn rate-btn" data-key="${o.order_id||o.date}" style="padding:6px 12px;border-radius:6px;border:1px solid #f97316;background:#f97316;color:#fff;">Rate</button>`
+                : `<button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(((o.items||[])[0]||{}).name||'')}'" style="padding:6px 10px;border:1px solid #1a73e8;color:#1a73e8;background:#fff;border-radius:6px;">Buy Again</button>`)}
+        </div>
         </div>
       </div>`;
     }).join('');
 
-    // Wire up cancel buttons for To Pay orders (open modal)
+    // Wire up "Order Received" to open modal confirmation
+    wrap.querySelectorAll('.mark-received').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const oid = parseInt(btn.getAttribute('data-oid')||'0',10);
+        openReceiveModal(oid);
+      });
+    });
+
+    // Wire up cancel buttons
     wrap.querySelectorAll('.cancel-order').forEach(btn=>{
       btn.addEventListener('click', ()=> openCancelModal(btn.getAttribute('data-key')) );
     });
+    // Wire up Rate buttons (Completed tab)
+    wrap.querySelectorAll('.rate-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=> openRateModal(btn.getAttribute('data-key')) );
+    });
+    updatePurchaseTabCounts();
   }
 
   // --- Cancel Order Modal (Shopee-like) ---
@@ -870,6 +1004,171 @@
       await renderPurchases(current);
     });
   }
+
+  // --- Receive Confirmation Modal ---
+  function openReceiveModal(orderId){
+    let modal = document.getElementById('prModal');
+    if (!modal){
+      modal = document.createElement('div');
+      modal.id = 'prModal';
+      modal.className = 'pc-modal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:99999;';
+      document.body.appendChild(modal);
+    }
+    const panelStyle = 'background:#fff;border-radius:12px;width:420px;max-width:95vw;padding:16px 16px 12px;box-shadow:0 14px 34px rgba(2,8,23,.18);font-family:inherit;border:1px solid #e9eef2;';
+    const noteStyle = 'background:#fff7e6;border:1px solid #ffe0b2;color:#8d6e63;padding:10px 12px;border-radius:6px;font-size:13px;margin:8px 0 12px;';
+    const btnBase = 'display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;transition:all .15s ease;box-shadow:0 2px 6px rgba(0,0,0,.08);';
+    modal.innerHTML = `
+      <div class="panel" style="${panelStyle}">
+        <h3 style="margin:0 0 8px;">Confirm Receipt</h3>
+        <div class="note" style="${noteStyle}">Confirm receipt after you've checked the received items.</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;">
+          <button type="button" id="prNotNow" style="${btnBase}background:#f7f7f7;border:1px solid #dfe3e6;color:#444;">NOT NOW</button>
+          <button type="button" id="prConfirm" style="${btnBase}background:#fff;border:1px solid #ff6b6b;color:#c92a2a;">ORDER RECEIVED</button>
+        </div>
+      </div>`;
+    modal.style.display = 'flex';
+    const close = ()=>{ const m = document.getElementById('prModal'); if (m) m.remove(); };
+    modal.addEventListener('click', (e)=>{ if (e.target===modal) close(); });
+    document.getElementById('prNotNow').addEventListener('click', close);
+    document.getElementById('prConfirm').addEventListener('click', async ()=>{
+      const oid = parseInt(orderId||0,10);
+      // Update local cache optimistically
+      const local = getOrders();
+      let changed = false;
+      for (const o of local){ if (parseInt(o.order_id||0,10) === oid){ o.status='completed'; changed = true; break; } }
+      if (changed) saveOrders(local);
+      updatePurchaseTabCounts();
+      try{
+        if (oid){
+          await fetch('../crud/crud.php', {
+            method:'POST',
+            headers:{ 'Content-Type':'application/json' },
+            credentials:'same-origin',
+            keepalive:true,
+            body: JSON.stringify({ action:'update_order_status', order_id: oid, status:'completed' })
+          });
+        }
+      }catch(_){ }
+      // Switch to Completed tab
+      const tabs = document.querySelectorAll('.p-head .tabs a');
+      tabs.forEach(x=>x.classList.remove('active'));
+      const t = document.querySelector('.p-head .tabs a[data-tab="completed"]');
+      if (t){ t.classList.add('active'); }
+      await renderPurchases('completed');
+      close();
+    });
+  }
+
+  // --- Product Rating Modal (Shopee-like) ---
+  function openRateModal(orderKey){
+    const orders = getOrders();
+    const o = orders.find(x=> String(x.order_id||x.date) === String(orderKey));
+    const firstItem = (o&&o.items&&o.items[0]) || {};
+    let modal = document.getElementById('rateModal');
+    if (!modal){
+      modal = document.createElement('div');
+      modal.id = 'rateModal';
+      modal.className = 'pc-modal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:99999;';
+      document.body.appendChild(modal);
+    }
+    const panelStyle = 'background:#fff;border-radius:12px;width:520px;max-width:95vw;padding:18px 18px 14px;box-shadow:0 14px 34px rgba(2,8,23,.18);border:1px solid #e9eef2;';
+    const noteStyle = 'background:#fff7ed;border:1px solid #fed7aa;color:#8d6e63;padding:8px 10px;border-radius:6px;font-size:13px;margin:4px 0 10px;';
+    const starBase = 'cursor:pointer;font-size:22px;color:#e5e7eb;margin-right:4px;';
+    modal.innerHTML = `
+      <div class="panel" style="${panelStyle}">
+        <h3 style="margin:0 0 6px;">Rate Product</h3>
+        <div style="${noteStyle}">Share your feedback about this product to help other buyers.</div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
+          <img src="${firstItem.image||'../HTML/images/catbed.jpg'}" onerror="this.src='../HTML/images/catbed.jpg'" style="width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;" alt="">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(firstItem.name||'Order')}</div>
+            <div style="font-size:12px;color:#6b7280;margin-top:2px;">Qty: ${firstItem.quantity||1}</div>
+          </div>
+        </div>
+        <form id="prForm">
+          <div style="margin-bottom:10px;">
+            <div style="font-size:13px;margin-bottom:4px;">Product Quality</div>
+            <div id="prStars">
+              ${[1,2,3,4,5].map(i=>`<i data-v="${i}" class="fa-solid fa-star" style="${starBase}"></i>`).join('')}
+            </div>
+          </div>
+          <div style="margin-bottom:10px;">
+            <div style="font-size:13px;margin-bottom:4px;">Review</div>
+            <textarea id="prText" rows="4" style="width:100%;border-radius:8px;border:1px solid #d1d5db;padding:8px;font-size:13px;resize:vertical;" placeholder="Share more thoughts on the product to help other buyers."></textarea>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;">
+            <button type="button" id="prCancel" style="padding:7px 14px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;font-size:13px;cursor:pointer;">CANCEL</button>
+            <button type="submit" id="prSubmit" style="padding:7px 16px;border-radius:8px;border:none;background:#f97316;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">SUBMIT</button>
+          </div>
+        </form>
+      </div>`;
+    modal.style.display = 'flex';
+
+    const stars = modal.querySelectorAll('#prStars i');
+    let current = 5;
+    const paint = (val)=>{
+      stars.forEach(s=>{
+        const v = Number(s.dataset.v||0);
+        s.style.color = v<=val ? '#f97316' : '#e5e7eb';
+      });
+    };
+    paint(current);
+    stars.forEach(s=> s.addEventListener('click', ()=>{ current = Number(s.dataset.v||5); paint(current); }));
+
+    const close = ()=>{ const m = document.getElementById('rateModal'); if (m) m.remove(); };
+    modal.addEventListener('click', (e)=>{ if (e.target===modal) close(); });
+    modal.querySelector('#prCancel').addEventListener('click', close);
+    modal.querySelector('#prForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const text = (modal.querySelector('#prText').value||'').trim();
+      // mark order as rated so button becomes "Buy Again"
+      const map = getRatedMap();
+      map[String(orderKey)] = { rated:true, stars:current, text };
+      saveRatedMap(map);
+      // also save per-product review locally so Product Ratings can show it immediately
+      const list = getProductReviews();
+      const productName = (firstItem.name||'').toString();
+      const key = productName.toLowerCase().trim();
+      if (key){
+        list.push({
+          product: productName,   // original label
+          key,                    // normalized key used for matching
+          stars: current,
+          text,
+          user: (window.PURR_USER_NAME||'User'),
+          ts: Date.now()
+        });
+        saveProductReviews(list);
+      }
+
+      // send rating to backend so it is saved in the database
+      try {
+        await fetch('../crud/crud.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            action: 'add_rating',
+            product_name: productName,
+            stars: current,
+            text,
+            user_id: window.PURR_USER_ID || null,
+            username: window.PURR_USER_NAME || 'User'
+          })
+        });
+      } catch (_) {
+        // ignore network errors here; local state is already updated
+      }
+
+      close();
+      const currentTab = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
+      renderPurchases(currentTab);
+    });
+  }
+  // expose globally so inline onclick or listeners can use it
+  window.openRateModal = openRateModal;
 
   function updatePurchaseTabCounts(){
     const orders = getOrders().map(o=> ({...o, status: (o.status||'to_pay')}));

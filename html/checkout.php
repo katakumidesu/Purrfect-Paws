@@ -154,6 +154,28 @@ if (!isset($_SESSION['user_id'])) {
               <span class="val" id="pmTotalPayment">₱0.00</span>
             </div>
           </div>
+          <!-- GCash payment modal (shown only when GCash is selected and user clicks Place Order) -->
+          <div id="gcashPanel" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.65);z-index:10050;align-items:center;justify-content:center;">
+            <div style="background:#0f4fd6;color:#fff;border-radius:16px;padding:18px 18px;max-width:360px;width:90%;box-shadow:0 18px 40px rgba(15,23,42,.55);">
+              <div style="font-weight:700;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                <span style="font-size:18px;">GCash Payment</span>
+                <button type="button" id="gcashClose" style="background:none;border:none;color:#bfdbfe;font-size:18px;cursor:pointer;">&times;</button>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+                <div style="background:#fff;border-radius:16px;padding:12px;max-width:260px;width:100%;">
+                  <img src="images/gcash.jpg" alt="GCash QR" style="width:100%;border-radius:12px;object-fit:contain;">
+                </div>
+                <div style="width:100%;max-width:320px;text-align:left;">
+                  <label for="gcashProof" style="font-size:13px;display:block;margin-bottom:6px;">Upload payment screenshot</label>
+                  <input type="file" id="gcashProof" accept="image/*" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #dbeafe;background:#eff6ff;color:#111;">
+                  <small id="gcashError" style="display:block;margin-top:4px;font-size:11px;opacity:.9;color:#fee2e2;"></small>
+                </div>
+                <button type="button" id="gcashProceed" class="btn-accent" style="margin-top:4px;">
+                  Proceed Payment
+                </button>
+              </div>
+            </div>
+          </div>
           <div class="pm-footer">
             <button id="placeOrder" class="place-order"><i class="fa fa-check-circle"></i> Place Order</button>
           </div>
@@ -185,22 +207,17 @@ if (!isset($_SESSION['user_id'])) {
     <div class="footer-container">
         <div class="footer-col">
             <h4>Information</h4>
-            <ul>
-                <li><a href="#">About</a></li>
-                <li><a href="#">FAQ</a></li>
-                <section class="contact" id="contact">
-                <li><a href="#">Contact Us</a></li>
-                </section>
-                <li><a href="#">Blogs</a></li>
-            </ul>
-        </div>
+        <ul>
+          <li><a href="../html/about.php">About</a></li>
+          <li><a href="../html/contact.php">Contact Us</a></li>
+          <li><a href="../html/gallery.php">Blogs</a></li>
+        </ul>
+      </div>
 
         <div class="footer-col">
             <h4>Shopping</h4>
             <ul>
-                <li><a href="#">Products</a></li>
-                <li><a href="#">Terms of Sale</a></li>
-                <li><a href="#">Trade Enquiries</a></li>
+                <li><a href="../html/product.php">Products</a></li>
             </ul>
         </div>
 
@@ -249,7 +266,7 @@ if (!isset($_SESSION['user_id'])) {
       const box = document.getElementById('addressBox');
       const a = await fetchDefaultAddress();
       if(!a){
-        box.innerHTML = '<div class="da-head"><i class="fa fa-location-dot"></i> Delivery Address</div><div class="da-body">No saved address yet. <a class="da-change" href="../profile_php/profile.php#addresses">Add address</a></div>';
+        box.innerHTML = '<div class="da-head"><i class="fa fa-location-dot"></i> Delivery Address</div><div class="da-body">No saved address yet. <a class="da-change" href="#" onclick="openAddrForm();return false;">Add address</a></div>';
         return;
       }
       box.innerHTML = `
@@ -318,10 +335,10 @@ if (!isset($_SESSION['user_id'])) {
           <form id="addrForm" class="addr-form">
             <div class="grid">
               <div>
-                <input name="fullname" required placeholder="Full Name">
+                <input name="fullname" type="text" required placeholder="Full Name" pattern="^[A-Za-z\\s\\-\.'\\u00C0-\\u024F]+$" title="Letters only" oninput="this.value=this.value.replace(/[^A-Za-z\\s\\-\.'\u00C0-\u024F]/g,'')">
               </div>
               <div>
-                <input name="phone" required placeholder="Phone Number">
+                <input name="phone" type="tel" required placeholder="09123456789" inputmode="numeric" maxlength="11" pattern="^09\\d{9}$" title="Enter PH mobile starting with 09 (11 digits)" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
               </div>
               <div class="full">
                 <div class="ph-picker" id="phPicker">
@@ -370,6 +387,19 @@ if (!isset($_SESSION['user_id'])) {
         </div>`;
       const form = document.getElementById('addrForm');
       if (window.AddressModal){ AddressModal.wireLabelPills(modal); AddressModal.initPhPicker(modal); }
+      // Autofill phone from session if available; normalize to 09XXXXXXXXX
+      try{
+        const phField = form.querySelector('input[name="phone"]');
+        const sessionPhone = <?= json_encode($_SESSION['phone'] ?? '') ?>;
+        if (phField && sessionPhone){
+          let norm = String(sessionPhone).replace(/[^0-9]/g,'');
+          // Convert +639XXXXXXXXX to 09XXXXXXXXX if needed
+          if (norm.startsWith('639') && norm.length >= 12) norm = '0' + norm.slice(2);
+          if (norm.startsWith('9') && norm.length === 10) norm = '0' + norm; // 9XXXXXXXXX -> 09XXXXXXXXX
+          norm = norm.slice(0,11);
+          if (/^09\d{9}$/.test(norm)) phField.value = norm;
+        }
+      }catch(_){}
       form.addEventListener('submit', async (e)=>{
         e.preventDefault();
         const fd = new FormData(form);
@@ -394,6 +424,23 @@ if (!isset($_SESSION['user_id'])) {
           }
         }catch(err){ alert('Failed to save address'); }
       });
+    }
+
+    // Modal shown when trying to place order with no address
+    function openNoAddressModal(){
+      const modal = document.getElementById('addrPicker');
+      modal.style.display = 'flex';
+      modal.innerHTML = `
+        <div class="panel">
+          <h3>Delivery Address Required</h3>
+          <div style="padding:12px 0 16px;font-size:14px;">
+            Please add a delivery address before placing your order.
+          </div>
+          <div class="addr-f">
+            <button class="link-cancel" onclick="closeAddrPicker()">Cancel</button>
+            <button class="btn-accent" onclick="openAddrForm()">Add Address</button>
+          </div>
+        </div>`;
     }
 
     function updatePaymentPanel(items){
@@ -440,7 +487,7 @@ if (!isset($_SESSION['user_id'])) {
       updatePaymentPanel(items);
     }
 
-    document.getElementById('placeOrder').addEventListener('click', async function(){
+    async function placeOrderInternal(paymentProofPath){
       const all = getCart();
       const selected = (()=>{ try { return JSON.parse(sessionStorage.getItem(SELECTED_KEY())||'[]'); } catch(e){ return []; } })();
       const items = selected.length ? all.filter(it => selected.includes(it.name)) : all;
@@ -455,7 +502,14 @@ if (!isset($_SESSION['user_id'])) {
         const resp = await fetch('../crud/crud.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'create_order', items, total: sums.total, user_id: window.PURR_USER_ID }),
+          body: JSON.stringify({
+            action: 'create_order',
+            items,
+            total: sums.total,
+            user_id: window.PURR_USER_ID,
+            payment_method: window.PAYMENT_METHOD || 'Cash on Delivery',
+            payment_proof: paymentProofPath || null
+          }),
           keepalive: true,
           credentials: 'same-origin'
         });
@@ -481,7 +535,66 @@ if (!isset($_SESSION['user_id'])) {
       }
       if (typeof updateCartBadge === 'function') updateCartBadge();
       window.location.href = '../profile_php/profile.php#purchases:to_pay';
+    }
+
+    // Place Order button behavior: ensure address exists, then handle GCash vs COD
+    document.getElementById('placeOrder').addEventListener('click', async function(){
+      // Block checkout if user has no saved/selected address
+      const addr = await fetchDefaultAddress();
+      if (!addr){
+        openNoAddressModal();
+        return;
+      }
+
+      if (window.PAYMENT_METHOD === 'GCash'){
+        const panel = document.getElementById('gcashPanel');
+        if (panel){
+          panel.style.display = 'flex';
+        }
+        return;
+      }
+      await placeOrderInternal(null);
     });
+
+    // GCash proceed button: require proof upload, then place order
+    const gcashPanelEl = document.getElementById('gcashPanel');
+    const gcashClose = document.getElementById('gcashClose');
+    const gcashBtn = document.getElementById('gcashProceed');
+    if (gcashBtn){
+      gcashBtn.addEventListener('click', async ()=>{
+        const proof = document.getElementById('gcashProof');
+        const errEl = document.getElementById('gcashError');
+        if (errEl) errEl.textContent = '';
+        if (!proof || !proof.files || proof.files.length === 0){
+          if (errEl) errEl.textContent = 'Please upload your GCash payment screenshot before proceeding.';
+          return;
+        }
+        // Upload proof first
+        try {
+          const fd = new FormData();
+          fd.append('proof', proof.files[0]);
+          const upResp = await fetch('upload_payment.php', { method: 'POST', body: fd });
+          const upData = await upResp.json();
+          if (!upResp.ok || !upData.success || !upData.path){
+            if (errEl) errEl.textContent = 'Failed to upload payment proof. Please try again.';
+            return;
+          }
+          // Proceed to place order with proof path
+          await placeOrderInternal(upData.path);
+        } catch (e) {
+          if (errEl) errEl.textContent = 'Error uploading payment proof. Please try again.';
+          return;
+        }
+      });
+    }
+    if (gcashPanelEl){
+      gcashPanelEl.addEventListener('click', (e)=>{
+        if (e.target === gcashPanelEl){ gcashPanelEl.style.display = 'none'; }
+      });
+    }
+    if (gcashClose && gcashPanelEl){
+      gcashClose.addEventListener('click', ()=>{ gcashPanelEl.style.display = 'none'; });
+    }
 
     // Payment method chooser logic
     window.PAYMENT_METHOD = 'Cash on Delivery';

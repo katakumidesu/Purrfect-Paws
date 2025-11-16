@@ -57,8 +57,8 @@ if (!isset($_SESSION['user_id'])) {
         <ul>
             <li><a href="index.php">Home</a></li>
             <li><a href="product.php">Shop</a></li>
-            <li><a href="#gallery">Gallery</a></li>
-            <li><a href="#contact">Contact Us</a></li>
+            <li><a href="../html/gallery.php">Gallery</a></li>
+           
         </ul>
         
 <div class="nav-right">
@@ -134,22 +134,17 @@ if (!isset($_SESSION['user_id'])) {
     <div class="footer-container">
         <div class="footer-col">
             <h4>Information</h4>
-            <ul>
-                <li><a href="#">About</a></li>
-                <li><a href="#">FAQ</a></li>
-                <section class="contact" id="contact">
-                <li><a href="#">Contact Us</a></li>
-                </section>
-                <li><a href="#">Blogs</a></li>
-            </ul>
-        </div>
+        <ul>
+          <li><a href="../html/about.php">About</a></li>
+          <li><a href="../html/contact.php">Contact Us</a></li>
+          <li><a href="../html/gallery.php">Blogs</a></li>
+        </ul>
+      </div>
 
         <div class="footer-col">
             <h4>Shopping</h4>
             <ul>
-                <li><a href="#">Products</a></li>
-                <li><a href="#">Terms of Sale</a></li>
-                <li><a href="#">Trade Enquiries</a></li>
+                <li><a href="../html/product.php">Products</a></li>
             </ul>
         </div>
 

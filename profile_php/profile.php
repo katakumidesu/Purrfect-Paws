@@ -43,7 +43,10 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
   <script src="https://kit.fontawesome.com/df5d6157cf.js" crossorigin="anonymous"></script>
   <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
-  <script>window.PURR_USER_ID = <?= json_encode((string)$user_id) ?>;</script>
+  <script>
+    window.PURR_USER_ID = <?= json_encode((string)$user_id) ?>;
+    window.PURR_USER_NAME = <?= json_encode((string)($user['username'] ?? ($user['name'] ?? 'User'))) ?>;
+  </script>
 
 </head>
 
@@ -57,8 +60,7 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
       <ul>
           <li><a href="../HTML/index.php">Home</a></li>
           <li><a href="../HTML/product.php">Shop</a></li>
-          <li><a href="#gallery">Gallery</a></li>
-          <li><a href="#contact">Contact Us</a></li>
+          <li><a href="../html/gallery.php">Gallery</a></li>
       </ul>
 
       <div class="nav-right">
@@ -250,28 +252,23 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
   <div class="footer-container">
       <div class="footer-col">
           <h4>Information</h4>
-          <ul>
-              <li><a href="#">About</a></li>
-              <li><a href="#">FAQ</a></li>
-              <section class="contact" id="contact">
-              <li><a href="#">Contact Us</a></li>
-              </section>
-              <li><a href="#">Blogs</a></li>
-          </ul>
+        <ul>
+          <li><a href="../html/about.php">About</a></li>
+          <li><a href="../html/contact.php">Contact Us</a></li>
+          <li><a href="../html/gallery.php">Blogs</a></li>
+        </ul>
       </div>
 
       <div class="footer-col">
           <h4>Shopping</h4>
           <ul>
-              <li><a href="#">Products</a></li>
-              <li><a href="#">Terms of Sale</a></li>
-              <li><a href="#">Trade Enquiries</a></li>
+              <li><a href="../html/product.php">Products</a></li>
           </ul>
       </div>
 
       <div class="footer-col">
-          <h4>Contact</h4>
-          <p>431 Captain E. Jabulin St<br>
+          <h4 style="font-weight:bold;">Contact</h4>
+          <p style="font-weight:bold;">431 Captain E. Jabulin St<br>
               ppaws1027@gmail.com<br>
               0961 9400 663<br>
           </p>
@@ -290,7 +287,7 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
 
 <script src="../js/cart.js"></script>
 <script src="../HTML/js/address-modal.js"></script>
-<script src="../HTML/js/profile.js?v=php-currency"></script>
+<script src="../HTML/js/profile.js?v=rating-flow-1"></script>
 
 </body>
 </html>
