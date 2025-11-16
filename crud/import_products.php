@@ -67,10 +67,10 @@ foreach ($products as $product) {
         continue;
     }
     
-    // Insert product
-    $stmt = $conn->prepare("INSERT INTO products (category_id, name, description, price, stock, image_url) VALUES (?, ?, ?, ?, ?, ?)");
-    $category_id = null; // No category assigned
-    $stmt->bind_param("issdis", $category_id, $product['name'], $product['description'], $product['price'], $product['stock'], $product['image_url']);
+    // Insert product (no category_id column in current products table)
+    $stmt = $conn->prepare("INSERT INTO products (name, description, price, stock, image_url) VALUES (?, ?, ?, ?, ?)");
+    // s = string (name), s = string (description), d = double (price), i = int (stock), s = string (image_url)
+    $stmt->bind_param("ssdis", $product['name'], $product['description'], $product['price'], $product['stock'], $product['image_url']);
     
     if ($stmt->execute()) {
         $added++;
