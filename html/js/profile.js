@@ -859,7 +859,9 @@
         </div>`;
       }
       // Default card (to_ship, completed, cancelled)
-      const isCompleted = o.status === 'completed';
+      const normStatus = normalizeStatus(o.status);
+      const isCompleted = normStatus === 'completed';
+      const isToShip = normStatus === 'to_ship';
       const rated = !!ratedMap[String(o.order_id||o.date)];
       return `
       <div class="order" style="border:1px solid #e9eef2;border-radius:8px;margin-bottom:12px;">
@@ -881,10 +883,12 @@
         <div class="order-f" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-top:1px solid #e9eef2;background:#fff;">
           <div class="order-total">Order Total: <strong>${money(o.total||0)}</strong></div>
           <div class="actions">
-            ${isCompleted && !rated
-              ? `<button class="btn rate-btn" data-key="${o.order_id||o.date}" style="padding:6px 12px;border-radius:6px;border:1px solid #f97316;background:#f97316;color:#fff;">Rate</button>`
-              : `<button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(((o.items||[])[0]||{}).name||'')}'" style="padding:6px 10px;border:1px solid #1a73e8;color:#1a73e8;background:#fff;border-radius:6px;">Buy Again</button>`}
-          </div>
+          ${isToShip
+            ? ''
+            : (isCompleted && !rated
+                ? `<button class="btn rate-btn" data-key="${o.order_id||o.date}" style="padding:6px 12px;border-radius:6px;border:1px solid #f97316;background:#f97316;color:#fff;">Rate</button>`
+                : `<button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(((o.items||[])[0]||{}).name||'')}'" style="padding:6px 10px;border:1px solid #1a73e8;color:#1a73e8;background:#fff;border-radius:6px;">Buy Again</button>`)}
+        </div>
         </div>
       </div>`;
     }).join('');
