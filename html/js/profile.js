@@ -553,13 +553,7 @@
         }catch(err){ showToast('Unable to edit address', true); }
       }
       if (e.target.classList.contains('delete')){
-        if (!confirm('Delete this address?')) return;
-        const fd = new FormData(); fd.append('action','delete'); fd.append('address_id', id);
-        try{
-          const res = await fetch(API, { method:'POST', body: fd });
-          const data = await res.json();
-          if (data?.ok){ showToast('Address deleted'); loadAddresses(); } else { throw new Error(data.error||'Failed'); }
-        }catch(err){ showToast('Delete failed', true); }
+        openDeleteAddressModal(id);
       }
     });
 
@@ -576,6 +570,72 @@
         }catch(err){ showToast('Failed to update default', true); }
       }
     });
+  }
+
+  // ----- Delete address confirmation modal -----
+  function openDeleteAddressModal(addressId) {
+    const existing = document.getElementById('addrDeleteModal');
+    const modal = existing || Object.assign(document.createElement('div'), { id: 'addrDeleteModal', className: 'pc-modal' });
+
+    const panelStyle = 'background:#111827;color:#f9fafb;border-radius:16px;width:360px;max-width:95vw;padding:18px 18px 14px;box-shadow:0 18px 40px rgba(15,23,42,.8);border:1px solid rgba(148,163,184,.4);';
+    const btnBase = 'min-width:90px;display:inline-flex;align-items:center;justify-content:center;padding:8px 14px;border-radius:999px;font-weight:600;font-size:13px;cursor:pointer;';
+
+    modal.innerHTML = `
+      <div class="panel" style="${panelStyle}">
+        <h3 style="margin:0 0 8px;font-size:16px;">Delete this address?</h3>
+        <p style="margin:0 0 14px;font-size:13px;color:#e5e7eb;">
+          This action cannot be undone. You can still add it again later.
+        </p>
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <button type="button" id="addrDelCancel"
+            style="${btnBase}background:#111827;border:1px solid #4b5563;color:#e5e7eb;">
+            Cancel
+          </button>
+          <button type="button" id="addrDelConfirm"
+            style="${btnBase}background:#f97316;border:none;color:#fff;box-shadow:0 6px 20px rgba(249,115,22,.5);">
+            Delete
+          </button>
+        </div>
+      </div>
+    `;
+
+    if (!existing) {
+      document.body.appendChild(modal);
+    }
+    modal.style.display = 'flex';
+
+    // Close when clicking outside the panel
+    modal.onclick = (e)=>{
+      if (e.target === modal) closeDeleteAddressModal();
+    };
+
+    const cancelBtn = document.getElementById('addrDelCancel');
+    const confirmBtn = document.getElementById('addrDelConfirm');
+    if (cancelBtn) cancelBtn.onclick = closeDeleteAddressModal;
+    if (confirmBtn) confirmBtn.onclick = async ()=>{
+      const fd = new FormData();
+      fd.append('action','delete');
+      fd.append('address_id', addressId);
+      try{
+        const res = await fetch('../profile_php/addresses.php', { method:'POST', body: fd });
+        const data = await res.json();
+        if (data?.ok){
+          showToast('Address deleted');
+          closeDeleteAddressModal();
+          loadAddresses();
+        } else {
+          throw new Error(data.error||'Failed');
+        }
+      }catch(err){
+        showToast('Delete failed', true);
+        closeDeleteAddressModal();
+      }
+    };
+  }
+
+  function closeDeleteAddressModal(){
+    const m = document.getElementById('addrDeleteModal');
+    if (m) m.remove();
   }
 
   // Add Address button
