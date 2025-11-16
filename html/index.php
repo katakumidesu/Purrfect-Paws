@@ -334,12 +334,12 @@ session_start();
     <div class="footer-container">
         <div class="footer-col">
             <h4>Information</h4>
-            <ul>
-                <li><a href="about.php">About</a></li>
-                <li><a href="#">Contact Us</a></li>
-                <li><a href="../html/gallery.php">Blogs</a></li>
-            </ul>
-        </div>
+        <ul>
+          <li><a href="../html/about.php">About</a></li>
+          <li><a href="../html/contact.php">Contact Us</a></li>
+          <li><a href="../html/gallery.php">Blogs</a></li>
+        </ul>
+      </div>
 
         <div class="footer-col">
             <h4>Shopping</h4>
