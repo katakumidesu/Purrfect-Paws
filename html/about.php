@@ -75,16 +75,6 @@ session_start();
       use for our own pets.
     </p>
 
-    <h2 style="font-size:20px;margin:18px 0 8px;">Our Mission</h2>
-    <p>
-      Our mission is to make life easier and happier for both cats and cat owners. We aim to offer:
-    </p>
-    <ul style="margin-left:20px;margin-bottom:10px;">
-      <li>Quality products that are safe, comfortable, and fun for cats.</li>
-      <li>Helpful guidance for new and experienced fur-parents.</li>
-      <li>Support for local rescues and responsible pet ownership.</li>
-    </ul>
-
     <h2 style="font-size:20px;margin:18px 0 8px;">Why Shop at Purrfect Paws?</h2>
     <p>
       We carefully select items that balance quality and affordability, so you can spoil your cat
@@ -108,9 +98,9 @@ session_start();
       <div class="footer-col">
         <h4>Information</h4>
         <ul>
-          <li><a href="about.php">About</a></li>
+          <li><a href="../html/about.php">About</a></li>
           <li><a href="#">Contact Us</a></li>
-          <li><a href="gallery.php">Blogs</a></li>
+          <li><a href="../html/gallery.php">Blogs</a></li>
         </ul>
       </div>
 
