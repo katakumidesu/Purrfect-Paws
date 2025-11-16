@@ -196,6 +196,13 @@ body {
   z-index: 3000;
 }
 
+.user-menu .username {
+  color: #333;
+  font-weight: 600;
+  font-size: 16px; /* match index.php font size */
+  font-family: 'Merriweather', serif;
+}
+
 .toast.error {
   background: #e74c3c;
 }
