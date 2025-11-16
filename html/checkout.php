@@ -271,7 +271,7 @@ if (!isset($_SESSION['user_id'])) {
       const box = document.getElementById('addressBox');
       const a = await fetchDefaultAddress();
       if(!a){
-        box.innerHTML = '<div class="da-head"><i class="fa fa-location-dot"></i> Delivery Address</div><div class="da-body">No saved address yet. <a class="da-change" href="../profile_php/profile.php#addresses">Add address</a></div>';
+        box.innerHTML = '<div class="da-head"><i class="fa fa-location-dot"></i> Delivery Address</div><div class="da-body">No saved address yet. <a class="da-change" href="#" onclick="openAddrForm();return false;">Add address</a></div>';
         return;
       }
       box.innerHTML = `
@@ -431,6 +431,23 @@ if (!isset($_SESSION['user_id'])) {
       });
     }
 
+    // Modal shown when trying to place order with no address
+    function openNoAddressModal(){
+      const modal = document.getElementById('addrPicker');
+      modal.style.display = 'flex';
+      modal.innerHTML = `
+        <div class="panel">
+          <h3>Delivery Address Required</h3>
+          <div style="padding:12px 0 16px;font-size:14px;">
+            Please add a delivery address before placing your order.
+          </div>
+          <div class="addr-f">
+            <button class="link-cancel" onclick="closeAddrPicker()">Cancel</button>
+            <button class="btn-accent" onclick="openAddrForm()">Add Address</button>
+          </div>
+        </div>`;
+    }
+
     function updatePaymentPanel(items){
       const sums = calculateTotals(items);
       const totalPay = sums.total; // shipping currently 0
@@ -525,8 +542,15 @@ if (!isset($_SESSION['user_id'])) {
       window.location.href = '../profile_php/profile.php#purchases:to_pay';
     }
 
-    // Place Order button behavior: handle GCash vs COD
+    // Place Order button behavior: ensure address exists, then handle GCash vs COD
     document.getElementById('placeOrder').addEventListener('click', async function(){
+      // Block checkout if user has no saved/selected address
+      const addr = await fetchDefaultAddress();
+      if (!addr){
+        openNoAddressModal();
+        return;
+      }
+
       if (window.PAYMENT_METHOD === 'GCash'){
         const panel = document.getElementById('gcashPanel');
         if (panel){
