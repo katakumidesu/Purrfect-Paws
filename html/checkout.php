@@ -168,7 +168,7 @@ if (!isset($_SESSION['user_id'])) {
                 <div style="width:100%;max-width:320px;text-align:left;">
                   <label for="gcashProof" style="font-size:13px;display:block;margin-bottom:6px;">Upload payment screenshot</label>
                   <input type="file" id="gcashProof" accept="image/*" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #dbeafe;background:#eff6ff;color:#111;">
-                  <small style="display:block;margin-top:4px;font-size:11px;opacity:.9;">Please upload your GCash payment screenshot before proceeding.</small>
+                  <small id="gcashError" style="display:block;margin-top:4px;font-size:11px;opacity:.9;color:#fee2e2;"></small>
                 </div>
                 <button type="button" id="gcashProceed" class="btn-accent" style="margin-top:4px;">
                   Proceed Payment
@@ -568,8 +568,10 @@ if (!isset($_SESSION['user_id'])) {
     if (gcashBtn){
       gcashBtn.addEventListener('click', async ()=>{
         const proof = document.getElementById('gcashProof');
+        const errEl = document.getElementById('gcashError');
+        if (errEl) errEl.textContent = '';
         if (!proof || !proof.files || proof.files.length === 0){
-          alert('Please upload your GCash payment screenshot before proceeding.');
+          if (errEl) errEl.textContent = 'Please upload your GCash payment screenshot before proceeding.';
           return;
         }
         // Upload proof first
@@ -579,13 +581,13 @@ if (!isset($_SESSION['user_id'])) {
           const upResp = await fetch('upload_payment.php', { method: 'POST', body: fd });
           const upData = await upResp.json();
           if (!upResp.ok || !upData.success || !upData.path){
-            alert('Failed to upload payment proof. Please try again.');
+            if (errEl) errEl.textContent = 'Failed to upload payment proof. Please try again.';
             return;
           }
           // Proceed to place order with proof path
           await placeOrderInternal(upData.path);
         } catch (e) {
-          alert('Error uploading payment proof. Please try again.');
+          if (errEl) errEl.textContent = 'Error uploading payment proof. Please try again.';
           return;
         }
       });
