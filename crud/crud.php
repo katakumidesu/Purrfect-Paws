@@ -238,6 +238,98 @@ switch ($action) {
         $stmt->close();
         break;
 
+    case 'rate_product':
+        try {
+            if (!isset($_SESSION['user_id'])) {
+                echo json_encode(['error' => 'Not logged in']);
+                break;
+            }
+            $user_id = intval($_SESSION['user_id']);
+            $product_name = trim($data['product_name'] ?? '');
+            $stars = isset($data['stars']) ? floatval($data['stars']) : 0;
+            $text = trim($data['text'] ?? '');
+
+            if ($product_name === '' || $stars <= 0) {
+                echo json_encode(['error' => 'Invalid rating data']);
+                break;
+            }
+
+            // Clamp stars between 1 and 5 and step 0.5
+            $stars = max(1, min(5, round($stars * 2) / 2));
+
+            // Ensure products table exists and find product_id by name
+            $stmt = $conn->prepare("SELECT product_id FROM products WHERE name = ? LIMIT 1");
+            if (!$stmt) {
+                echo json_encode(['error' => 'Failed to prepare product lookup']);
+                break;
+            }
+            $stmt->bind_param("s", $product_name);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $row = $res ? $res->fetch_assoc() : null;
+            $stmt->close();
+            if (!$row) {
+                echo json_encode(['error' => 'Product not found for rating']);
+                break;
+            }
+            $product_id = intval($row['product_id']);
+
+            // Create ratings table if not exists
+            $conn->query("CREATE TABLE IF NOT EXISTS product_ratings (
+                rating_id INT AUTO_INCREMENT PRIMARY KEY,
+                product_id INT NOT NULL,
+                user_id INT NOT NULL,
+                stars DECIMAL(3,1) NOT NULL,
+                review_text TEXT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_product_user (product_id, user_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            // Insert rating row (allow multiple ratings per user; latest will be used in average)
+            $stmt = $conn->prepare("INSERT INTO product_ratings (product_id, user_id, stars, review_text) VALUES (?,?,?,?)");
+            if ($stmt) {
+                $stmt->bind_param("iids", $product_id, $user_id, $stars, $text);
+                $stmt->execute();
+                $stmt->close();
+            }
+
+            // Recompute average rating for this product
+            $avgRes = $conn->prepare("SELECT AVG(stars) AS avg_rating FROM product_ratings WHERE product_id=?");
+            $avgRating = null;
+            if ($avgRes) {
+                $avgRes->bind_param("i", $product_id);
+                $avgRes->execute();
+                $r = $avgRes->get_result();
+                if ($r) {
+                    $rowAvg = $r->fetch_assoc();
+                    if ($rowAvg && $rowAvg['avg_rating'] !== null) {
+                        $avgRating = floatval($rowAvg['avg_rating']);
+                        $avgRating = max(0, min(5, round($avgRating * 2) / 2));
+                    }
+                }
+                $avgRes->close();
+            }
+
+            // Update products.rating column if it exists
+            if ($avgRating !== null) {
+                $col = $conn->query("SHOW COLUMNS FROM products LIKE 'rating'");
+                if ($col && $col->num_rows > 0) {
+                    $upd = $conn->prepare("UPDATE products SET rating=? WHERE product_id=?");
+                    if ($upd) {
+                        $upd->bind_param("di", $avgRating, $product_id);
+                        $upd->execute();
+                        $upd->close();
+                    }
+                }
+                if ($col) { $col->close(); }
+            }
+
+            echo json_encode(['success' => true, 'rating' => $avgRating]);
+        } catch (Exception $e) {
+            echo json_encode(['error' => 'Error saving rating: ' . $e->getMessage()]);
+        }
+        break;
+
     // ===== USERS =====
     case 'get_users':
         try {

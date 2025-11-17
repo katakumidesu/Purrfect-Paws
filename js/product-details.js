@@ -29,22 +29,10 @@ async function loadProducts() {
 }
 
 function computeRating(p) {
-    // Compute average rating from localStorage reviews (pp_product_reviews)
-    try {
-        const raw = window.localStorage.getItem('pp_product_reviews');
-        const arr = raw ? JSON.parse(raw) : [];
-        const key = (p.name || '').toLowerCase().trim();
-        if (Array.isArray(arr)) {
-            const reviews = arr.filter(r => r && (r.key === key || (r.product || '').toLowerCase().trim() === key));
-            if (reviews.length) {
-                const sum = reviews.reduce((acc, r) => acc + Number(r.stars || 0), 0);
-                return sum / reviews.length;
-            }
-        }
-    } catch (e) {
-        // ignore and fall back
-    }
-    return 5;
+    // Prefer backend rating (global, from database). Fall back to 5 if missing.
+    const r = p && p.rating != null ? Number(p.rating) : 5;
+    if (!isFinite(r) || r <= 0) return 5;
+    return Math.max(0, Math.min(5, r));
 }
 
 // ⭐ Generate star icons
