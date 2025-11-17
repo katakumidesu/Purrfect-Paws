@@ -44,10 +44,20 @@ try { document.querySelector('.menu li.active')?.click(); } catch (e) { loadDash
 // ---------------- API HELPER FUNCTIONS ----------------
 async function fetchAPI(action, method = 'GET', data = null) {
     try {
+        // Helper to safely parse JSON and surface raw body if it is not valid JSON
+        const parseSafeJson = (text) => {
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                console.error('API returned non-JSON response:', text);
+                return { error: 'Server returned invalid JSON', raw: text };
+            }
+        };
+
         if (method === 'GET' && action) {
             const response = await fetch(`${API_URL}?action=${action}&_=${Date.now()}`);
-            const result = await response.json();
-            return result;
+            const text = await response.text();
+            return parseSafeJson(text);
         }
         
         // POST request
@@ -60,8 +70,8 @@ async function fetchAPI(action, method = 'GET', data = null) {
         };
         
         const response = await fetch(API_URL, options);
-        const result = await response.json();
-        return result;
+        const text = await response.text();
+        return parseSafeJson(text);
     } catch (error) {
         console.error('API Error:', error);
         return { error: error.message };
@@ -425,7 +435,11 @@ function openAddProductModal() {
 function openEditProductModal(productId) {
     const product = products.find(p => p.product_id == productId);
     if (!product) {
-        alert('Product not found');
+        Swal.fire({
+            icon: 'error',
+            title: 'Not found',
+            text: 'Product not found.'
+        });
         return;
     }
     
@@ -468,7 +482,11 @@ async function saveProduct(event) {
         const result = await fetchAPI(null, 'POST', formData);
         
         if (result.error) {
-            alert('Error: ' + result.error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: result.error
+            });
             return;
         }
         
@@ -478,41 +496,80 @@ async function saveProduct(event) {
             closeProductModal();
             loadInventory(); // Reload inventory
             loadDashboard(); // Update dashboard stats
+            Swal.fire({
+                icon: 'success',
+                title: 'Saved!',
+                text: 'Product has been saved successfully.'
+            });
         } else {
-            alert('Failed to save product');
+            Swal.fire({
+                icon: 'error',
+                title: 'Failed',
+                text: 'Failed to save product.'
+            });
         }
     } catch (error) {
-        alert('Error saving product: ' + error.message);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error saving product: ' + error.message
+        });
     }
 }
 
 async function deleteProduct(productId) {
-    if (!confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
-        return;
-    }
-    
-    try {
-        const result = await fetchAPI(null, 'POST', {
-            action: 'delete_product',
-            product_id: productId
-        });
-        
-        if (result.error) {
-            alert('Error: ' + result.error);
+    Swal.fire({
+        title: 'Delete product?',
+        text: 'Are you sure you want to delete this product? This action cannot be undone.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, delete it',
+        cancelButtonText: 'Cancel'
+    }).then(async (resultSwal) => {
+        if (!resultSwal.isConfirmed) {
             return;
         }
-        
-        if (result.success) {
-            // Notify other tabs (e.g., product listing) to refresh
-            try { localStorage.setItem('pp_products_updated', Date.now().toString()); } catch (e) {}
-            loadInventory(); // Reload inventory
-            loadDashboard(); // Update dashboard stats
-        } else {
-            alert('Failed to delete product');
+
+        try {
+            const result = await fetchAPI(null, 'POST', {
+                action: 'delete_product',
+                product_id: productId
+            });
+            
+            if (result.error) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: result.error
+                });
+                return;
+            }
+            
+            if (result.success) {
+                // Notify other tabs (e.g., product listing) to refresh
+                try { localStorage.setItem('pp_products_updated', Date.now().toString()); } catch (e) {}
+                loadInventory(); // Reload inventory
+                loadDashboard(); // Update dashboard stats
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Deleted!',
+                    text: 'Product has been deleted.'
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed',
+                    text: 'Failed to delete product.'
+                });
+            }
+        } catch (error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Error deleting product: ' + error.message
+            });
         }
-    } catch (error) {
-        alert('Error deleting product: ' + error.message);
-    }
+    });
 }
 
 function escapeHtml(text) {
@@ -708,13 +765,21 @@ function openAddUserModal() {
 function openEditUserModal(userId) {
     const user = allUsers.find(u => u.user_id == userId);
     if (!user) {
-        alert('User not found');
+        Swal.fire({
+            icon: 'error',
+            title: 'Not found',
+            text: 'User not found.'
+        });
         return;
     }
     
     // Prevent editing admin account
     if (user.role === 'admin') {
-        alert('Cannot edit admin account through this interface. Admin account is hardcoded.');
+        Swal.fire({
+            icon: 'info',
+            title: 'Admin account',
+            text: 'Cannot edit admin account through this interface. Admin account is hardcoded.'
+        });
         return;
     }
     
@@ -747,7 +812,11 @@ async function saveUser(event) {
     
     // Validate password for new users
     if (!isEdit && !password) {
-        alert('Password is required for new users');
+        Swal.fire({
+            icon: 'warning',
+            title: 'Missing password',
+            text: 'Password is required for new users.'
+        });
         return;
     }
     
@@ -770,45 +839,88 @@ async function saveUser(event) {
         const result = await fetchAPI(null, 'POST', formData);
         
         if (result.error) {
-            alert('Error: ' + result.error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: result.error
+            });
             return;
         }
         
         if (result.success) {
             closeUserModal();
             loadUsers(); // Reload users
+            Swal.fire({
+                icon: 'success',
+                title: 'Saved!',
+                text: 'User has been saved successfully.'
+            });
         } else {
-            alert('Failed to save user');
+            Swal.fire({
+                icon: 'error',
+                title: 'Failed',
+                text: 'Failed to save user.'
+            });
         }
     } catch (error) {
-        alert('Error saving user: ' + error.message);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error saving user: ' + error.message
+        });
     }
 }
 
 async function deleteUser(userId) {
-    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-        return;
-    }
-    
-    try {
-        const result = await fetchAPI(null, 'POST', {
-            action: 'delete_user',
-            user_id: userId
-        });
-        
-        if (result.error) {
-            alert('Error: ' + result.error);
+    Swal.fire({
+        title: 'Delete user?',
+        text: 'Are you sure you want to delete this user? This action cannot be undone.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, delete',
+        cancelButtonText: 'Cancel'
+    }).then(async (resultSwal) => {
+        if (!resultSwal.isConfirmed) {
             return;
         }
-        
-        if (result.success) {
-            loadUsers(); // Reload users
-        } else {
-            alert('Failed to delete user');
+
+        try {
+            const result = await fetchAPI(null, 'POST', {
+                action: 'delete_user',
+                user_id: userId
+            });
+            
+            if (result.error) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: result.error
+                });
+                return;
+            }
+            
+            if (result.success) {
+                loadUsers(); // Reload users
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Deleted!',
+                    text: 'User has been deleted.'
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed',
+                    text: 'Failed to delete user.'
+                });
+            }
+        } catch (error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Error deleting user: ' + error.message
+            });
         }
-    } catch (error) {
-        alert('Error deleting user: ' + error.message);
-    }
+    });
 }
 
 // ---------------- ORDERS ----------------
@@ -969,7 +1081,11 @@ function viewOrderItems(orderId){
         const modal = document.getElementById('orderItemsModal');
         if (body && modal){ body.innerHTML = itemsHtml + paymentHtml + addressHtml; modal.classList.remove('hidden'); }
     } catch (e) {
-        alert('Unable to load order details.');
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Unable to load order details.'
+        });
     }
 }
 // Expose functions for inline onclick handlers

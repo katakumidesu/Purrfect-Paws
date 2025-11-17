@@ -143,9 +143,21 @@ switch ($action) {
         $stock = $data['stock'] ?? 0;
         $image_url = $data['image_url'] ?? '';
         $rating = isset($data['rating']) && $data['rating'] !== '' ? floatval($data['rating']) : null;
-        
-        $stmt = $conn->prepare("INSERT INTO products (category_id, name, description, price, stock, image_url) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("issdis", $category_id, $name, $description, $price, $stock, $image_url);
+
+        // Detect if category_id column exists on products table
+        $colCheck = $conn->query("SHOW COLUMNS FROM products LIKE 'category_id'");
+        $hasCategoryIdCol = $colCheck && $colCheck->num_rows > 0;
+        if ($colCheck) { $colCheck->close(); }
+
+        if ($hasCategoryIdCol) {
+            // Original path when category_id is present
+            $stmt = $conn->prepare("INSERT INTO products (category_id, name, description, price, stock, image_url) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("issdis", $category_id, $name, $description, $price, $stock, $image_url);
+        } else {
+            // Fallback when category_id column does not exist
+            $stmt = $conn->prepare("INSERT INTO products (name, description, price, stock, image_url) VALUES (?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssdis", $name, $description, $price, $stock, $image_url);
+        }
         if ($stmt->execute()) {
             $newId = $stmt->insert_id;
             $stmt->close();
@@ -178,8 +190,20 @@ switch ($action) {
         $image_url = $data['image_url'] ?? '';
         $rating = isset($data['rating']) && $data['rating'] !== '' ? floatval($data['rating']) : null;
         
-        $stmt = $conn->prepare("UPDATE products SET category_id=?, name=?, description=?, price=?, stock=?, image_url=? WHERE product_id=?");
-        $stmt->bind_param("issdisi", $category_id, $name, $description, $price, $stock, $image_url, $product_id);
+        // Detect if category_id column exists on products table
+        $colCheck = $conn->query("SHOW COLUMNS FROM products LIKE 'category_id'");
+        $hasCategoryIdCol = $colCheck && $colCheck->num_rows > 0;
+        if ($colCheck) { $colCheck->close(); }
+
+        if ($hasCategoryIdCol) {
+            // Original path when category_id is present
+            $stmt = $conn->prepare("UPDATE products SET category_id=?, name=?, description=?, price=?, stock=?, image_url=? WHERE product_id=?");
+            $stmt->bind_param("issdisi", $category_id, $name, $description, $price, $stock, $image_url, $product_id);
+        } else {
+            // Fallback when category_id column does not exist
+            $stmt = $conn->prepare("UPDATE products SET name=?, description=?, price=?, stock=?, image_url=? WHERE product_id=?");
+            $stmt->bind_param("ssdisi", $name, $description, $price, $stock, $image_url, $product_id);
+        }
         $ok = $stmt->execute();
         $err = $stmt->error;
         $stmt->close();
