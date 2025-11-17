@@ -465,6 +465,27 @@ function openRateModal(orderKey){
     const map = getRatedMap();
     map[String(orderKey)] = { rated:true, stars:current, text: (document.getElementById('prText').value||'').trim() };
     saveRatedMap(map);
+
+    // Also persist per-product reviews so listings can reflect average rating
+    try {
+      const raw = window.localStorage.getItem('pp_product_reviews') || '[]';
+      let reviews = [];
+      try { reviews = JSON.parse(raw); if (!Array.isArray(reviews)) reviews = []; } catch (_) { reviews = []; }
+      const productName = String(firstItem.name || '').trim();
+      if (productName) {
+        const key = productName.toLowerCase();
+        reviews.push({
+          key,
+          product: productName,
+          stars: current,
+          text: (document.getElementById('prText').value||'').trim(),
+          user: (window.PURR_USER_ID || 'User'),
+          ts: Date.now()
+        });
+        window.localStorage.setItem('pp_product_reviews', JSON.stringify(reviews));
+      }
+    } catch (_) {}
+
     closeRateModal();
     const currentTab = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
     renderPurchases(currentTab);

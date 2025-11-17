@@ -369,6 +369,53 @@ session_start();
 </footer>
 <script>
   window.PURR_USER_ID = <?= json_encode((string)($_SESSION['user_id'] ?? 'anon')) ?>;
+
+  // Apply saved ratings to static homepage product stars
+  document.addEventListener('DOMContentLoaded', function () {
+    let reviews = [];
+    try {
+      const raw = window.localStorage.getItem('pp_product_reviews');
+      reviews = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(reviews)) reviews = [];
+    } catch (e) {
+      reviews = [];
+    }
+    if (!reviews.length) return;
+
+    const avgByProduct = {};
+    reviews.forEach(r => {
+      const name = (r.product || '').trim();
+      if (!name) return;
+      const key = name.toLowerCase();
+      if (!avgByProduct[key]) avgByProduct[key] = { sum: 0, count: 0 };
+      avgByProduct[key].sum += Number(r.stars || 0);
+      avgByProduct[key].count += 1;
+    });
+
+    const cards = document.querySelectorAll('.shop-container > div');
+    cards.forEach(card => {
+      const titleEl = card.querySelector('h4');
+      const ratingEl = card.querySelector('.rating');
+      if (!titleEl || !ratingEl) return;
+      const name = titleEl.textContent.trim();
+      const key = name.toLowerCase();
+      const info = avgByProduct[key];
+      if (!info || !info.count) return;
+      const avg = info.sum / info.count;
+      const stars = ratingEl.querySelectorAll('i');
+      stars.forEach((star, idx) => {
+        const i = idx + 1;
+        star.classList.remove('fa-solid', 'fa-regular', 'fa-star', 'fa-star-half-stroke');
+        if (avg >= i) {
+          star.classList.add('fa-solid', 'fa-star');
+        } else if (avg >= i - 0.5) {
+          star.classList.add('fa-solid', 'fa-star-half-stroke');
+        } else {
+          star.classList.add('fa-regular', 'fa-star');
+        }
+      });
+    });
+  });
 </script>
 <script src="../js/cart.js?v=user-ns"></script>
 <script src="../js/product-details.js"></script>

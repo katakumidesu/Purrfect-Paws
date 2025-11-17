@@ -29,7 +29,21 @@ async function loadProducts() {
 }
 
 function computeRating(p) {
-    // Force all products to display as 5-star rating
+    // Compute average rating from localStorage reviews (pp_product_reviews)
+    try {
+        const raw = window.localStorage.getItem('pp_product_reviews');
+        const arr = raw ? JSON.parse(raw) : [];
+        const key = (p.name || '').toLowerCase().trim();
+        if (Array.isArray(arr)) {
+            const reviews = arr.filter(r => r && (r.key === key || (r.product || '').toLowerCase().trim() === key));
+            if (reviews.length) {
+                const sum = reviews.reduce((acc, r) => acc + Number(r.stars || 0), 0);
+                return sum / reviews.length;
+            }
+        }
+    } catch (e) {
+        // ignore and fall back
+    }
     return 5;
 }
 
