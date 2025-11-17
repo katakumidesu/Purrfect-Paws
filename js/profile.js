@@ -439,7 +439,7 @@ function openRateModal(orderKey){
           <textarea id="prText" rows="4" style="width:100%;border-radius:8px;border:1px solid #d1d5db;padding:8px;font-size:13px;resize:vertical;" placeholder="Share more thoughts on the product to help other buyers."></textarea>
         </div>
         <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;">
-          <button type="button" id="prCancel" style="padding:7px 14px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;font-size:13px;cursor:pointer;">CANCEL</button>
+          <button type="button" id="prCancel" style="padding:7px 14px;border-radius:8px;border:1px solid #000000 !important;background:#000000 !important;color:#ffffff !important;font-size:13px;cursor:pointer;">CANCEL</button>
           <button type="submit" id="prSubmit" style="padding:7px 16px;border-radius:8px;border:none;background:#f97316;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">SUBMIT</button>
         </div>
       </form>
