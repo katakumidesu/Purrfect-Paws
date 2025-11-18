@@ -11,8 +11,8 @@ session_start();
     <meta name="description" content="Purrfect Paws - Cat gallery.">
     <title>Gallery - Purrfect Paws</title>
     <link rel="stylesheet" href="css/kumi.css">
-    <script src="https://kit.fontawesome.com/df5d6157cf.js" crossorigin="anonymous"></script>
     <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="css/gallery.css">
        
 </head>
