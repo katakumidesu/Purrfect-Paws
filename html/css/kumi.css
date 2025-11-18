@@ -736,6 +736,8 @@ th:last-child{
   padding: 10px;
   color: #333;
   text-decoration: none;
+  font-family: 'Merriweather', serif;
+  font-size: 1.2rem;
 }
 
 .user-menu .dropdown a:hover {
