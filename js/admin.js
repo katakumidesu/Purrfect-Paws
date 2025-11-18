@@ -1070,6 +1070,53 @@ async function deleteUser(userId) {
 
 // ---------------- ORDERS ----------------
 let ordersCache = [];
+
+function normalizeOrderDate(o){
+    if (!o) return null;
+    const fields = ['order_date','date','created_at','updated_at','ordered_at','order_time','placed_at','timestamp','createdAt','updatedAt'];
+    let raw = null;
+    for (let i=0;i<fields.length;i++){
+        if (o[fields[i]]) { raw = o[fields[i]]; break; }
+    }
+    if (!raw) return null;
+    let s = String(raw).trim();
+    let d = new Date(s);
+    if (isNaN(d)) {
+        // Try MySQL DATETIME: "YYYY-MM-DD HH:MM:SS"
+        d = new Date(s.replace(' ', 'T'));
+    }
+    if (isNaN(d)) {
+        // Try DD/MM/YYYY or MM/DD/YYYY by swapping if needed
+        const m = s.match(/^(\d{1,2})[\/](\d{1,2})[\/](\d{2,4})(.*)$/);
+        if (m){
+            const p1 = m[1], p2 = m[2], y = m[3].length===2 ? ('20'+m[3]) : m[3];
+            // Assume original is DD/MM/YYYY; convert to YYYY-MM-DD
+            s = `${y}-${p2.padStart(2,'0')}-${p1.padStart(2,'0')}${m[4]||''}`;
+            d = new Date(s.replace(' ', 'T'));
+        }
+    }
+    return isNaN(d) ? null : d;
+}
+
+function filterOrdersByPeriod(list, period){
+    if (!Array.isArray(list) || !list.length || !period || period === 'all') return list;
+    const now = Date.now();
+    const oneDayMs = 24*60*60*1000;
+    const ranges = {
+        day:   now - oneDayMs,          // last 24 hours
+        week:  now - 7*oneDayMs,        // last 7 days
+        month: now - 30*oneDayMs,       // last 30 days
+        year:  now - 365*oneDayMs       // last 365 days
+    };
+    const minTs = ranges[period];
+    if (minTs == null) return list;
+    return list.filter(o => {
+        const d = normalizeOrderDate(o);
+        if (!d) return false;
+        return d.getTime() >= minTs;
+    });
+}
+
 function renderOrderRow(o){
     const st = (o.status && String(o.status).trim()) ? String(o.status) : 'to_pay';
     const badgeClass = (st === 'completed' || st === 'to_receive')
@@ -1100,29 +1147,53 @@ async function loadOrders(){
         mainContent.innerHTML = `<h2>Orders</h2><p class="error">${orders.error}</p>`; return;
     }
     ordersCache = Array.isArray(orders) ? orders : [];
-    const rows = (ordersCache.length>0) ? ordersCache.map(renderOrderRow).join('') : '<tr><td colspan="6" class="text-center">No orders found.</td></tr>';
 
-    mainContent.innerHTML = `
-        <div class="inventory-header">
-            <h2>Orders</h2>
-        </div>
-        <div class="table-container">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Customer</th>
-                        <th style="text-align:center; width: 120px;">Details</th>
-                        <th>Total</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-            </table>
-        </div>
-        <div id="orderItemsModal" class="modal hidden"><div class="modal-content"><span class="closeBtn" onclick="document.getElementById('orderItemsModal').classList.add('hidden')">&times;</span><h2>Order Items</h2><div id="orderItemsBody" style="margin-top:10px"></div></div></div>
-    `;
+    const renderTable = (period) => {
+        let filtered = filterOrdersByPeriod(ordersCache, period);
+        // If there are orders overall but none in this range, fall back to all orders
+        if ((!Array.isArray(filtered) || filtered.length === 0) && Array.isArray(ordersCache) && ordersCache.length > 0) {
+            filtered = ordersCache;
+        }
+        const rows = (filtered.length>0) ? filtered.map(renderOrderRow).join('') : '<tr><td colspan="6" class="text-center">No orders found.</td></tr>';
+        const selVal = period || 'all';
+        mainContent.innerHTML = `
+            <div class="inventory-header">
+                <h2>Orders</h2>
+                <div class="inventory-actions">
+                    <label style="font-size:14px;color:#9ca3af;margin-right:6px;">Filter by:</label>
+                    <select id="orderTimeFilter" class="admin-select">
+                        <option value="all" ${selVal==='all'?'selected':''}>All time</option>
+                        <option value="day" ${selVal==='day'?'selected':''}>Last 24 hours</option>
+                        <option value="week" ${selVal==='week'?'selected':''}>Last 7 days</option>
+                        <option value="month" ${selVal==='month'?'selected':''}>Last 30 days</option>
+                        <option value="year" ${selVal==='year'?'selected':''}>Last 365 days</option>
+                    </select>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Customer</th>
+                            <th style="text-align:center; width: 120px;">Details</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+            <div id="orderItemsModal" class="modal hidden"><div class="modal-content"><span class="closeBtn" onclick="document.getElementById('orderItemsModal').classList.add('hidden')">&times;</span><h2>Order Items</h2><div id="orderItemsBody" style="margin-top:10px"></div></div></div>
+        `;
+        const sel = document.getElementById('orderTimeFilter');
+        if (sel){
+            sel.onchange = () => renderTable(sel.value || 'all');
+        }
+    };
+
+    renderTable('all');
 }
 
 async function changeOrderStatus(orderId, status){
