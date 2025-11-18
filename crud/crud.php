@@ -144,24 +144,20 @@ switch ($action) {
         $image_url = $data['image_url'] ?? '';
         $rating = isset($data['rating']) && $data['rating'] !== '' ? floatval($data['rating']) : null;
 
-        // Detect if category_id column exists on products table
         $colCheck = $conn->query("SHOW COLUMNS FROM products LIKE 'category_id'");
         $hasCategoryIdCol = $colCheck && $colCheck->num_rows > 0;
         if ($colCheck) { $colCheck->close(); }
 
         if ($hasCategoryIdCol) {
-            // Original path when category_id is present
             $stmt = $conn->prepare("INSERT INTO products (category_id, name, description, price, stock, image_url) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt->bind_param("issdis", $category_id, $name, $description, $price, $stock, $image_url);
         } else {
-            // Fallback when category_id column does not exist
             $stmt = $conn->prepare("INSERT INTO products (name, description, price, stock, image_url) VALUES (?, ?, ?, ?, ?)");
             $stmt->bind_param("ssdis", $name, $description, $price, $stock, $image_url);
         }
         if ($stmt->execute()) {
             $newId = $stmt->insert_id;
             $stmt->close();
-            // If rating provided and column exists, update it separately to be schema-safe
             if ($rating !== null) {
                 $col = $conn->query("SHOW COLUMNS FROM products LIKE 'rating'");
                 if ($col && $col->num_rows > 0) {
@@ -172,6 +168,33 @@ switch ($action) {
                     $upd->close();
                 }
             }
+
+            $conn->query("CREATE TABLE IF NOT EXISTS stock_logs (
+                log_id INT AUTO_INCREMENT PRIMARY KEY,
+                product_id INT NOT NULL,
+                change_type ENUM('in','out') NOT NULL,
+                quantity INT NOT NULL,
+                from_stock INT NOT NULL,
+                to_stock INT NOT NULL,
+                reason VARCHAR(255) DEFAULT '',
+                order_id INT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $qty = intval($stock);
+            if ($qty > 0) {
+                $logStmt = $conn->prepare("INSERT INTO stock_logs (product_id, change_type, quantity, from_stock, to_stock, reason) VALUES (?,?,?,?,?,?)");
+                if ($logStmt) {
+                    $fromStock = 0;
+                    $toStock = $qty;
+                    $reason = 'initial_stock';
+                    $changeType = 'in';
+                    $logStmt->bind_param("isiiis", $newId, $changeType, $qty, $fromStock, $toStock, $reason);
+                    $logStmt->execute();
+                    $logStmt->close();
+                }
+            }
+
             echo json_encode(['success'=>true,'product_id'=>$newId]);
         } else {
             $err = $stmt->error;
@@ -189,27 +212,38 @@ switch ($action) {
         $stock = $data['stock'] ?? 0;
         $image_url = $data['image_url'] ?? '';
         $rating = isset($data['rating']) && $data['rating'] !== '' ? floatval($data['rating']) : null;
-        
-        // Detect if category_id column exists on products table
+
+        $currentStock = null;
+        $checkStockStmt = $conn->prepare("SELECT stock FROM products WHERE product_id = ? LIMIT 1");
+        if ($checkStockStmt) {
+            $checkStockStmt->bind_param("i", $product_id);
+            $checkStockStmt->execute();
+            $resCur = $checkStockStmt->get_result();
+            if ($resCur) {
+                $rowCur = $resCur->fetch_assoc();
+                if ($rowCur && isset($rowCur['stock'])) {
+                    $currentStock = intval($rowCur['stock']);
+                }
+            }
+            $checkStockStmt->close();
+        }
+
         $colCheck = $conn->query("SHOW COLUMNS FROM products LIKE 'category_id'");
         $hasCategoryIdCol = $colCheck && $colCheck->num_rows > 0;
         if ($colCheck) { $colCheck->close(); }
 
         if ($hasCategoryIdCol) {
-            // Original path when category_id is present
             $stmt = $conn->prepare("UPDATE products SET category_id=?, name=?, description=?, price=?, stock=?, image_url=? WHERE product_id=?");
             $stmt->bind_param("issdisi", $category_id, $name, $description, $price, $stock, $image_url, $product_id);
         } else {
-            // Fallback when category_id column does not exist
             $stmt = $conn->prepare("UPDATE products SET name=?, description=?, price=?, stock=?, image_url=? WHERE product_id=?");
             $stmt->bind_param("ssdisi", $name, $description, $price, $stock, $image_url, $product_id);
         }
         $ok = $stmt->execute();
         $err = $stmt->error;
         $stmt->close();
-        
+
         if ($ok) {
-            // Update rating if provided and column exists
             if ($rating !== null) {
                 $col = $conn->query("SHOW COLUMNS FROM products LIKE 'rating'");
                 if ($col && $col->num_rows > 0) {
@@ -220,6 +254,39 @@ switch ($action) {
                     $upd->close();
                 }
             }
+
+            if ($currentStock !== null) {
+                $newStock = intval($stock);
+                if ($newStock !== $currentStock) {
+                    $conn->query("CREATE TABLE IF NOT EXISTS stock_logs (
+                        log_id INT AUTO_INCREMENT PRIMARY KEY,
+                        product_id INT NOT NULL,
+                        change_type ENUM('in','out') NOT NULL,
+                        quantity INT NOT NULL,
+                        from_stock INT NOT NULL,
+                        to_stock INT NOT NULL,
+                        reason VARCHAR(255) DEFAULT '',
+                        order_id INT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+                    $diff = $newStock - $currentStock;
+                    $qty = abs($diff);
+                    if ($qty > 0) {
+                        $changeType = $diff > 0 ? 'in' : 'out';
+                        $reason = 'manual_adjustment';
+                        $logStmt = $conn->prepare("INSERT INTO stock_logs (product_id, change_type, quantity, from_stock, to_stock, reason) VALUES (?,?,?,?,?,?)");
+                        if ($logStmt) {
+                            $fromStock = $currentStock;
+                            $toStock = $newStock;
+                            $logStmt->bind_param("isiiis", $product_id, $changeType, $qty, $fromStock, $toStock, $reason);
+                            $logStmt->execute();
+                            $logStmt->close();
+                        }
+                    }
+                }
+            }
+
             echo json_encode(['success'=>true]);
         } else {
             echo json_encode(['error' => 'Failed to update product: ' . $err]);
@@ -327,6 +394,50 @@ switch ($action) {
             echo json_encode(['success' => true, 'rating' => $avgRating]);
         } catch (Exception $e) {
             echo json_encode(['error' => 'Error saving rating: ' . $e->getMessage()]);
+        }
+        break;
+
+    // ===== STOCK LOGS =====
+    case 'get_stock_logs':
+        try {
+            $conn->query("CREATE TABLE IF NOT EXISTS stock_logs (
+                log_id INT AUTO_INCREMENT PRIMARY KEY,
+                product_id INT NOT NULL,
+                change_type ENUM('in','out') NOT NULL,
+                quantity INT NOT NULL,
+                from_stock INT NOT NULL,
+                to_stock INT NOT NULL,
+                reason VARCHAR(255) DEFAULT '',
+                order_id INT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $where = [];
+            if (isset($_GET['product_id']) && $_GET['product_id'] !== '') {
+                $pid = intval($_GET['product_id']);
+                $where[] = 'sl.product_id = ' . $pid;
+            }
+            $whereSql = count($where) ? ('WHERE ' . implode(' AND ', $where)) : '';
+
+            $sql = "SELECT sl.log_id, sl.product_id, sl.change_type, sl.quantity, sl.from_stock, sl.to_stock, sl.reason, sl.order_id, sl.created_at,
+                           COALESCE(p.name, '') AS product_name
+                    FROM stock_logs sl
+                    LEFT JOIN products p ON p.product_id = sl.product_id
+                    $whereSql
+                    ORDER BY sl.created_at DESC, sl.log_id DESC
+                    LIMIT 500";
+            $res = $conn->query($sql);
+            if (!$res) {
+                echo json_encode([]);
+                break;
+            }
+            $logs = [];
+            while ($row = $res->fetch_assoc()) {
+                $logs[] = $row;
+            }
+            echo json_encode($logs);
+        } catch (Exception $e) {
+            echo json_encode([]);
         }
         break;
 
@@ -648,7 +759,18 @@ switch ($action) {
             // Deduct stock atomically if products table exists
             $tblExists = $conn->query("SHOW TABLES LIKE 'products'");
             if ($tblExists && $tblExists->num_rows > 0 && is_array($items) && count($items)>0) {
-                // Detect columns
+                $conn->query("CREATE TABLE IF NOT EXISTS stock_logs (
+                    log_id INT AUTO_INCREMENT PRIMARY KEY,
+                    product_id INT NOT NULL,
+                    change_type ENUM('in','out') NOT NULL,
+                    quantity INT NOT NULL,
+                    from_stock INT NOT NULL,
+                    to_stock INT NOT NULL,
+                    reason VARCHAR(255) DEFAULT '',
+                    order_id INT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
                 $cols = $conn->query("SHOW COLUMNS FROM products");
                 $nameCol = 'name'; $stockCol = 'stock'; $idCol = 'id';
                 if ($cols){
@@ -677,7 +799,6 @@ switch ($action) {
                 $insufficient = [];
                 foreach ($need as $n=>$q){
                     if ($stockCol !== 'stock') { continue; } // stock not present
-                    // Lock row
                     $sel = $conn->prepare("SELECT $idCol, $stockCol FROM products WHERE $nameCol=? LIMIT 1 FOR UPDATE");
                     if (!$sel){ continue; }
                     $sel->bind_param("s", $n);
@@ -690,7 +811,28 @@ switch ($action) {
                     if ($stock < $q){ $insufficient[] = ['product'=>$n,'needed'=>$q,'stock'=>$stock]; }
                     else {
                         $upd = $conn->prepare("UPDATE products SET $stockCol = $stockCol - ? WHERE $idCol = ?");
-                        if ($upd){ $upd->bind_param("ii", $q, $pid); $okU = $upd->execute(); $upd->close(); if (!$okU){ $insufficient[] = ['product'=>$n,'needed'=>$q,'stock'=>$stock,'error'=>'update_failed']; } }
+                        if ($upd){
+                            $upd->bind_param("ii", $q, $pid);
+                            $okU = $upd->execute();
+                            $upd->close();
+                            if (!$okU){
+                                $insufficient[] = ['product'=>$n,'needed'=>$q,'stock'=>$stock,'error'=>'update_failed'];
+                            } else {
+                                $fromStock = $stock;
+                                $toStock = $stock - $q;
+                                $qty = $q;
+                                if ($qty > 0) {
+                                    $changeType = 'out';
+                                    $reason = 'order';
+                                    $logStmt = $conn->prepare("INSERT INTO stock_logs (product_id, change_type, quantity, from_stock, to_stock, reason, order_id) VALUES (?,?,?,?,?,?,?)");
+                                    if ($logStmt) {
+                                        $logStmt->bind_param("isiiisi", $pid, $changeType, $qty, $fromStock, $toStock, $reason, $order_id);
+                                        $logStmt->execute();
+                                        $logStmt->close();
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 if (count($insufficient)>0){ $conn->rollback(); echo json_encode(['error'=>'insufficient_stock','details'=>$insufficient]); break; }

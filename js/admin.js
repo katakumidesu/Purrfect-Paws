@@ -4,6 +4,85 @@ if (toggleSidebar) {
 toggleSidebar.addEventListener("click", () => sidebar.classList.toggle("collapsed"));
 }
 
+async function loadStockLogsPage(productId = null) {
+    try {
+        let query = 'get_stock_logs';
+        if (productId) {
+            query += `&product_id=${encodeURIComponent(productId)}`;
+        }
+        const raw = await fetch(`${API_URL}?action=${query}&_=${Date.now()}`);
+        const text = await raw.text();
+        let logs;
+        try {
+            logs = JSON.parse(text);
+        } catch (e) {
+            logs = { error: 'Server returned invalid JSON' };
+        }
+
+        if (logs.error) {
+            mainContent.innerHTML = `<h2>Stock Logs</h2><p class="error">Error: ${logs.error}</p>`;
+            return;
+        }
+
+        if (!Array.isArray(logs)) logs = [];
+
+        const titleSuffix = productId ? ` for Product #${productId}` : '';
+
+        const html = `
+            <div class="inventory-header">
+                <h2>Stock Logs${titleSuffix}</h2>
+                <div class="inventory-actions">
+                    <button class="btn btn-secondary" onclick="loadInventory()" style="margin-right: 10px;">
+                        <i class="fa fa-arrow-left"></i> Back to Inventory
+                    </button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Product</th>
+                            <th>Type</th>
+                            <th>Quantity</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Reason</th>
+                            <th>Order #</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${logs.length === 0
+                            ? '<tr><td colspan="9" class="text-center">No stock logs found.</td></tr>'
+                            : logs.map(l => `
+                                <tr>
+                                    <td>${l.log_id}</td>
+                                    <td>${escapeHtml(l.product_name || '')} (ID: ${l.product_id})</td>
+                                    <td><span class="status-badge ${l.change_type === 'in' ? 'available' : 'low-stock'}">${l.change_type === 'in' ? 'IN' : 'OUT'}</span></td>
+                                    <td>${l.quantity}</td>
+                                    <td>${l.from_stock}</td>
+                                    <td>${l.to_stock}</td>
+                                    <td>${escapeHtml(l.reason || '')}</td>
+                                    <td>${l.order_id ? l.order_id : '-'}</td>
+                                    <td>${l.created_at || ''}</td>
+                                </tr>
+                            `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        mainContent.innerHTML = html;
+    } catch (error) {
+        mainContent.innerHTML = `<h2>Stock Logs</h2><p class="error">Error loading stock logs: ${error.message}</p>`;
+    }
+}
+
+function viewProductStockLogs(productId) {
+    loadStockLogsPage(productId);
+}
+
 function fmtNumber(v){
     const n = Number(v)||0;
     return n.toLocaleString('en-PH');
@@ -250,6 +329,9 @@ function renderInventoryTable(productsList) {
                     <i class="fa fa-search"></i>
                     <input type="text" id="searchInput" placeholder="Search products..." onkeyup="filterProducts()">
                 </div>
+                <button class="btn btn-secondary" onclick="loadStockLogsPage()" style="margin-right: 10px;">
+                    <i class="fa fa-list"></i> Stock Logs
+                </button>
                 <button class="btn btn-secondary" onclick="window.open('../crud/import_products.php', '_blank')" style="margin-right: 10px;">
                     <i class="fa fa-download"></i> Import Products
                 </button>
@@ -301,6 +383,9 @@ function renderInventoryTable(productsList) {
                                         </button>
                                         <button class="btn-icon btn-delete" onclick="deleteProduct(${p.product_id})" title="Delete">
                                             <i class="fa fa-trash"></i>
+                                        </button>
+                                        <button class="btn-icon" onclick="viewProductStockLogs(${p.product_id})" title="Stock Logs">
+                                            <i class="fa fa-list"></i>
                                         </button>
                                     </div>
                                 </td>
