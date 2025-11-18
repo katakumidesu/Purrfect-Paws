@@ -33,6 +33,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
             <li data-section="users"><i class="fa fa-users"></i> <span>Users</span></li>
             <li data-section="analytics"><i class="fa fa-chart-bar"></i> <span>Analytics</span></li>
             <li data-section="reports"><i class="fa fa-chart-line"></i> <span>Reports</span></li>
+            <li data-section="ratings"><i class="fa fa-star"></i> <span>Ratings &amp; Reviews</span></li>
         </ul>
     </aside>
 

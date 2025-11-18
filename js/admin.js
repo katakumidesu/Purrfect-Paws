@@ -4,6 +4,61 @@ if (toggleSidebar) {
 toggleSidebar.addEventListener("click", () => sidebar.classList.toggle("collapsed"));
 }
 
+// ---------------- RATINGS & REVIEWS ----------------
+async function loadRatings(){
+    try {
+        const rows = await fetchAPI('get_ratings');
+        if (rows.error){
+            mainContent.innerHTML = `<h2>Ratings &amp; Reviews</h2><p class="error">Error: ${rows.error}</p>`;
+            return;
+        }
+        const list = Array.isArray(rows) ? rows : [];
+
+        const html = `
+            <div class="inventory-header">
+                <h2>Ratings &amp; Reviews</h2>
+                <p class="subtitle">Feedback left by customers on products.</p>
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Product</th>
+                            <th>User</th>
+                            <th>Rating</th>
+                            <th>Review</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${list.length === 0
+                            ? '<tr><td colspan="6" class="text-center">No ratings yet.</td></tr>'
+                            : list.map(r => `
+                                <tr>
+                                    <td>${r.rating_id}</td>
+                                    <td>${escapeHtml(r.display_product_name || r.raw_product_name || '')}
+                                        ${r.product_id ? `<span style="color:#9ca3af;font-size:12px;">(ID: ${r.product_id})</span>` : ''}
+                                    </td>
+                                    <td>${escapeHtml(r.display_user_name || r.username || '')}
+                                        ${r.user_email ? `<br><span style="color:#9ca3af;font-size:12px;">${escapeHtml(r.user_email)}</span>` : ''}
+                                    </td>
+                                    <td><span class="status-badge available" style="${Number(r.stars||0) < 2 ? 'background:#dc2626;border-color:#b91c1c;' : ''}">${Number(r.stars||0).toFixed(1)} ★</span></td>
+                                    <td>${escapeHtml(r.review || '')}</td>
+                                    <td>${r.created_at || ''}</td>
+                                </tr>
+                            `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        mainContent.innerHTML = html;
+    } catch (err){
+        mainContent.innerHTML = `<h2>Ratings &amp; Reviews</h2><p class="error">Error loading ratings: ${escapeHtml(err.message || String(err))}</p>`;
+    }
+}
+
 async function loadStockLogsPage(productId = null) {
     try {
         let query = 'get_stock_logs';
@@ -113,6 +168,7 @@ menuItems.forEach(item => {
             case "users": loadUsers(); break;
             case "analytics": loadAnalytics(); break;
             case "reports": loadReports(); break;
+            case "ratings": loadRatings(); break;
         }
 });
 });
@@ -752,7 +808,11 @@ function renderUsersTable(usersList) {
                                 <td>${escapeHtml(u.username || 'N/A')}</td>
                                 <td>${escapeHtml(u.email || '')}</td>
                                 <td>${escapeHtml(u.phone || 'N/A')}</td>
-                                <td><span class="status-badge ${u.role === 'admin' ? 'available' : ''}">${escapeHtml(u.role || 'user')}</span></td>
+                                <td>
+                                    ${u.role === 'admin'
+                                        ? `<span class="status-badge" style="background:#fbbf24;border-color:#f59e0b;color:#111;font-weight:700;">ADMIN</span>`
+                                        : `<span class="status-badge available">${escapeHtml(u.role || 'USER')}</span>`}
+                                </td>
                                 <td>${u.created_at ? u.created_at.split(' ')[0] : 'N/A'}</td>
                                 <td>
                                     <div class="action-buttons">
@@ -1012,6 +1072,11 @@ async function deleteUser(userId) {
 let ordersCache = [];
 function renderOrderRow(o){
     const st = (o.status && String(o.status).trim()) ? String(o.status) : 'to_pay';
+    const badgeClass = (st === 'completed' || st === 'to_receive')
+        ? 'available'                   // green for completed + to_receive
+        : (st === 'to_pay' || st === 'cancelled')
+            ? 'low-stock'               // red for to_pay + cancelled
+            : '';
     return `
         <tr data-order-id="${o.order_id}" data-context="orders">
             <td>#${o.order_id}</td>
@@ -1019,7 +1084,7 @@ function renderOrderRow(o){
             <td style="text-align:center; width: 120px;"><button type="button" class="btn btn-secondary" onclick="viewOrderItems(${o.order_id})">Details</button></td>
             <td class="price">${fmtCurrency(o.total)}</td>
             <td>
-                <span class="status-badge ${st==='to_pay'?'low-stock': st==='completed'?'available':''}">${st.replace('_',' ')}</span>
+                <span class="status-badge ${badgeClass}">${st.replace('_',' ')}</span>
             </td>
             <td>
                 <div class="action-buttons">
@@ -1190,7 +1255,11 @@ function renderDeliveryRow(o) {
     // Normalized order status for logic/filtering
     const st = (o.status && String(o.status).trim()) ? String(o.status).toLowerCase() : 'to_pay';
     const canArrange = (st === 'to_ship');
-    const badgeClass = st === 'completed' ? 'available' : (st === 'cancelled' ? 'low-stock' : '');
+    const badgeClass = (st === 'completed' || st === 'to_receive' || st === 'to_ship')
+        ? 'available'                     // green for ORDER IS ON THE WAY, TO SHIP, completed
+        : (st === 'to_pay' || st === 'cancelled')
+            ? 'low-stock'                 // red for to_pay and cancelled
+            : '';
 
     // Prefer delivery_status from delivery table for display if present
     const deliveryStatusRaw = (o.delivery_status != null) ? String(o.delivery_status).trim() : '';

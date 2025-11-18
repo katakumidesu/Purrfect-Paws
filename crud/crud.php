@@ -397,6 +397,51 @@ switch ($action) {
         }
         break;
 
+    case 'get_ratings':
+        try {
+            // Ensure ratings table exists with the SAME schema used by add_rating
+            $conn->query("CREATE TABLE IF NOT EXISTS product_ratings (
+                rating_id INT AUTO_INCREMENT PRIMARY KEY,
+                product_name VARCHAR(255) NOT NULL,
+                user_id INT NULL,
+                username VARCHAR(255) NULL,
+                stars TINYINT NOT NULL,
+                review TEXT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $sql = "SELECT
+                        pr.rating_id,
+                        pr.product_name AS raw_product_name,
+                        pr.user_id,
+                        pr.username,
+                        pr.stars,
+                        pr.review,
+                        pr.created_at,
+                        p.product_id,
+                        COALESCE(p.name, pr.product_name) AS display_product_name,
+                        COALESCE(u.name, pr.username) AS display_user_name,
+                        COALESCE(u.email, '') AS user_email
+                    FROM product_ratings pr
+                    LEFT JOIN products p ON p.name = pr.product_name
+                    LEFT JOIN users u ON u.user_id = pr.user_id
+                    ORDER BY pr.created_at DESC, pr.rating_id DESC";
+
+            $res = $conn->query($sql);
+            if (!$res) {
+                echo json_encode([]);
+                break;
+            }
+            $rows = [];
+            while ($row = $res->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            echo json_encode($rows);
+        } catch (Exception $e) {
+            echo json_encode([]);
+        }
+        break;
+
     // ===== STOCK LOGS =====
     case 'get_stock_logs':
         try {
