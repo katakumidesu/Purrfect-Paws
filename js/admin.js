@@ -1220,6 +1220,7 @@ function renderDeliveryRow(o) {
             <td>
                 <div class="action-buttons">
                     <button type="button" class="btn btn-secondary" onclick="viewOrderItems(${o.order_id})">View</button>
+                    <button type="button" class="btn" onclick="openDeliveryTracker(${o.order_id})">Track</button>
                     ${canArrange ? `<button type="button" class="btn btn-primary" onclick="openStatusModal(${o.order_id}, 'to_receive')">Arrange Delivery</button>` : ''}
                 </div>
             </td>
@@ -1282,6 +1283,7 @@ async function loadDelivery(statusFilter = 'all') {
                 </table>
             </div>
             <div id="orderItemsModal" class="modal hidden"><div class="modal-content"><span class="closeBtn" onclick="document.getElementById('orderItemsModal').classList.add('hidden')">&times;</span><h2>Order Items</h2><div id="orderItemsBody" style="margin-top:10px"></div></div></div>
+            <div id="deliveryTrackerModal" class="modal hidden"><div class="modal-content"><span class="closeBtn" onclick="document.getElementById('deliveryTrackerModal').classList.add('hidden')">&times;</span><h2>Order Tracker</h2><div id="deliveryTrackerBody" style="margin-top:10px"></div></div></div>
         `;
 
         // Wire filter buttons
@@ -1312,6 +1314,54 @@ async function loadDelivery(statusFilter = 'all') {
     } catch (e) {
         mainContent.innerHTML = `<div class="inventory-header"><h2>Delivery</h2></div><p class="error">Failed to load deliveries: ${e.message}</p>`;
     }
+}
+
+function openDeliveryTracker(orderId) {
+    if (!Array.isArray(deliveryCache) || deliveryCache.length === 0) return;
+    const order = deliveryCache.find(o => String(o.order_id) === String(orderId));
+    if (!order) return;
+
+    const st = (order.status && String(order.status).trim()) ? String(order.status).toLowerCase() : 'to_pay';
+    const steps = [
+        { id: 'to_pay', label: 'To Pay' },
+        { id: 'to_ship', label: 'To Ship' },
+        { id: 'to_receive', label: 'To Receive' },
+        { id: 'completed', label: 'Completed' },
+        { id: 'cancelled', label: 'Cancelled' }
+    ];
+
+    const idx = steps.findIndex(s => s.id === st);
+    const trackerHtml = `
+        <div style="margin-bottom:12px; font-size:13px;">
+            <div><strong>Order #${order.order_id}</strong></div>
+            <div>${escapeHtml(order.customer || 'User')} • ${fmtCurrency(order.total)}</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px 16px;margin-bottom:12px;">
+            ${steps.map((step, i) => {
+                const isActive = i === idx;
+                const isDone = idx !== -1 && i < idx && st !== 'cancelled';
+                const baseColor = step.id === 'cancelled' ? '#ef4444' : '#0ea5e9';
+                const bg = isActive ? baseColor : (isDone ? 'rgba(34,197,94,.12)' : 'rgba(148,163,184,.12)');
+                const border = isActive ? baseColor : (isDone ? '#22c55e' : 'rgba(148,163,184,.5)');
+                const textColor = isActive ? '#fff' : '#e5e7eb';
+                return `
+                    <div style="flex:1 1 120px;min-width:120px;max-width:180px;border:1px solid ${border};border-radius:999px;padding:6px 10px;background:${bg};color:${textColor};font-size:12px;display:flex;align-items:center;gap:8px;">
+                        <span style="display:inline-flex;width:16px;height:16px;border-radius:999px;border:2px solid ${border};background:${isDone ? '#22c55e' : (isActive ? baseColor : 'transparent')};"></span>
+                        <span>${step.label}</span>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+        <div style="font-size:12px;color:#e5e7eb;">
+            <div><strong>Current status:</strong> ${st.replace('_', ' ')}</div>
+        </div>
+    `;
+
+    const modal = document.getElementById('deliveryTrackerModal');
+    const body = document.getElementById('deliveryTrackerBody');
+    if (!modal || !body) return;
+    body.innerHTML = trackerHtml;
+    modal.classList.remove('hidden');
 }
 
 // expose
