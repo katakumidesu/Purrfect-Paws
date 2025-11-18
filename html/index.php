@@ -377,13 +377,19 @@ session_start();
       if (!Array.isArray(data)) return;
 
       const ratingByName = {};
+      const priceByName = {};
       data.forEach(p => {
         const name = (p.name || '').trim();
         if (!name) return;
         const key = name.toLowerCase();
         const r = p.rating != null ? Number(p.rating) : 5;
-        if (!isFinite(r) || r <= 0) return;
-        ratingByName[key] = Math.max(0, Math.min(5, r));
+        if (isFinite(r) && r > 0) {
+          ratingByName[key] = Math.max(0, Math.min(5, r));
+        }
+        const price = p.price != null ? Number(p.price) : null;
+        if (isFinite(price) && price >= 0) {
+          priceByName[key] = price;
+        }
       });
 
       const cards = document.querySelectorAll('.shop-container > div');
@@ -394,19 +400,31 @@ session_start();
         const name = titleEl.textContent.trim();
         const key = name.toLowerCase();
         const avg = ratingByName[key];
-        if (avg == null) return;
-        const stars = ratingEl.querySelectorAll('i');
-        stars.forEach((star, idx) => {
-          const i = idx + 1;
-          star.classList.remove('fa-solid', 'fa-regular', 'fa-star', 'fa-star-half-stroke');
-          if (avg >= i) {
-            star.classList.add('fa-solid', 'fa-star');
-          } else if (avg >= i - 0.5) {
-            star.classList.add('fa-solid', 'fa-star-half-stroke');
-          } else {
-            star.classList.add('fa-regular', 'fa-star');
+        const price = priceByName[key];
+
+        // Apply rating stars if we have a rating from DB
+        if (avg != null) {
+          const stars = ratingEl.querySelectorAll('i');
+          stars.forEach((star, idx) => {
+            const i = idx + 1;
+            star.classList.remove('fa-solid', 'fa-regular', 'fa-star', 'fa-star-half-stroke');
+            if (avg >= i) {
+              star.classList.add('fa-solid', 'fa-star');
+            } else if (avg >= i - 0.5) {
+              star.classList.add('fa-solid', 'fa-star-half-stroke');
+            } else {
+              star.classList.add('fa-regular', 'fa-star');
+            }
+          });
+        }
+
+        // Apply price from DB if available
+        if (price != null) {
+          const priceEl = card.querySelector('p strong');
+          if (priceEl) {
+            priceEl.textContent = '\u20b1 ' + Number(price).toFixed(2);
           }
-        });
+        }
       });
     } catch (e) {
       console.error('Failed to apply homepage ratings', e);
