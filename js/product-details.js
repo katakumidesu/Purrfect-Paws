@@ -59,6 +59,13 @@ function shuffle(array) {
 
 // 📦 Display product details
 async function displayProductDetails() {
+    // Only run on product detail page that has these containers
+    const productContainer = document.getElementById("product-details");
+    const relatedContainer = document.getElementById("related-container");
+    if (!productContainer || !relatedContainer) {
+        return; // not on the product detail page
+    }
+
     // Load products from database first
     await loadProducts();
     
@@ -68,9 +75,6 @@ async function displayProductDetails() {
     
     // 🕵️ Find product by name
     const product = products.find(p => p.name === productName);
-    
-    // 📦 Display single product
-    const productContainer = document.getElementById("product-details");
     
     if (product) {
         const avgRating = 5;
@@ -106,7 +110,6 @@ async function displayProductDetails() {
     
     // Display related products
     const filteredProducts = products.filter(p => p.name !== productName);
-    const relatedContainer = document.getElementById("related-container");
     const shuffled = shuffle([...filteredProducts]).slice(0, 4);
     
     // ⭐ Display related products with clickable product boxes

@@ -15,8 +15,7 @@ session_start();
     <link rel="stylesheet" href="css/kumi.css">
     <script src="https://kit.fontawesome.com/df5d6157cf.js" crossorigin="anonymous"></script>
     <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" integrity="sha512-2SwdPD6INVrV/
-    lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
 
 
@@ -415,7 +414,6 @@ session_start();
   });
 </script>
 <script src="../js/cart.js?v=user-ns"></script>
-<script src="../js/product-details.js"></script>
 </body>
 
 </html>
