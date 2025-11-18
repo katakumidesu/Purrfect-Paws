@@ -153,7 +153,8 @@ async function displayProductDetails() {
                     return pnNorm === keyNorm || pnNorm.includes(keyNorm) || keyNorm.includes(pnNorm);
                 })
                 .map(r => ({
-                    user: r.display_user_name || r.username || 'User',
+                    // Prefer username for display; fall back to full name only if username missing
+                    user: r.username || r.display_user_name || 'User',
                     stars: Number(r.stars || r.rating || 0),
                     text: r.review || r.review_text || '',
                     ts: r.created_at ? Date.parse(r.created_at) || Date.now() : Date.now()
@@ -181,8 +182,9 @@ async function displayProductDetails() {
             reviewsLocal = [];
         }
 
-        // Combine DB + local reviews
-        const reviews = [...reviewsDb, ...reviewsLocal];
+        // Use only backend reviews to avoid duplicates when the same rating
+        // is stored both in the database and localStorage
+        const reviews = reviewsDb;
 
         // Compute average rating; fall back to 5 if none yet
         let avgRating = 5;

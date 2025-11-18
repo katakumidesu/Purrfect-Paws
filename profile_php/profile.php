@@ -44,7 +44,8 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <script>
     window.PURR_USER_ID = <?= json_encode((string)$user_id) ?>;
-    window.PURR_USER_NAME = <?= json_encode((string)($user['username'] ?? ($user['name'] ?? 'User'))) ?>;
+    // Use only the username for ratings/comments; fall back to generic label if missing
+    window.PURR_USER_NAME = <?= json_encode((string)($user['username'] !== '' ? $user['username'] : ($user['name'] ?? 'User'))) ?>;
   </script>
 
 </head>
