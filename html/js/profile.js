@@ -707,6 +707,21 @@
   // Store per-product reviews for Product Ratings section
   function getProductReviews(){ try { return JSON.parse(localStorage.getItem('pp_product_reviews')||'[]'); } catch(e){ return []; } }
   function saveProductReviews(list){ try { localStorage.setItem('pp_product_reviews', JSON.stringify(Array.isArray(list)? list : [])); } catch(e){} }
+
+  // --- Address helpers for Delivery Address in tracker ---
+  async function fetchProfileAddresses(){
+    try{
+      const r = await fetch('../profile_php/addresses.php?action=list');
+      const j = await r.json();
+      return Array.isArray(j) ? j : [];
+    }catch(_){ return []; }
+  }
+  async function fetchDefaultProfileAddress(){
+    const items = await fetchProfileAddresses();
+    if (!items.length) return null;
+    const def = items.find(a => String(a.is_default)==='1');
+    return def || items[0];
+  }
   function normalizeStatus(s){
     const raw = String(s||'to_pay').toLowerCase().trim();
     // replace any non-letters with underscore, then collapse repeats
@@ -1051,6 +1066,25 @@
         <button type="button" class="ot-back" onclick="backToOrdersFromTracker()">← Back to orders</button>
         ${trackerHtml}
       </div>`;
+
+    // Load saved Delivery Address from profile addresses
+    (async ()=>{
+      const addr = await fetchDefaultProfileAddress();
+      const box = document.querySelector('.ot-address');
+      if (!box || !addr) return;
+      const nameEl = box.querySelector('.ot-address-name');
+      const lineEl = box.querySelector('.ot-address-line');
+      const fullname = addr.fullname || window.PURR_USER_NAME || 'User';
+      const phone = addr.phone ? ` (${escapeHtml(addr.phone)})` : '';
+      if (nameEl) nameEl.innerHTML = `${escapeHtml(fullname)}${phone}`;
+      if (lineEl) {
+        lineEl.innerHTML = `${escapeHtml(addr.address_line||'')}`+
+          (addr.barangay? ', '+escapeHtml(addr.barangay):'')+
+          (addr.city? ', '+escapeHtml(addr.city):'')+
+          (addr.province? ', '+escapeHtml(addr.province):'')+
+          (addr.postal_code? ' '+escapeHtml(addr.postal_code):'');
+      }
+    })();
     // Start lightweight polling to refresh only Delivery Updates text & steps (no dates)
     if (trackerInterval){ clearInterval(trackerInterval); trackerInterval = null; }
     trackerInterval = setInterval(async ()=>{
