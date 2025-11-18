@@ -910,10 +910,11 @@
         : statusLabel(o.status);
 
       const headerDate = o.date ? new Date(o.date).toLocaleString() : '';
+      const headerId = o.order_id != null ? o.order_id : (idx+1);
       return `
       <div class="order" style="border:1px solid #e9eef2;border-radius:8px;margin-bottom:12px;">
         <div class="order-h" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px dashed #e9eef2;background:#fff;">
-          <div><strong>Order #${idx+1}</strong> <span style="color:#9ab0bd;margin-left:8px">${headerDate}</span></div>
+          <div><strong>Order #${headerId}</strong> <span style="color:#9ab0bd;margin-left:8px">${headerDate}</span></div>
           <div class="status">${statusHtml}</div>
         </div>
         <div class="order-items" style="padding:10px 12px;">
