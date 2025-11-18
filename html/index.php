@@ -448,6 +448,9 @@ session_start();
       modal.style.alignItems = 'center';
       modal.style.justifyContent = 'center';
       modal.style.zIndex = '9999';
+      modal.setAttribute('role','dialog');
+      modal.setAttribute('aria-modal','true');
+      modal.setAttribute('aria-label','Testimonial details');
       modal.innerHTML = `
         <div style="background:#fff;border-radius:10px;max-width:360px;width:90%;padding:32px 28px;box-shadow:0 18px 45px rgba(15,23,42,.35);position:relative;text-align:center;">
           <button type="button" id="tmClose" style="position:absolute;top:10px;right:12px;border:none;background:transparent;font-size:20px;cursor:pointer;line-height:1;">&times;</button>
@@ -458,8 +461,18 @@ session_start();
           <div id="tmName" style="font-weight:600;color:#111;font-size:15px;"></div>
         </div>`;
       document.body.appendChild(modal);
-      modal.addEventListener('click', function(e){ if (e.target === modal) modal.style.display='none'; });
-      modal.querySelector('#tmClose').addEventListener('click', function(){ modal.style.display='none'; });
+      const closeBtn = modal.querySelector('#tmClose');
+      const closeModal = function(){
+        modal.style.display = 'none';
+        document.removeEventListener('keydown', onKey);
+      };
+      const onKey = function(e){
+        if (e.key === 'Escape') closeModal();
+      };
+      modal.addEventListener('click', function(e){ if (e.target === modal) closeModal(); });
+      if (closeBtn) closeBtn.addEventListener('click', function(){ closeModal(); });
+      modal._pp_closeModal = closeModal;
+      modal._pp_onKey = onKey;
     }
 
     const quoteEl = modal.querySelector('#tmQuote');
@@ -486,6 +499,9 @@ session_start();
           }
         }
         modal.style.display = 'flex';
+        if (typeof modal._pp_onKey === 'function'){
+          document.addEventListener('keydown', modal._pp_onKey);
+        }
       });
     });
   });

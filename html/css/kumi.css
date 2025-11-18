@@ -352,6 +352,17 @@ button:hover {
   font-weight: bold;
 }
 
+@media (max-width: 768px) {
+  .testimonial {
+    padding: 60px 20px;
+  }
+  .testimonial-container {
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+}
+
 
 /*----footer----*/
 
