@@ -57,6 +57,101 @@ switch ($action) {
         }
         break;
 
+    case 'add_delivery_log':
+        try {
+            $payload = is_array($data) ? $data : [];
+            $orderId = isset($payload['order_id']) ? intval($payload['order_id']) : 0;
+            $status = strtolower(trim((string)($payload['status'] ?? '')));
+            if ($orderId <= 0 || $status === '') {
+                echo json_encode(['error' => 'Invalid delivery log input']);
+                break;
+            }
+
+            // Ensure table exists
+            $conn->query("CREATE TABLE IF NOT EXISTS delivery_logs (
+                log_id INT AUTO_INCREMENT PRIMARY KEY,
+                order_id INT NOT NULL,
+                event_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+                status_text VARCHAR(255) NOT NULL,
+                detail_text TEXT NULL,
+                INDEX idx_order_time (order_id, event_time)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            // Map internal status to human text
+            $short = 'Order update';
+            $detail = '';
+            switch ($status) {
+                case 'to_pay':
+                    $short = 'Order placed';
+                    $detail = 'Your order has been created.';
+                    break;
+                case 'to_ship':
+                    $short = 'Preparing to ship';
+                    $detail = 'Seller is preparing to ship your parcel.';
+                    break;
+                case 'to_receive':
+                    $short = 'Parcel in transit';
+                    $detail = 'Parcel is on the way to you.';
+                    break;
+                case 'completed':
+                    $short = 'Delivered';
+                    $detail = 'Parcel has been delivered.';
+                    break;
+                case 'cancelled':
+                    $short = 'Order cancelled';
+                    $detail = 'Your order has been cancelled.';
+                    break;
+            }
+
+            $stmt = $conn->prepare("INSERT INTO delivery_logs (order_id, status_text, detail_text) VALUES (?,?,?)");
+            if ($stmt) {
+                $stmt->bind_param("iss", $orderId, $short, $detail);
+                $ok = $stmt->execute();
+                $stmt->close();
+                if (!$ok) {
+                    echo json_encode(['error' => 'Failed to save delivery log']);
+                    break;
+                }
+            }
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            echo json_encode(['error' => 'Error saving delivery log: '.$e->getMessage()]);
+        }
+        break;
+
+    case 'get_delivery_logs':
+        try {
+            $orderId = isset($_GET['order_id']) ? intval($_GET['order_id']) : intval($data['order_id'] ?? 0);
+            if ($orderId <= 0) { echo json_encode([]); break; }
+
+            $conn->query("CREATE TABLE IF NOT EXISTS delivery_logs (
+                log_id INT AUTO_INCREMENT PRIMARY KEY,
+                order_id INT NOT NULL,
+                event_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+                status_text VARCHAR(255) NOT NULL,
+                detail_text TEXT NULL,
+                INDEX idx_order_time (order_id, event_time)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $stmt = $conn->prepare("SELECT log_id, order_id, event_time, status_text, detail_text
+                                     FROM delivery_logs
+                                     WHERE order_id = ?
+                                     ORDER BY event_time DESC, log_id DESC");
+            if (!$stmt) { echo json_encode([]); break; }
+            $stmt->bind_param("i", $orderId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $rows = [];
+            if ($res) {
+                while ($row = $res->fetch_assoc()) { $rows[] = $row; }
+            }
+            $stmt->close();
+            echo json_encode($rows);
+        } catch (Exception $e) {
+            echo json_encode([]);
+        }
+        break;
+
     // ===== PRODUCTS =====
     case 'get_products':
         try {

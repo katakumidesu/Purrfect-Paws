@@ -784,7 +784,8 @@
           .filter(o => String(o.user_id||'') === String(window.PURR_USER_ID||''))
           .map(o=>({
           order_id: o.order_id,
-          date: o.date || o.created_at || Date.now(),
+          // Use only stored timestamps from backend; never regenerate with Date.now()
+          date: o.date || o.created_at || null,
           total: Number(o.total||0),
           status: normalizeStatus(o.status),
           items: Array.isArray(o.items)? o.items.map(it=>({
@@ -893,10 +894,11 @@
           `<span style="font-weight:700;color:#c92a2a;">${isRated ? 'RATED' : 'COMPLETED'}</span>`
         : statusLabel(o.status);
 
+      const headerDate = o.date ? new Date(o.date).toLocaleString() : '';
       return `
       <div class="order" style="border:1px solid #e9eef2;border-radius:8px;margin-bottom:12px;">
         <div class="order-h" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px dashed #e9eef2;background:#fff;">
-          <div><strong>Order #${idx+1}</strong> <span style="color:#9ab0bd;margin-left:8px">${new Date(o.date||Date.now()).toLocaleString()}</span></div>
+          <div><strong>Order #${idx+1}</strong> <span style="color:#9ab0bd;margin-left:8px">${headerDate}</span></div>
           <div class="status">${statusHtml}</div>
         </div>
         <div class="order-items" style="padding:10px 12px;">
@@ -951,6 +953,8 @@
     updatePurchaseTabCounts();
   }
 
+  let trackerInterval = null;
+
   function openOrderTracker(orderId){
     const orders = getOrders();
     const order = orders.find(o => String(o.order_id||o.date) === String(orderId));
@@ -973,7 +977,8 @@
     };
     const currentIdx = statusIndexMap[status] != null ? statusIndexMap[status] : 0;
 
-    const dateStr = new Date(order.date||Date.now()).toLocaleString();
+    // Use the stored order date only so the displayed time does not keep updating
+    const dateStr = order.date ? new Date(order.date).toLocaleString() : '';
     const firstItem = (order.items && order.items[0]) || {};
     const ratedMap = getRatedMap();
     const ratedKey = String(order.order_id || order.date || '');
@@ -1046,6 +1051,61 @@
         <button type="button" class="ot-back" onclick="backToOrdersFromTracker()">← Back to orders</button>
         ${trackerHtml}
       </div>`;
+    // Start lightweight polling to refresh only Delivery Updates text & steps (no dates)
+    if (trackerInterval){ clearInterval(trackerInterval); trackerInterval = null; }
+    trackerInterval = setInterval(async ()=>{
+      try{
+        const res = await fetch(`../crud/crud.php?action=get_orders&user_id=${encodeURIComponent(String(window.PURR_USER_ID||''))}&_=${Date.now()}`);
+        const arr = await res.json();
+        if (!Array.isArray(arr)) return;
+        const hit = arr.find(o => String(o.order_id||'') === String(orderId));
+        if (!hit) return;
+        const latestStatus = normalizeStatus(hit.status);
+        const statusIdxMap2 = { to_pay:0, to_ship:2, to_receive:3, completed:4, cancelled:-1 };
+        const idx2 = statusIdxMap2[latestStatus] != null ? statusIdxMap2[latestStatus] : 0;
+
+        // Update steps bar (green progress)
+        const stepsEls = document.querySelectorAll('.ot-step');
+        stepsEls.forEach((el,i)=>{
+          el.classList.remove('active','done');
+          if (idx2 === -1 && i === 0) el.classList.add('active');
+          else if (i === idx2) el.classList.add('active');
+          else if (i < idx2 && idx2 !== -1 && latestStatus !== 'cancelled') el.classList.add('done');
+        });
+
+        // Update Delivery Updates text lines (keep dates as-is)
+        const cur = document.querySelector('.ot-timeline-list li.current .status');
+        const line2 = document.querySelector('.ot-timeline-list li:nth-child(2) .status');
+        const line3 = document.querySelector('.ot-timeline-list li:nth-child(3) .status');
+        if (cur){
+          cur.textContent = latestStatus === 'completed'
+            ? 'Delivered'
+            : latestStatus === 'to_receive'
+              ? 'In transit'
+              : latestStatus === 'to_ship'
+                ? 'Preparing to ship'
+                : 'Order placed';
+        }
+        if (line2){
+          line2.textContent = latestStatus === 'completed'
+            ? 'Parcel has been delivered'
+            : latestStatus === 'to_receive'
+              ? 'Parcel is on the way to you'
+              : latestStatus === 'to_ship'
+                ? 'Parcel is being processed'
+                : 'Parcel is being processed';
+        }
+        if (line3){
+          line3.textContent = latestStatus === 'to_ship'
+            ? 'Seller is preparing to ship your parcel'
+            : latestStatus === 'to_receive'
+              ? 'Parcel has left the sorting facility'
+              : latestStatus === 'completed'
+                ? 'Thank you for shopping with Purrfect Paws'
+                : 'Seller is preparing to ship your parcel';
+        }
+      }catch(_){ /* ignore polling errors */ }
+    }, 8000);
   }
 
   function backToOrdersFromTracker(){

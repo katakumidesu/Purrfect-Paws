@@ -1160,6 +1160,11 @@ async function changeOrderStatus(orderId, status){
         if (trOk && idx>-1){ trOk.outerHTML = renderOrderRow(ordersCache[idx]); }
         // Optional: background refresh to sync other rows without flashing this one
         try { fetchAPI('get_orders').then(list => { if (Array.isArray(list)) { ordersCache = list; } }); } catch(_){ }
+
+        // Also log a delivery history event for this status change (used by customer tracker)
+        try {
+            await fetchAPI(null,'POST',{ action:'add_delivery_log', order_id: parseInt(orderId,10), status });
+        } catch(_){ /* non-critical */ }
     } else {
         // Roll back optimistic change
         if (idx>-1 && prev){ ordersCache[idx] = prev; }
