@@ -1313,13 +1313,34 @@ function viewOrderItems(orderId){
         });
     }
 }
+async function openStatusModal(orderId, status){
+    const result = await Swal.fire({
+        title: 'Update order status?',
+        text: 'This will change the order status to ' + String(status).replace('_',' ') + '.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, update',
+        cancelButtonText: 'Cancel'
+    });
+    if (!result.isConfirmed) return;
+    await changeOrderStatus(orderId, status);
+    try {
+        const active = document.querySelector('.menu li.active');
+        if (active && active.getAttribute('data-section') === 'delivery') {
+            loadDelivery(window.currentDeliveryFilter || 'all');
+        }
+    } catch (e) {
+        console.warn('Failed to refresh delivery view after status update', e);
+    }
+}
 // Expose functions for inline onclick handlers
 window.changeOrderStatus = changeOrderStatus;
 window.viewOrderItems = viewOrderItems;
 window.openStatusModal = openStatusModal;
 
 // ---------------- DELIVERY (ADMIN) ----------------
-let deliveryCache = [];
+var deliveryCache = [];
+window.currentDeliveryFilter = 'all';
 
 function filterDeliveriesByStatus(status) {
     if (!Array.isArray(deliveryCache) || deliveryCache.length === 0) return [];
@@ -1374,6 +1395,7 @@ function renderDeliveryRow(o) {
 
 async function loadDelivery(statusFilter = 'all') {
     try {
+        window.currentDeliveryFilter = statusFilter || 'all';
         const orders = await fetchAPI('get_orders');
         if (orders?.error) {
             mainContent.innerHTML = `<div class="inventory-header"><h2>Delivery</h2></div><p class="error">${orders.error}</p>`;
@@ -1428,7 +1450,7 @@ async function loadDelivery(statusFilter = 'all') {
                 </table>
             </div>
             <div id="orderItemsModal" class="modal hidden"><div class="modal-content"><span class="closeBtn" onclick="document.getElementById('orderItemsModal').classList.add('hidden')">&times;</span><h2>Order Items</h2><div id="orderItemsBody" style="margin-top:10px"></div></div></div>
-            <div id="deliveryTrackerModal" class="modal hidden"><div class="modal-content"><span class="closeBtn" onclick="document.getElementById('deliveryTrackerModal').classList.add('hidden')">&times;</span><h2>Order Tracker</h2><div id="deliveryTrackerBody" style="margin-top:10px"></div></div></div>
+            <div id="deliveryTrackerModal" class="modal hidden"><div class="modal-content"><span class="closeBtn" onclick="closeDeliveryTracker()">&times;</span><h2>Order Tracker</h2><div id="deliveryTrackerBody" style="margin-top:10px"></div></div></div>
         `;
 
         // Wire filter buttons
@@ -1475,7 +1497,9 @@ async function fetchDeliveryLogs(orderId) {
     }
 }
 
-async function openDeliveryTracker(orderId) {
+let deliveryTrackerTimer = null;
+
+async function renderDeliveryTracker(orderId) {
     if (!Array.isArray(deliveryCache) || deliveryCache.length === 0) return;
     const order = deliveryCache.find(o => String(o.order_id) === String(orderId));
     if (!order) return;
@@ -1493,7 +1517,7 @@ async function openDeliveryTracker(orderId) {
     const trackerHtml = `
         <div style="margin-bottom:12px; font-size:13px;">
             <div><strong>Order #${order.order_id}</strong></div>
-            <div>${escapeHtml(order.customer || 'User')} • ${fmtCurrency(order.total)}</div>
+            <div>${escapeHtml(order.customer||'User')} • ${fmtCurrency(order.total)}</div>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:10px 16px;margin-bottom:12px;">
             ${steps.map((step, i) => {
@@ -1505,7 +1529,7 @@ async function openDeliveryTracker(orderId) {
                 const textColor = isActive ? '#fff' : '#e5e7eb';
                 return `
                     <div style="flex:1 1 120px;min-width:120px;max-width:180px;border:1px solid ${border};border-radius:999px;padding:6px 10px;background:${bg};color:${textColor};font-size:12px;display:flex;align-items:center;gap:8px;">
-                        <span style="display:inline-flex;width:16px;height:16px;border-radius:999px;border:2px solid ${border};background:${isDone ? '#22c55e' : (isActive ? baseColor : 'transparent')};"></span>
+                        <span style="display:inline-block;width:16px;height:16px;border-radius:999px;border:2px solid ${border};background:${isDone ? '#22c55e' : (isActive ? baseColor : 'transparent')};"></span>
                         <span>${step.label}</span>
                     </div>
                 `;
@@ -1533,7 +1557,7 @@ async function openDeliveryTracker(orderId) {
                 return t === cur.title.toLowerCase();
             });
             if (!hasCurrent) {
-                let ts = order.order_date || order.date || order.updated_at || order.created_at || null;
+                let ts = order.order_date || order.date || order.created_at || order.updated_at || null;
                 let displayTs = '';
                 if (ts) {
                     const dt = new Date(typeof ts === 'string' ? String(ts).replace(' ', 'T') : ts);
@@ -1586,50 +1610,31 @@ async function openDeliveryTracker(orderId) {
     modal.classList.remove('hidden');
 }
 
+async function openDeliveryTracker(orderId) {
+    if (deliveryTrackerTimer) {
+        clearInterval(deliveryTrackerTimer);
+        deliveryTrackerTimer = null;
+    }
+    await renderDeliveryTracker(orderId);
+    deliveryTrackerTimer = setInterval(() => {
+        renderDeliveryTracker(orderId);
+    }, 5000);
+}
+
+function closeDeliveryTracker() {
+    if (deliveryTrackerTimer) {
+        clearInterval(deliveryTrackerTimer);
+        deliveryTrackerTimer = null;
+    }
+    const modal = document.getElementById('deliveryTrackerModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
 // expose
 window.loadDelivery = loadDelivery;
-
-// Lightweight confirmation modal for status updates
-function openStatusModal(orderId, status){
-    const labels = { to_ship: 'Approved → To Ship', to_receive: 'Marked To Receive', completed: 'Completed' };
-    let modal = document.getElementById('admStatusModal');
-    if (!modal){
-        modal = document.createElement('div');
-        modal.id = 'admStatusModal';
-        // Toast container at bottom-right (no overlay)
-        modal.style.cssText = 'position:fixed;right:16px;bottom:16px;display:flex;align-items:center;justify-content:center;z-index:99999;background:transparent;pointer-events:none;';
-        document.body.appendChild(modal);
-    }
-    const panelStyle = 'pointer-events:auto;display:flex;gap:10px;align-items:center;background:#111;color:#fff;border-radius:10px;min-width:280px;max-width:360px;padding:10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-family:inherit;border:1px solid rgba(255,255,255,.08);';
-    modal.innerHTML = `
-      <div class="panel" style="${panelStyle}">
-        <div style="width:28px;height:28px;border-radius:8px;background:#1a73e8;display:flex;align-items:center;justify-content:center;flex:0 0 auto;">
-          <span style="display:block;width:12px;height:12px;border-radius:50%;background:#fff;"></span>
-        </div>
-        <div style="min-width:0;flex:1 1 auto;">
-          <div id="admStatusTitle" style="font-weight:700;font-size:13px;line-height:1.2;margin:0 0 2px;">Updating...</div>
-          <div id="admStatusMsg" style="opacity:.9;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Please wait while we update the order status.</div>
-        </div>
-      </div>`;
-    modal.style.display = 'flex';
-    const close = ()=>{ const m=document.getElementById('admStatusModal'); if (m) m.remove(); };
-
-    (async ()=>{
-      try{
-        await changeOrderStatus(orderId, status);
-        const t = document.getElementById('admStatusTitle');
-        const m = document.getElementById('admStatusMsg');
-        if (t) t.textContent = labels[status] || 'Updated';
-        if (m) m.textContent = 'Order status updated successfully.';
-      }catch(err){
-        const t = document.getElementById('admStatusTitle');
-        const m = document.getElementById('admStatusMsg');
-        if (t) t.textContent = 'Update Failed';
-        if (m) m.textContent = 'There was a problem updating the order. Please try again.';
-      }
-      setTimeout(close, 2000);
-    })();
-}
+window.closeDeliveryTracker = closeDeliveryTracker;
 
 // ---------------- ANALYTICS ----------------
 async function loadAnalytics(){

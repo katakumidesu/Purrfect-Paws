@@ -29,7 +29,7 @@ session_start();
             font-size: 20px;
             font-family: "Times New Roman";
             font-weight: bold;
-        }
+        }`
     </style>
 </head>
 
