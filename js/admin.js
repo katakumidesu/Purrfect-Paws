@@ -4,6 +4,154 @@ if (toggleSidebar) {
 toggleSidebar.addEventListener("click", () => sidebar.classList.toggle("collapsed"));
 }
 
+// ---------------- GALLERY (ADMIN USER POSTS) ----------------
+async function loadGalleryAdmin(statusFilter = 'pending'){
+    try {
+        const query = statusFilter && statusFilter !== 'all'
+            ? `get_gallery_posts&status=${encodeURIComponent(statusFilter)}`
+            : 'get_gallery_posts';
+        const raw = await fetch(`${API_URL}?action=${query}&_=${Date.now()}`);
+        const text = await raw.text();
+        let rows;
+        try { rows = JSON.parse(text); } catch { rows = { error: 'Server returned invalid JSON' }; }
+
+        if (rows && rows.error){
+            mainContent.innerHTML = `<h2>Gallery</h2><p class="error">Error: ${escapeHtml(rows.error)}</p>`;
+            return;
+        }
+        if (!Array.isArray(rows)) rows = [];
+
+        const tabs = [
+            { id:'pending', label:'Pending' },
+            { id:'approved', label:'Approved' },
+            { id:'declined', label:'Declined' },
+            { id:'all', label:'All' }
+        ];
+        const tabsHtml = tabs.map(t => `
+            <button type="button" class="btn ${statusFilter===t.id ? 'btn-primary' : 'btn-secondary'}" data-status="${t.id}">
+                ${t.label}
+            </button>
+        `).join('');
+
+        const html = `
+            <div class="inventory-header">
+                <h2>Gallery Posts</h2>
+                <div class="inventory-actions">
+                    ${tabsHtml}
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Preview</th>
+                            <th>User</th>
+                            <th>Description</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows.length === 0 ? '<tr><td colspan="7" class="text-center">No posts found.</td></tr>' : rows.map(r => {
+                            const st = String(r.status || '').toLowerCase();
+                            const showActions = (st === 'pending' && (statusFilter === 'pending' || statusFilter === 'all'));
+                            return `
+                            <tr data-post-id="${r.post_id}">
+                                <td>${r.post_id}</td>
+                                <td>
+                                    <img src="../HTML/${escapeHtml(r.image_path || '')}" alt="Post" style="width:60px;height:60px;object-fit:cover;border-radius:6px;" onerror="this.src='../HTML/images/catbed.jpg'">
+                                </td>
+                                <td>${escapeHtml(r.user_name || 'User')}<br><span style="font-size:11px;color:#9ca3af;">ID: ${r.user_id}</span></td>
+                                <td style="max-width:260px;white-space:normal;">${escapeHtml(r.description || '')}</td>
+                                <td><span class="status-badge ${r.status==='approved' ? 'available' : (r.status==='declined' ? 'low-stock' : '')}">${escapeHtml(r.status)}</span></td>
+                                <td>${escapeHtml(r.created_at || '')}</td>
+                                <td>
+                                    ${showActions ? `
+                                        <div class="action-buttons">
+                                            <button type="button" class="btn btn-primary" data-act="approve">Accept</button>
+                                            <button type="button" class="btn btn-delete" data-act="decline">Decline</button>
+                                        </div>
+                                    ` : '<span style="font-size:12px;color:#9ca3af;">No actions</span>'}
+                                </td>
+                            </tr>
+                        `; }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        mainContent.innerHTML = html;
+
+        // Wire status filter tabs
+        document.querySelectorAll('button[data-status]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const st = btn.getAttribute('data-status') || 'pending';
+                loadGalleryAdmin(st);
+            });
+        });
+
+        // Wire accept/decline buttons and image preview
+        mainContent.querySelectorAll('tr[data-post-id]').forEach(row => {
+            const postId = parseInt(row.getAttribute('data-post-id'), 10);
+            row.querySelectorAll('button[data-act]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const act = btn.getAttribute('data-act');
+                    const newStatus = act === 'approve' ? 'approved' : 'declined';
+                    const res = await fetchAPI(null, 'POST', { action:'update_gallery_status', post_id: postId, status: newStatus });
+                    if (res && res.success) {
+                        loadGalleryAdmin(statusFilter);
+                    } else if (res && res.error) {
+                        alert('Failed to update status: ' + res.error);
+                    }
+                });
+            });
+
+            const img = row.querySelector('td img');
+            if (img) {
+                img.style.cursor = 'pointer';
+                img.addEventListener('click', () => {
+                    let overlay = document.getElementById('admGalleryPreview');
+                    if (!overlay) {
+                        overlay = document.createElement('div');
+                        overlay.id = 'admGalleryPreview';
+                        overlay.style.position = 'fixed';
+                        overlay.style.inset = '0';
+                        overlay.style.background = 'rgba(0,0,0,0.7)';
+                        overlay.style.display = 'flex';
+                        overlay.style.alignItems = 'center';
+                        overlay.style.justifyContent = 'center';
+                        overlay.style.zIndex = '9999';
+                        overlay.innerHTML = `
+                            <div style="max-width:90vw;max-height:90vh;position:relative;">
+                                <button type="button" id="admGalleryClose" style="position:absolute;top:-10px;right:-10px;width:28px;height:28px;border-radius:50%;border:none;background:#111;color:#fff;font-size:16px;cursor:pointer;">&times;</button>
+                                <img id="admGalleryImg" src="" alt="Preview" style="max-width:90vw;max-height:90vh;object-fit:contain;border-radius:10px;box-shadow:0 20px 45px rgba(0,0,0,.6);background:#000;">
+                            </div>`;
+                        document.body.appendChild(overlay);
+                        const close = () => { overlay.style.display = 'none'; document.removeEventListener('keydown', keyHandler); };
+                        const keyHandler = (e) => { if (e.key === 'Escape') close(); };
+                        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+                        overlay.querySelector('#admGalleryClose').addEventListener('click', close);
+                        overlay._admClose = close;
+                        overlay._admKey = keyHandler;
+                    }
+                    const bigImg = overlay.querySelector('#admGalleryImg');
+                    if (bigImg) {
+                        bigImg.src = img.src;
+                    }
+                    overlay.style.display = 'flex';
+                    if (typeof overlay._admKey === 'function') {
+                        document.addEventListener('keydown', overlay._admKey);
+                    }
+                });
+            }
+        });
+    } catch (e) {
+        mainContent.innerHTML = `<h2>Gallery</h2><p class="error">Failed to load gallery posts: ${escapeHtml(e.message || String(e))}</p>`;
+    }
+}
+
 // ---------------- RATINGS & REVIEWS ----------------
 async function loadRatings(){
     try {
@@ -169,6 +317,7 @@ menuItems.forEach(item => {
             case "analytics": loadAnalytics(); break;
             case "reports": loadReports(); break;
             case "ratings": loadRatings(); break;
+            case "gallery": loadGalleryAdmin(); break;
         }
 });
 });

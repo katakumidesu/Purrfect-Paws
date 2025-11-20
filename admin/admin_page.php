@@ -34,6 +34,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
             <li data-section="analytics"><i class="fa fa-chart-bar"></i> <span>Analytics</span></li>
             <li data-section="reports"><i class="fa fa-chart-line"></i> <span>Reports</span></li>
             <li data-section="ratings"><i class="fa fa-star"></i> <span>Ratings &amp; Reviews</span></li>
+            <li data-section="gallery"><i class="fa fa-images"></i> <span>Gallery</span></li>
         </ul>
     </aside>
 
