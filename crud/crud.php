@@ -1305,10 +1305,23 @@ switch ($action) {
                 $prevNorm = strtolower(trim((string)$prevStatusRaw));
                 $restockedCount = 0; $unmatched = [];
                 if (in_array($vcurNorm, ['cancelled','canceled','cancel'], true) && !in_array($prevNorm, ['cancelled','canceled','cancel'], true)) {
-                    // Restock from order_items -> products
+                    // Restock from order_items -> products and log IN stock movements
                     $tblProd = $conn->query("SHOW TABLES LIKE 'products'");
                     $tblItems = $conn->query("SHOW TABLES LIKE 'order_items'");
                     if ($tblProd && $tblProd->num_rows > 0 && $tblItems && $tblItems->num_rows > 0) {
+                        // Ensure stock_logs table exists (same schema as order creation)
+                        $conn->query("CREATE TABLE IF NOT EXISTS stock_logs (
+                            log_id INT AUTO_INCREMENT PRIMARY KEY,
+                            product_id INT NOT NULL,
+                            change_type ENUM('in','out') NOT NULL,
+                            quantity INT NOT NULL,
+                            from_stock INT NOT NULL,
+                            to_stock INT NOT NULL,
+                            reason VARCHAR(255) DEFAULT '',
+                            order_id INT NULL,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
                         // Detect product columns
                         $cols = $conn->query("SHOW COLUMNS FROM products");
                         $nameCol = 'name'; $stockCol = 'stock'; $idCol = 'id';
@@ -1326,6 +1339,7 @@ switch ($action) {
                             if ($hasProdName && !$hasName) $nameCol = 'product_name';
                             if ($hasProdId && !$hasId) $idCol = 'product_id';
                         }
+
                         // Collect order items and restock
                         $oi = $conn->prepare("SELECT product_name, quantity FROM order_items WHERE order_id=?");
                         if ($oi){
@@ -1336,15 +1350,45 @@ switch ($action) {
                                 while ($row = $rs->fetch_assoc()){
                                     $pname = (string)($row['product_name'] ?? '');
                                     $q = max(1, intval($row['quantity'] ?? 0));
-                                    if ($pname !== '' && $hasStock){
-                                        $upd = $conn->prepare("UPDATE products SET $stockCol = $stockCol + ? WHERE $nameCol = ?");
-                                        if ($upd){
-                                            $upd->bind_param("is", $q, $pname);
-                                            if ($upd->execute() && $upd->affected_rows > 0) { $restockedCount += $q; }
-                                            else { $unmatched[] = ['name'=>$pname, 'qty'=>$q]; }
-                                            $upd->close();
-                                        } else {
-                                            $unmatched[] = ['name'=>$pname, 'qty'=>$q, 'err'=>'prepare_failed'];
+                                    if ($pname !== '' && $hasStock && $stockCol === 'stock'){
+                                        // Look up product and current stock
+                                        $sel = $conn->prepare("SELECT $idCol, $stockCol FROM products WHERE $nameCol=? LIMIT 1 FOR UPDATE");
+                                        if ($sel){
+                                            $sel->bind_param("s", $pname);
+                                            $sel->execute();
+                                            $resSel = $sel->get_result();
+                                            $prow = $resSel ? $resSel->fetch_assoc() : null;
+                                            $sel->close();
+                                            if ($prow){
+                                                $pid = intval($prow[$idCol] ?? 0);
+                                                $stock = intval($prow[$stockCol] ?? 0);
+                                                $fromStock = $stock;
+                                                $toStock = $stock + $q;
+                                                // Update stock
+                                                $upd = $conn->prepare("UPDATE products SET $stockCol = $stockCol + ? WHERE $idCol = ?");
+                                                if ($upd){
+                                                    $upd->bind_param("ii", $q, $pid);
+                                                    if ($upd->execute() && $upd->affected_rows > 0) {
+                                                        $restockedCount += $q;
+                                                        // Log IN movement for this cancellation
+                                                        $changeType = 'in';
+                                                        $reason = 'order_cancel';
+                                                        $logStmt = $conn->prepare("INSERT INTO stock_logs (product_id, change_type, quantity, from_stock, to_stock, reason, order_id) VALUES (?,?,?,?,?,?,?)");
+                                                        if ($logStmt) {
+                                                            $logStmt->bind_param("isiiisi", $pid, $changeType, $q, $fromStock, $toStock, $reason, $order_id);
+                                                            $logStmt->execute();
+                                                            $logStmt->close();
+                                                        }
+                                                    } else {
+                                                        $unmatched[] = ['name'=>$pname, 'qty'=>$q];
+                                                    }
+                                                    $upd->close();
+                                                } else {
+                                                    $unmatched[] = ['name'=>$pname, 'qty'=>$q, 'err'=>'prepare_failed_update'];
+                                                }
+                                            } else {
+                                                $unmatched[] = ['name'=>$pname, 'qty'=>$q, 'err'=>'product_not_found'];
+                                            }
                                         }
                                     }
                                 }
