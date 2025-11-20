@@ -48,7 +48,7 @@ body {
     margin-bottom: 25px;
     color: gold;
     white-space: nowrap;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .profile {
