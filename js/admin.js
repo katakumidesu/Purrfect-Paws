@@ -1461,7 +1461,21 @@ async function loadDelivery(statusFilter = 'all') {
     }
 }
 
-function openDeliveryTracker(orderId) {
+async function fetchDeliveryLogs(orderId) {
+    try {
+        const res = await fetch(`${API_URL}?action=get_delivery_logs&order_id=${encodeURIComponent(orderId)}&_=${Date.now()}`);
+        const text = await res.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            return { error: 'Server returned invalid JSON', raw: text };
+        }
+    } catch (e) {
+        return { error: e.message || 'Network error' };
+    }
+}
+
+async function openDeliveryTracker(orderId) {
     if (!Array.isArray(deliveryCache) || deliveryCache.length === 0) return;
     const order = deliveryCache.find(o => String(o.order_id) === String(orderId));
     if (!order) return;
@@ -1497,15 +1511,78 @@ function openDeliveryTracker(orderId) {
                 `;
             }).join('')}
         </div>
-        <div style="font-size:12px;color:#e5e7eb;">
+        <div style="font-size:12px;color:#e5e7eb;margin-bottom:10px;">
             <div><strong>Current status:</strong> ${st.replace('_', ' ')}</div>
         </div>
     `;
 
+    let logs = await fetchDeliveryLogs(orderId);
+    let timelineHtml = '';
+    if (Array.isArray(logs)) {
+        const statusLabelMap = {
+            to_pay: { title: 'Order placed', detail: 'Your order has been created.' },
+            to_ship: { title: 'Preparing to ship', detail: 'Seller is preparing to ship your parcel.' },
+            to_receive: { title: 'Parcel in transit', detail: 'Parcel is on the way to you.' },
+            completed: { title: 'Delivered', detail: 'Parcel has been delivered.' },
+            cancelled: { title: 'Order cancelled', detail: 'Your order has been cancelled.' }
+        };
+        const cur = statusLabelMap[st];
+        if (cur) {
+            const hasCurrent = logs.some(r => {
+                const t = (r && r.status_text) ? String(r.status_text).toLowerCase() : '';
+                return t === cur.title.toLowerCase();
+            });
+            if (!hasCurrent) {
+                let ts = order.order_date || order.date || order.updated_at || order.created_at || null;
+                let displayTs = '';
+                if (ts) {
+                    const dt = new Date(typeof ts === 'string' ? String(ts).replace(' ', 'T') : ts);
+                    if (!isNaN(dt)) {
+                        displayTs = dt.toISOString().slice(0, 19).replace('T', ' ');
+                    }
+                }
+                if (!displayTs) {
+                    const now = new Date();
+                    displayTs = now.toISOString().slice(0, 19).replace('T', ' ');
+                }
+                logs.unshift({
+                    event_time: displayTs,
+                    status_text: cur.title,
+                    detail_text: cur.detail
+                });
+            }
+        }
+    }
+    if (Array.isArray(logs) && logs.length > 0) {
+        timelineHtml = `
+            <div style="margin-top:4px;font-size:12px;color:#e5e7eb;">
+                <div style="font-weight:600;margin-bottom:6px;">Tracking history</div>
+                <div style="max-height:260px;overflow:auto;padding-right:4px;">
+                    ${logs.map(row => `
+                        <div style="display:flex;gap:10px;margin-bottom:8px;align-items:flex-start;">
+                            <div style="width:10px;display:flex;justify-content:center;">
+                                <span style="display:inline-block;width:6px;height:6px;border-radius:999px;background:#facc15;margin-top:5px;"></span>
+                            </div>
+                            <div style="flex:1;">
+                                <div style="font-size:11px;color:#9ca3af;">${escapeHtml(row.event_time || '')}</div>
+                                <div style="font-weight:600;">${escapeHtml(row.status_text || '')}</div>
+                                ${row.detail_text ? `<div style="font-size:12px;color:#d1d5db;">${escapeHtml(row.detail_text)}</div>` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    } else if (logs && logs.error) {
+        timelineHtml = `<div style="margin-top:4px;font-size:12px;color:#fca5a5;">${escapeHtml(logs.error)}</div>`;
+    } else {
+        timelineHtml = `<div style="margin-top:4px;font-size:12px;color:#9ca3af;">No detailed tracking events yet for this order.</div>`;
+    }
+
     const modal = document.getElementById('deliveryTrackerModal');
     const body = document.getElementById('deliveryTrackerBody');
     if (!modal || !body) return;
-    body.innerHTML = trackerHtml;
+    body.innerHTML = trackerHtml + timelineHtml;
     modal.classList.remove('hidden');
 }
 
