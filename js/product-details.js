@@ -29,8 +29,10 @@ async function loadProducts() {
 }
 
 function computeRating(p) {
-    // Force all products to display as 5-star rating
-    return 5;
+    // Prefer backend rating (global, from database). Fall back to 5 if missing.
+    const r = p && p.rating != null ? Number(p.rating) : 5;
+    if (!isFinite(r) || r <= 0) return 5;
+    return Math.max(0, Math.min(5, r));
 }
 
 // ⭐ Generate star icons
@@ -57,6 +59,13 @@ function shuffle(array) {
 
 // 📦 Display product details
 async function displayProductDetails() {
+    // Only run on product detail page that has these containers
+    const productContainer = document.getElementById("product-details");
+    const relatedContainer = document.getElementById("related-container");
+    if (!productContainer || !relatedContainer) {
+        return; // not on the product detail page
+    }
+
     // Load products from database first
     await loadProducts();
     
@@ -66,9 +75,6 @@ async function displayProductDetails() {
     
     // 🕵️ Find product by name
     const product = products.find(p => p.name === productName);
-    
-    // 📦 Display single product
-    const productContainer = document.getElementById("product-details");
     
     if (product) {
         const avgRating = 5;
@@ -104,7 +110,6 @@ async function displayProductDetails() {
     
     // Display related products
     const filteredProducts = products.filter(p => p.name !== productName);
-    const relatedContainer = document.getElementById("related-container");
     const shuffled = shuffle([...filteredProducts]).slice(0, 4);
     
     // ⭐ Display related products with clickable product boxes
@@ -130,24 +135,64 @@ async function displayProductDetails() {
 
     // Big Product Ratings block under related products (full width of related section)
     if (product) {
-        // Read any saved reviews for this product from localStorage (written from profile rating modal)
-        let reviews = [];
+        const key = product.name.toLowerCase().trim();
+        let reviewsDb = [];
+        try {
+            const res = await fetch('../crud/crud.php?action=get_ratings&_=' + Date.now());
+            const all = await res.json();
+            const arr = Array.isArray(all) ? all : [];
+            console.log('Ratings debug for product', key, arr);
+            reviewsDb = arr
+                .filter(r => {
+                    const pn = (r.display_product_name || r.product_name || r.raw_product_name || '').toLowerCase().trim();
+                    if (!pn) return false;
+                    // Match exactly or with minor differences (spaces, case)
+                    if (pn === key) return true;
+                    const pnNorm = pn.replace(/\s+/g,' ');
+                    const keyNorm = key.replace(/\s+/g,' ');
+                    return pnNorm === keyNorm || pnNorm.includes(keyNorm) || keyNorm.includes(pnNorm);
+                })
+                .map(r => ({
+                    // Prefer username for display; fall back to full name only if username missing
+                    user: r.username || r.display_user_name || 'User',
+                    stars: Number(r.stars || r.rating || 0),
+                    text: r.review || r.review_text || '',
+                    ts: r.created_at ? Date.parse(r.created_at) || Date.now() : Date.now()
+                }));
+        } catch (e) {
+            reviewsDb = [];
+        }
+
+        // Also merge any local reviews written in this browser (pp_product_reviews)
+        let reviewsLocal = [];
         try {
             const raw = window.localStorage.getItem('pp_product_reviews');
             const arr = raw ? JSON.parse(raw) : [];
-            const key = product.name.toLowerCase().trim();
             if (Array.isArray(arr)) {
-                reviews = arr.filter(r => r && (r.key === key || (r.product||'').toLowerCase().trim() === key));
+                reviewsLocal = arr
+                    .filter(r => r && (r.key === key || (r.product||'').toLowerCase().trim() === key))
+                    .map(r => ({
+                        user: r.user || 'User',
+                        stars: Number(r.stars || 0),
+                        text: r.text || '',
+                        ts: r.ts || Date.now()
+                    }));
             }
         } catch (e) {
-            reviews = [];
+            reviewsLocal = [];
         }
-        // Compute Shopee-like average rating (win rate) from reviews; fall back to 5 if none yet
+
+        // Use only backend reviews to avoid duplicates when the same rating
+        // is stored both in the database and localStorage
+        const reviews = reviewsDb;
+
+        // Compute average rating; fall back to 5 if none yet
         let avgRating = 5;
         if (reviews.length > 0) {
             const sum = reviews.reduce((acc, r) => acc + Number(r.stars || 0), 0);
             avgRating = sum / reviews.length;
         }
+
         const ratingsSection = document.createElement('section');
         ratingsSection.className = 'product-ratings';
         ratingsSection.style.margin = '24px auto 0';

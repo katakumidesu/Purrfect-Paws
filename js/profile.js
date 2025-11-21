@@ -439,7 +439,7 @@ function openRateModal(orderKey){
           <textarea id="prText" rows="4" style="width:100%;border-radius:8px;border:1px solid #d1d5db;padding:8px;font-size:13px;resize:vertical;" placeholder="Share more thoughts on the product to help other buyers."></textarea>
         </div>
         <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;">
-          <button type="button" id="prCancel" style="padding:7px 14px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;font-size:13px;cursor:pointer;">CANCEL</button>
+          <button type="button" id="prCancel" style="padding:7px 14px;border-radius:8px;border:1px solid #000000 !important;background:#000000 !important;color:#ffffff !important;font-size:13px;cursor:pointer;">CANCEL</button>
           <button type="submit" id="prSubmit" style="padding:7px 16px;border-radius:8px;border:none;background:#f97316;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">SUBMIT</button>
         </div>
       </form>
@@ -460,11 +460,55 @@ function openRateModal(orderKey){
 
   modal.addEventListener('click', (e)=>{ if (e.target===modal) closeRateModal(); });
   document.getElementById('prCancel').onclick = closeRateModal;
-  document.getElementById('prForm').onsubmit = (e)=>{
+  document.getElementById('prForm').onsubmit = async (e)=>{
     e.preventDefault();
+    const reviewText = (document.getElementById('prText').value||'').trim();
+
+    // Mark order as rated locally so the "Rate" button is replaced
     const map = getRatedMap();
-    map[String(orderKey)] = { rated:true, stars:current, text: (document.getElementById('prText').value||'').trim() };
+    map[String(orderKey)] = { rated:true, stars:current, text: reviewText };
     saveRatedMap(map);
+
+    // Save per-product review locally (used for client-only extras)
+    try {
+      const raw = window.localStorage.getItem('pp_product_reviews') || '[]';
+      let reviews = [];
+      try { reviews = JSON.parse(raw); if (!Array.isArray(reviews)) reviews = []; } catch (_) { reviews = []; }
+      const productNameLocal = String(firstItem.name || '').trim();
+      if (productNameLocal) {
+        const key = productNameLocal.toLowerCase();
+        reviews.push({
+          key,
+          product: productNameLocal,
+          stars: current,
+          text: reviewText,
+          user: (window.PURR_USER_ID || 'User'),
+          ts: Date.now()
+        });
+        window.localStorage.setItem('pp_product_reviews', JSON.stringify(reviews));
+      }
+    } catch (_) {}
+
+    // Send rating to backend so it affects global product rating
+    try {
+      const productName = String(firstItem.name || '').trim();
+      if (productName) {
+        await fetch('../crud/crud.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            action: 'rate_product',
+            product_name: productName,
+            stars: current,
+            text: reviewText
+          })
+        });
+      }
+    } catch (_) {
+      // Swallow errors; local UI will still show rated state
+    }
+
     closeRateModal();
     const currentTab = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
     renderPurchases(currentTab);

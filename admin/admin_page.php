@@ -13,7 +13,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 <title>Admin Panel - Purrfect Paws</title>
 <link rel="stylesheet" href="../HTML/css/admin.css">
 <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://kit.fontawesome.com/df5d6157cf.js" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 <body>
 <div class="layout">
@@ -33,6 +33,8 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
             <li data-section="users"><i class="fa fa-users"></i> <span>Users</span></li>
             <li data-section="analytics"><i class="fa fa-chart-bar"></i> <span>Analytics</span></li>
             <li data-section="reports"><i class="fa fa-chart-line"></i> <span>Reports</span></li>
+            <li data-section="ratings"><i class="fa fa-star"></i> <span>Ratings &amp; Reviews</span></li>
+            <li data-section="gallery"><i class="fa fa-images"></i> <span>Gallery</span></li>
         </ul>
     </aside>
 
@@ -53,6 +55,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     </main>
 </div>
 
-<script src="../js/admin.js?v=widgets-v1" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="../js/admin.js?v=widgets-v3" defer></script>
 </body>
 </html>

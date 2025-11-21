@@ -316,11 +316,12 @@ button:hover {
   box-shadow: 0 4px 15px rgba(0,0,0,0.1);
   max-width: 300px;
   text-align: center;
-  transition: transform 0.3s ease;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .testimonial-card:hover {
   transform: translateY(-10px);
+  box-shadow: 0 10px 25px rgba(15,23,42,0.18);
 }
 
 /*for quote */
@@ -349,6 +350,17 @@ button:hover {
 .testimonial-card h3 {
   margin-top: 10px;
   font-weight: bold;
+}
+
+@media (max-width: 768px) {
+  .testimonial {
+    padding: 60px 20px;
+  }
+  .testimonial-container {
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
 }
 
 
@@ -724,6 +736,8 @@ th:last-child{
   padding: 10px;
   color: #333;
   text-decoration: none;
+  font-family: 'Merriweather', serif;
+  font-size: 1.05rem;
 }
 
 .user-menu .dropdown a:hover {
@@ -768,4 +782,13 @@ th:last-child{
   padding: 4px 8px;
   font-size: 14px;
   margin: 0 2px;
+}
+
+/* Rating modal cancel button styling */
+.pc-modal #prCancel,
+.pc-modal #prCancel:disabled {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border: 1px solid #000000 !important;
+  opacity: 1 !important;
 }

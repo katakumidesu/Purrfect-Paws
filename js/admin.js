@@ -4,6 +4,288 @@ if (toggleSidebar) {
 toggleSidebar.addEventListener("click", () => sidebar.classList.toggle("collapsed"));
 }
 
+// ---------------- GALLERY (ADMIN USER POSTS) ----------------
+async function loadGalleryAdmin(statusFilter = 'pending'){
+    try {
+        const query = statusFilter && statusFilter !== 'all'
+            ? `get_gallery_posts&status=${encodeURIComponent(statusFilter)}`
+            : 'get_gallery_posts';
+        const raw = await fetch(`${API_URL}?action=${query}&_=${Date.now()}`);
+        const text = await raw.text();
+        let rows;
+        try { rows = JSON.parse(text); } catch { rows = { error: 'Server returned invalid JSON' }; }
+
+        if (rows && rows.error){
+            mainContent.innerHTML = `<h2>Gallery</h2><p class="error">Error: ${escapeHtml(rows.error)}</p>`;
+            return;
+        }
+        if (!Array.isArray(rows)) rows = [];
+
+        const tabs = [
+            { id:'pending', label:'Pending' },
+            { id:'approved', label:'Approved' },
+            { id:'declined', label:'Declined' },
+            { id:'all', label:'All' }
+        ];
+        const tabsHtml = tabs.map(t => `
+            <button type="button" class="btn ${statusFilter===t.id ? 'btn-primary' : 'btn-secondary'}" data-status="${t.id}">
+                ${t.label}
+            </button>
+        `).join('');
+
+        const html = `
+            <div class="inventory-header">
+                <h2>Gallery Posts</h2>
+                <div class="inventory-actions">
+                    ${tabsHtml}
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Preview</th>
+                            <th>User</th>
+                            <th>Description</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows.length === 0 ? '<tr><td colspan="7" class="text-center">No posts found.</td></tr>' : rows.map(r => {
+                            const st = String(r.status || '').toLowerCase();
+                            const showActions = (st === 'pending' && (statusFilter === 'pending' || statusFilter === 'all'));
+                            return `
+                            <tr data-post-id="${r.post_id}">
+                                <td>${r.post_id}</td>
+                                <td>
+                                    <img src="../HTML/${escapeHtml(r.image_path || '')}" alt="Post" style="width:60px;height:60px;object-fit:cover;border-radius:6px;" onerror="this.src='../HTML/images/catbed.jpg'">
+                                </td>
+                                <td>${escapeHtml(r.user_name || 'User')}<br><span style="font-size:11px;color:#9ca3af;">ID: ${r.user_id}</span></td>
+                                <td style="max-width:260px;white-space:normal;">${escapeHtml(r.description || '')}</td>
+                                <td><span class="status-badge ${r.status==='approved' ? 'available' : (r.status==='declined' ? 'low-stock' : '')}">${escapeHtml(r.status)}</span></td>
+                                <td>${escapeHtml(r.created_at || '')}</td>
+                                <td>
+                                    ${showActions ? `
+                                        <div class="action-buttons">
+                                            <button type="button" class="btn btn-primary" data-act="approve">Accept</button>
+                                            <button type="button" class="btn btn-delete" data-act="decline">Decline</button>
+                                        </div>
+                                    ` : '<span style="font-size:12px;color:#9ca3af;">No actions</span>'}
+                                </td>
+                            </tr>
+                        `; }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        mainContent.innerHTML = html;
+
+        // Wire status filter tabs
+        document.querySelectorAll('button[data-status]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const st = btn.getAttribute('data-status') || 'pending';
+                loadGalleryAdmin(st);
+            });
+        });
+
+        // Wire accept/decline buttons and image preview
+        mainContent.querySelectorAll('tr[data-post-id]').forEach(row => {
+            const postId = parseInt(row.getAttribute('data-post-id'), 10);
+            row.querySelectorAll('button[data-act]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const act = btn.getAttribute('data-act');
+                    const newStatus = act === 'approve' ? 'approved' : 'declined';
+                    const res = await fetchAPI(null, 'POST', { action:'update_gallery_status', post_id: postId, status: newStatus });
+                    if (res && res.success) {
+                        loadGalleryAdmin(statusFilter);
+                    } else if (res && res.error) {
+                        alert('Failed to update status: ' + res.error);
+                    }
+                });
+            });
+
+            const img = row.querySelector('td img');
+            if (img) {
+                img.style.cursor = 'pointer';
+                img.addEventListener('click', () => {
+                    let overlay = document.getElementById('admGalleryPreview');
+                    if (!overlay) {
+                        overlay = document.createElement('div');
+                        overlay.id = 'admGalleryPreview';
+                        overlay.style.position = 'fixed';
+                        overlay.style.inset = '0';
+                        overlay.style.background = 'rgba(0,0,0,0.7)';
+                        overlay.style.display = 'flex';
+                        overlay.style.alignItems = 'center';
+                        overlay.style.justifyContent = 'center';
+                        overlay.style.zIndex = '9999';
+                        overlay.innerHTML = `
+                            <div style="max-width:90vw;max-height:90vh;position:relative;">
+                                <button type="button" id="admGalleryClose" style="position:absolute;top:-10px;right:-10px;width:28px;height:28px;border-radius:50%;border:none;background:#111;color:#fff;font-size:16px;cursor:pointer;">&times;</button>
+                                <img id="admGalleryImg" src="" alt="Preview" style="max-width:90vw;max-height:90vh;object-fit:contain;border-radius:10px;box-shadow:0 20px 45px rgba(0,0,0,.6);background:#000;">
+                            </div>`;
+                        document.body.appendChild(overlay);
+                        const close = () => { overlay.style.display = 'none'; document.removeEventListener('keydown', keyHandler); };
+                        const keyHandler = (e) => { if (e.key === 'Escape') close(); };
+                        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+                        overlay.querySelector('#admGalleryClose').addEventListener('click', close);
+                        overlay._admClose = close;
+                        overlay._admKey = keyHandler;
+                    }
+                    const bigImg = overlay.querySelector('#admGalleryImg');
+                    if (bigImg) {
+                        bigImg.src = img.src;
+                    }
+                    overlay.style.display = 'flex';
+                    if (typeof overlay._admKey === 'function') {
+                        document.addEventListener('keydown', overlay._admKey);
+                    }
+                });
+            }
+        });
+    } catch (e) {
+        mainContent.innerHTML = `<h2>Gallery</h2><p class="error">Failed to load gallery posts: ${escapeHtml(e.message || String(e))}</p>`;
+    }
+}
+
+// ---------------- RATINGS & REVIEWS ----------------
+async function loadRatings(){
+    try {
+        const rows = await fetchAPI('get_ratings');
+        if (rows.error){
+            mainContent.innerHTML = `<h2>Ratings &amp; Reviews</h2><p class="error">Error: ${rows.error}</p>`;
+            return;
+        }
+        const list = Array.isArray(rows) ? rows : [];
+
+        const html = `
+            <div class="inventory-header">
+                <h2>Ratings &amp; Reviews</h2>
+                <p class="subtitle">Feedback left by customers on products.</p>
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Product</th>
+                            <th>User</th>
+                            <th>Rating</th>
+                            <th>Review</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${list.length === 0
+                            ? '<tr><td colspan="6" class="text-center">No ratings yet.</td></tr>'
+                            : list.map(r => `
+                                <tr>
+                                    <td>${r.rating_id}</td>
+                                    <td>${escapeHtml(r.display_product_name || r.raw_product_name || '')}
+                                        ${r.product_id ? `<span style="color:#9ca3af;font-size:12px;">(ID: ${r.product_id})</span>` : ''}
+                                    </td>
+                                    <td>${escapeHtml(r.display_user_name || r.username || '')}
+                                        ${r.user_email ? `<br><span style="color:#9ca3af;font-size:12px;">${escapeHtml(r.user_email)}</span>` : ''}
+                                    </td>
+                                    <td><span class="status-badge available" style="${Number(r.stars||0) < 2 ? 'background:#dc2626;border-color:#b91c1c;' : ''}">${Number(r.stars||0).toFixed(1)} ★</span></td>
+                                    <td>${escapeHtml(r.review || '')}</td>
+                                    <td>${r.created_at || ''}</td>
+                                </tr>
+                            `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        mainContent.innerHTML = html;
+    } catch (err){
+        mainContent.innerHTML = `<h2>Ratings &amp; Reviews</h2><p class="error">Error loading ratings: ${escapeHtml(err.message || String(err))}</p>`;
+    }
+}
+
+async function loadStockLogsPage(productId = null) {
+    try {
+        let query = 'get_stock_logs';
+        if (productId) {
+            query += `&product_id=${encodeURIComponent(productId)}`;
+        }
+        const raw = await fetch(`${API_URL}?action=${query}&_=${Date.now()}`);
+        const text = await raw.text();
+        let logs;
+        try {
+            logs = JSON.parse(text);
+        } catch (e) {
+            logs = { error: 'Server returned invalid JSON' };
+        }
+
+        if (logs.error) {
+            mainContent.innerHTML = `<h2>Stock Logs</h2><p class="error">Error: ${logs.error}</p>`;
+            return;
+        }
+
+        if (!Array.isArray(logs)) logs = [];
+
+        const titleSuffix = productId ? ` for Product #${productId}` : '';
+
+        const html = `
+            <div class="inventory-header">
+                <h2>Stock Logs${titleSuffix}</h2>
+                <div class="inventory-actions">
+                    <button class="btn btn-secondary" onclick="loadInventory()" style="margin-right: 10px;">
+                        <i class="fa fa-arrow-left"></i> Back to Inventory
+                    </button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Product</th>
+                            <th>Type</th>
+                            <th>Quantity</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Reason</th>
+                            <th>Order #</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${logs.length === 0
+                            ? '<tr><td colspan="9" class="text-center">No stock logs found.</td></tr>'
+                            : logs.map(l => `
+                                <tr>
+                                    <td>${l.log_id}</td>
+                                    <td>${escapeHtml(l.product_name || '')} (ID: ${l.product_id})</td>
+                                    <td><span class="status-badge ${l.change_type === 'in' ? 'available' : 'low-stock'}">${l.change_type === 'in' ? 'IN' : 'OUT'}</span></td>
+                                    <td>${l.quantity}</td>
+                                    <td>${l.from_stock}</td>
+                                    <td>${l.to_stock}</td>
+                                    <td>${escapeHtml(l.reason || '')}</td>
+                                    <td>${l.order_id ? l.order_id : '-'}</td>
+                                    <td>${l.created_at || ''}</td>
+                                </tr>
+                            `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        mainContent.innerHTML = html;
+    } catch (error) {
+        mainContent.innerHTML = `<h2>Stock Logs</h2><p class="error">Error loading stock logs: ${error.message}</p>`;
+    }
+}
+
+function viewProductStockLogs(productId) {
+    loadStockLogsPage(productId);
+}
+
 function fmtNumber(v){
     const n = Number(v)||0;
     return n.toLocaleString('en-PH');
@@ -34,6 +316,8 @@ menuItems.forEach(item => {
             case "users": loadUsers(); break;
             case "analytics": loadAnalytics(); break;
             case "reports": loadReports(); break;
+            case "ratings": loadRatings(); break;
+            case "gallery": loadGalleryAdmin(); break;
         }
 });
 });
@@ -44,10 +328,20 @@ try { document.querySelector('.menu li.active')?.click(); } catch (e) { loadDash
 // ---------------- API HELPER FUNCTIONS ----------------
 async function fetchAPI(action, method = 'GET', data = null) {
     try {
+        // Helper to safely parse JSON and surface raw body if it is not valid JSON
+        const parseSafeJson = (text) => {
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                console.error('API returned non-JSON response:', text);
+                return { error: 'Server returned invalid JSON', raw: text };
+            }
+        };
+
         if (method === 'GET' && action) {
             const response = await fetch(`${API_URL}?action=${action}&_=${Date.now()}`);
-            const result = await response.json();
-            return result;
+            const text = await response.text();
+            return parseSafeJson(text);
         }
         
         // POST request
@@ -60,8 +354,8 @@ async function fetchAPI(action, method = 'GET', data = null) {
         };
         
         const response = await fetch(API_URL, options);
-        const result = await response.json();
-        return result;
+        const text = await response.text();
+        return parseSafeJson(text);
     } catch (error) {
         console.error('API Error:', error);
         return { error: error.message };
@@ -240,6 +534,9 @@ function renderInventoryTable(productsList) {
                     <i class="fa fa-search"></i>
                     <input type="text" id="searchInput" placeholder="Search products..." onkeyup="filterProducts()">
                 </div>
+                <button class="btn btn-secondary" onclick="loadStockLogsPage()" style="margin-right: 10px;">
+                    <i class="fa fa-list"></i> Stock Logs
+                </button>
                 <button class="btn btn-secondary" onclick="window.open('../crud/import_products.php', '_blank')" style="margin-right: 10px;">
                     <i class="fa fa-download"></i> Import Products
                 </button>
@@ -291,6 +588,9 @@ function renderInventoryTable(productsList) {
                                         </button>
                                         <button class="btn-icon btn-delete" onclick="deleteProduct(${p.product_id})" title="Delete">
                                             <i class="fa fa-trash"></i>
+                                        </button>
+                                        <button class="btn-icon" onclick="viewProductStockLogs(${p.product_id})" title="Stock Logs">
+                                            <i class="fa fa-list"></i>
                                         </button>
                                     </div>
                                 </td>
@@ -425,7 +725,11 @@ function openAddProductModal() {
 function openEditProductModal(productId) {
     const product = products.find(p => p.product_id == productId);
     if (!product) {
-        alert('Product not found');
+        Swal.fire({
+            icon: 'error',
+            title: 'Not found',
+            text: 'Product not found.'
+        });
         return;
     }
     
@@ -468,7 +772,11 @@ async function saveProduct(event) {
         const result = await fetchAPI(null, 'POST', formData);
         
         if (result.error) {
-            alert('Error: ' + result.error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: result.error
+            });
             return;
         }
         
@@ -478,41 +786,80 @@ async function saveProduct(event) {
             closeProductModal();
             loadInventory(); // Reload inventory
             loadDashboard(); // Update dashboard stats
+            Swal.fire({
+                icon: 'success',
+                title: 'Saved!',
+                text: 'Product has been saved successfully.'
+            });
         } else {
-            alert('Failed to save product');
+            Swal.fire({
+                icon: 'error',
+                title: 'Failed',
+                text: 'Failed to save product.'
+            });
         }
     } catch (error) {
-        alert('Error saving product: ' + error.message);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error saving product: ' + error.message
+        });
     }
 }
 
 async function deleteProduct(productId) {
-    if (!confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
-        return;
-    }
-    
-    try {
-        const result = await fetchAPI(null, 'POST', {
-            action: 'delete_product',
-            product_id: productId
-        });
-        
-        if (result.error) {
-            alert('Error: ' + result.error);
+    Swal.fire({
+        title: 'Delete product?',
+        text: 'Are you sure you want to delete this product? This action cannot be undone.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, delete it',
+        cancelButtonText: 'Cancel'
+    }).then(async (resultSwal) => {
+        if (!resultSwal.isConfirmed) {
             return;
         }
-        
-        if (result.success) {
-            // Notify other tabs (e.g., product listing) to refresh
-            try { localStorage.setItem('pp_products_updated', Date.now().toString()); } catch (e) {}
-            loadInventory(); // Reload inventory
-            loadDashboard(); // Update dashboard stats
-        } else {
-            alert('Failed to delete product');
+
+        try {
+            const result = await fetchAPI(null, 'POST', {
+                action: 'delete_product',
+                product_id: productId
+            });
+            
+            if (result.error) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: result.error
+                });
+                return;
+            }
+            
+            if (result.success) {
+                // Notify other tabs (e.g., product listing) to refresh
+                try { localStorage.setItem('pp_products_updated', Date.now().toString()); } catch (e) {}
+                loadInventory(); // Reload inventory
+                loadDashboard(); // Update dashboard stats
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Deleted!',
+                    text: 'Product has been deleted.'
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed',
+                    text: 'Failed to delete product.'
+                });
+            }
+        } catch (error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Error deleting product: ' + error.message
+            });
         }
-    } catch (error) {
-        alert('Error deleting product: ' + error.message);
-    }
+    });
 }
 
 function escapeHtml(text) {
@@ -610,7 +957,11 @@ function renderUsersTable(usersList) {
                                 <td>${escapeHtml(u.username || 'N/A')}</td>
                                 <td>${escapeHtml(u.email || '')}</td>
                                 <td>${escapeHtml(u.phone || 'N/A')}</td>
-                                <td><span class="status-badge ${u.role === 'admin' ? 'available' : ''}">${escapeHtml(u.role || 'user')}</span></td>
+                                <td>
+                                    ${u.role === 'admin'
+                                        ? `<span class="status-badge" style="background:#fbbf24;border-color:#f59e0b;color:#111;font-weight:700;">ADMIN</span>`
+                                        : `<span class="status-badge available">${escapeHtml(u.role || 'USER')}</span>`}
+                                </td>
                                 <td>${u.created_at ? u.created_at.split(' ')[0] : 'N/A'}</td>
                                 <td>
                                     <div class="action-buttons">
@@ -708,13 +1059,21 @@ function openAddUserModal() {
 function openEditUserModal(userId) {
     const user = allUsers.find(u => u.user_id == userId);
     if (!user) {
-        alert('User not found');
+        Swal.fire({
+            icon: 'error',
+            title: 'Not found',
+            text: 'User not found.'
+        });
         return;
     }
     
     // Prevent editing admin account
     if (user.role === 'admin') {
-        alert('Cannot edit admin account through this interface. Admin account is hardcoded.');
+        Swal.fire({
+            icon: 'info',
+            title: 'Admin account',
+            text: 'Cannot edit admin account through this interface. Admin account is hardcoded.'
+        });
         return;
     }
     
@@ -747,7 +1106,11 @@ async function saveUser(event) {
     
     // Validate password for new users
     if (!isEdit && !password) {
-        alert('Password is required for new users');
+        Swal.fire({
+            icon: 'warning',
+            title: 'Missing password',
+            text: 'Password is required for new users.'
+        });
         return;
     }
     
@@ -770,51 +1133,146 @@ async function saveUser(event) {
         const result = await fetchAPI(null, 'POST', formData);
         
         if (result.error) {
-            alert('Error: ' + result.error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: result.error
+            });
             return;
         }
         
         if (result.success) {
             closeUserModal();
             loadUsers(); // Reload users
+            Swal.fire({
+                icon: 'success',
+                title: 'Saved!',
+                text: 'User has been saved successfully.'
+            });
         } else {
-            alert('Failed to save user');
+            Swal.fire({
+                icon: 'error',
+                title: 'Failed',
+                text: 'Failed to save user.'
+            });
         }
     } catch (error) {
-        alert('Error saving user: ' + error.message);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error saving user: ' + error.message
+        });
     }
 }
 
 async function deleteUser(userId) {
-    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-        return;
-    }
-    
-    try {
-        const result = await fetchAPI(null, 'POST', {
-            action: 'delete_user',
-            user_id: userId
-        });
-        
-        if (result.error) {
-            alert('Error: ' + result.error);
+    Swal.fire({
+        title: 'Delete user?',
+        text: 'Are you sure you want to delete this user? This action cannot be undone.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, delete',
+        cancelButtonText: 'Cancel'
+    }).then(async (resultSwal) => {
+        if (!resultSwal.isConfirmed) {
             return;
         }
-        
-        if (result.success) {
-            loadUsers(); // Reload users
-        } else {
-            alert('Failed to delete user');
+
+        try {
+            const result = await fetchAPI(null, 'POST', {
+                action: 'delete_user',
+                user_id: userId
+            });
+            
+            if (result.error) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: result.error
+                });
+                return;
+            }
+            
+            if (result.success) {
+                loadUsers(); // Reload users
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Deleted!',
+                    text: 'User has been deleted.'
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed',
+                    text: 'Failed to delete user.'
+                });
+            }
+        } catch (error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Error deleting user: ' + error.message
+            });
         }
-    } catch (error) {
-        alert('Error deleting user: ' + error.message);
-    }
+    });
 }
 
 // ---------------- ORDERS ----------------
 let ordersCache = [];
+
+function normalizeOrderDate(o){
+    if (!o) return null;
+    const fields = ['order_date','date','created_at','updated_at','ordered_at','order_time','placed_at','timestamp','createdAt','updatedAt'];
+    let raw = null;
+    for (let i=0;i<fields.length;i++){
+        if (o[fields[i]]) { raw = o[fields[i]]; break; }
+    }
+    if (!raw) return null;
+    let s = String(raw).trim();
+    let d = new Date(s);
+    if (isNaN(d)) {
+        // Try MySQL DATETIME: "YYYY-MM-DD HH:MM:SS"
+        d = new Date(s.replace(' ', 'T'));
+    }
+    if (isNaN(d)) {
+        // Try DD/MM/YYYY or MM/DD/YYYY by swapping if needed
+        const m = s.match(/^(\d{1,2})[\/](\d{1,2})[\/](\d{2,4})(.*)$/);
+        if (m){
+            const p1 = m[1], p2 = m[2], y = m[3].length===2 ? ('20'+m[3]) : m[3];
+            // Assume original is DD/MM/YYYY; convert to YYYY-MM-DD
+            s = `${y}-${p2.padStart(2,'0')}-${p1.padStart(2,'0')}${m[4]||''}`;
+            d = new Date(s.replace(' ', 'T'));
+        }
+    }
+    return isNaN(d) ? null : d;
+}
+
+function filterOrdersByPeriod(list, period){
+    if (!Array.isArray(list) || !list.length || !period || period === 'all') return list;
+    const now = Date.now();
+    const oneDayMs = 24*60*60*1000;
+    const ranges = {
+        day:   now - oneDayMs,          // last 24 hours
+        week:  now - 7*oneDayMs,        // last 7 days
+        month: now - 30*oneDayMs,       // last 30 days
+        year:  now - 365*oneDayMs       // last 365 days
+    };
+    const minTs = ranges[period];
+    if (minTs == null) return list;
+    return list.filter(o => {
+        const d = normalizeOrderDate(o);
+        if (!d) return false;
+        return d.getTime() >= minTs;
+    });
+}
+
 function renderOrderRow(o){
     const st = (o.status && String(o.status).trim()) ? String(o.status) : 'to_pay';
+    const badgeClass = (st === 'completed' || st === 'to_receive')
+        ? 'available'                   // green for completed + to_receive
+        : (st === 'to_pay' || st === 'cancelled')
+            ? 'low-stock'               // red for to_pay + cancelled
+            : '';
     return `
         <tr data-order-id="${o.order_id}" data-context="orders">
             <td>#${o.order_id}</td>
@@ -822,12 +1280,11 @@ function renderOrderRow(o){
             <td style="text-align:center; width: 120px;"><button type="button" class="btn btn-secondary" onclick="viewOrderItems(${o.order_id})">Details</button></td>
             <td class="price">${fmtCurrency(o.total)}</td>
             <td>
-                <span class="status-badge ${st==='to_pay'?'low-stock': st==='completed'?'available':''}">${st.replace('_',' ')}</span>
+                <span class="status-badge ${badgeClass}">${st.replace('_',' ')}</span>
             </td>
             <td>
                 <div class="action-buttons">
                     ${st==='to_pay' ? `<button type="button" class="btn btn-primary" onclick="openStatusModal(${o.order_id},'to_ship')">Approve → To Ship</button>` : ''}
-                    ${st==='to_ship' ? `<button type="button" class="btn" onclick="openStatusModal(${o.order_id},'to_receive')">Mark To Receive</button>` : ''}
                     ${st==='to_pay' || st==='to_ship' ? `<button type="button" class="btn btn-delete" onclick="changeOrderStatus(${o.order_id},'cancelled')">Cancel</button>` : ''}
                 </div>
             </td>
@@ -839,29 +1296,53 @@ async function loadOrders(){
         mainContent.innerHTML = `<h2>Orders</h2><p class="error">${orders.error}</p>`; return;
     }
     ordersCache = Array.isArray(orders) ? orders : [];
-    const rows = (ordersCache.length>0) ? ordersCache.map(renderOrderRow).join('') : '<tr><td colspan="6" class="text-center">No orders found.</td></tr>';
 
-    mainContent.innerHTML = `
-        <div class="inventory-header">
-            <h2>Orders</h2>
-        </div>
-        <div class="table-container">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Customer</th>
-                        <th style="text-align:center; width: 120px;">Details</th>
-                        <th>Total</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-            </table>
-        </div>
-        <div id="orderItemsModal" class="modal hidden"><div class="modal-content"><span class="closeBtn" onclick="document.getElementById('orderItemsModal').classList.add('hidden')">&times;</span><h2>Order Items</h2><div id="orderItemsBody" style="margin-top:10px"></div></div></div>
-    `;
+    const renderTable = (period) => {
+        let filtered = filterOrdersByPeriod(ordersCache, period);
+        // If there are orders overall but none in this range, fall back to all orders
+        if ((!Array.isArray(filtered) || filtered.length === 0) && Array.isArray(ordersCache) && ordersCache.length > 0) {
+            filtered = ordersCache;
+        }
+        const rows = (filtered.length>0) ? filtered.map(renderOrderRow).join('') : '<tr><td colspan="6" class="text-center">No orders found.</td></tr>';
+        const selVal = period || 'all';
+        mainContent.innerHTML = `
+            <div class="inventory-header">
+                <h2>Orders</h2>
+                <div class="inventory-actions">
+                    <label style="font-size:14px;color:#9ca3af;margin-right:6px;">Filter by:</label>
+                    <select id="orderTimeFilter" class="admin-select">
+                        <option value="all" ${selVal==='all'?'selected':''}>All time</option>
+                        <option value="day" ${selVal==='day'?'selected':''}>Last 24 hours</option>
+                        <option value="week" ${selVal==='week'?'selected':''}>Last 7 days</option>
+                        <option value="month" ${selVal==='month'?'selected':''}>Last 30 days</option>
+                        <option value="year" ${selVal==='year'?'selected':''}>Last 365 days</option>
+                    </select>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Customer</th>
+                            <th style="text-align:center; width: 120px;">Details</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+            <div id="orderItemsModal" class="modal hidden"><div class="modal-content"><span class="closeBtn" onclick="document.getElementById('orderItemsModal').classList.add('hidden')">&times;</span><h2>Order Items</h2><div id="orderItemsBody" style="margin-top:10px"></div></div></div>
+        `;
+        const sel = document.getElementById('orderTimeFilter');
+        if (sel){
+            sel.onchange = () => renderTable(sel.value || 'all');
+        }
+    };
+
+    renderTable('all');
 }
 
 async function changeOrderStatus(orderId, status){
@@ -899,6 +1380,11 @@ async function changeOrderStatus(orderId, status){
         if (trOk && idx>-1){ trOk.outerHTML = renderOrderRow(ordersCache[idx]); }
         // Optional: background refresh to sync other rows without flashing this one
         try { fetchAPI('get_orders').then(list => { if (Array.isArray(list)) { ordersCache = list; } }); } catch(_){ }
+
+        // Also log a delivery history event for this status change (used by customer tracker)
+        try {
+            await fetchAPI(null,'POST',{ action:'add_delivery_log', order_id: parseInt(orderId,10), status });
+        } catch(_){ /* non-critical */ }
     } else {
         // Roll back optimistic change
         if (idx>-1 && prev){ ordersCache[idx] = prev; }
@@ -969,7 +1455,31 @@ function viewOrderItems(orderId){
         const modal = document.getElementById('orderItemsModal');
         if (body && modal){ body.innerHTML = itemsHtml + paymentHtml + addressHtml; modal.classList.remove('hidden'); }
     } catch (e) {
-        alert('Unable to load order details.');
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Unable to load order details.'
+        });
+    }
+}
+async function openStatusModal(orderId, status){
+    const result = await Swal.fire({
+        title: 'Update order status?',
+        text: 'This will change the order status to ' + String(status).replace('_',' ') + '.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, update',
+        cancelButtonText: 'Cancel'
+    });
+    if (!result.isConfirmed) return;
+    await changeOrderStatus(orderId, status);
+    try {
+        const active = document.querySelector('.menu li.active');
+        if (active && active.getAttribute('data-section') === 'delivery') {
+            loadDelivery(window.currentDeliveryFilter || 'all');
+        }
+    } catch (e) {
+        console.warn('Failed to refresh delivery view after status update', e);
     }
 }
 // Expose functions for inline onclick handlers
@@ -978,7 +1488,8 @@ window.viewOrderItems = viewOrderItems;
 window.openStatusModal = openStatusModal;
 
 // ---------------- DELIVERY (ADMIN) ----------------
-let deliveryCache = [];
+var deliveryCache = [];
+window.currentDeliveryFilter = 'all';
 
 function filterDeliveriesByStatus(status) {
     if (!Array.isArray(deliveryCache) || deliveryCache.length === 0) return [];
@@ -990,7 +1501,11 @@ function renderDeliveryRow(o) {
     // Normalized order status for logic/filtering
     const st = (o.status && String(o.status).trim()) ? String(o.status).toLowerCase() : 'to_pay';
     const canArrange = (st === 'to_ship');
-    const badgeClass = st === 'completed' ? 'available' : (st === 'cancelled' ? 'low-stock' : '');
+    const badgeClass = (st === 'completed' || st === 'to_receive' || st === 'to_ship')
+        ? 'available'                     // green for ORDER IS ON THE WAY, TO SHIP, completed
+        : (st === 'to_pay' || st === 'cancelled')
+            ? 'low-stock'                 // red for to_pay and cancelled
+            : '';
 
     // Prefer delivery_status from delivery table for display if present
     const deliveryStatusRaw = (o.delivery_status != null) ? String(o.delivery_status).trim() : '';
@@ -1020,6 +1535,7 @@ function renderDeliveryRow(o) {
             <td>
                 <div class="action-buttons">
                     <button type="button" class="btn btn-secondary" onclick="viewOrderItems(${o.order_id})">View</button>
+                    <button type="button" class="btn" onclick="openDeliveryTracker(${o.order_id})">Track</button>
                     ${canArrange ? `<button type="button" class="btn btn-primary" onclick="openStatusModal(${o.order_id}, 'to_receive')">Arrange Delivery</button>` : ''}
                 </div>
             </td>
@@ -1028,6 +1544,7 @@ function renderDeliveryRow(o) {
 
 async function loadDelivery(statusFilter = 'all') {
     try {
+        window.currentDeliveryFilter = statusFilter || 'all';
         const orders = await fetchAPI('get_orders');
         if (orders?.error) {
             mainContent.innerHTML = `<div class="inventory-header"><h2>Delivery</h2></div><p class="error">${orders.error}</p>`;
@@ -1082,6 +1599,7 @@ async function loadDelivery(statusFilter = 'all') {
                 </table>
             </div>
             <div id="orderItemsModal" class="modal hidden"><div class="modal-content"><span class="closeBtn" onclick="document.getElementById('orderItemsModal').classList.add('hidden')">&times;</span><h2>Order Items</h2><div id="orderItemsBody" style="margin-top:10px"></div></div></div>
+            <div id="deliveryTrackerModal" class="modal hidden"><div class="modal-content"><span class="closeBtn" onclick="closeDeliveryTracker()">&times;</span><h2>Order Tracker</h2><div id="deliveryTrackerBody" style="margin-top:10px"></div></div></div>
         `;
 
         // Wire filter buttons
@@ -1114,50 +1632,158 @@ async function loadDelivery(statusFilter = 'all') {
     }
 }
 
+async function fetchDeliveryLogs(orderId) {
+    try {
+        const res = await fetch(`${API_URL}?action=get_delivery_logs&order_id=${encodeURIComponent(orderId)}&_=${Date.now()}`);
+        const text = await res.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            return { error: 'Server returned invalid JSON', raw: text };
+        }
+    } catch (e) {
+        return { error: e.message || 'Network error' };
+    }
+}
+
+let deliveryTrackerTimer = null;
+
+async function renderDeliveryTracker(orderId) {
+    if (!Array.isArray(deliveryCache) || deliveryCache.length === 0) return;
+    const order = deliveryCache.find(o => String(o.order_id) === String(orderId));
+    if (!order) return;
+
+    const st = (order.status && String(order.status).trim()) ? String(order.status).toLowerCase() : 'to_pay';
+    const steps = [
+        { id: 'to_pay', label: 'To Pay' },
+        { id: 'to_ship', label: 'To Ship' },
+        { id: 'to_receive', label: 'To Receive' },
+        { id: 'completed', label: 'Completed' },
+        { id: 'cancelled', label: 'Cancelled' }
+    ];
+
+    const idx = steps.findIndex(s => s.id === st);
+    const trackerHtml = `
+        <div style="margin-bottom:12px; font-size:13px;">
+            <div><strong>Order #${order.order_id}</strong></div>
+            <div>${escapeHtml(order.customer||'User')} • ${fmtCurrency(order.total)}</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px 16px;margin-bottom:12px;">
+            ${steps.map((step, i) => {
+                const isActive = i === idx;
+                const isDone = idx !== -1 && i < idx && st !== 'cancelled';
+                const baseColor = step.id === 'cancelled' ? '#ef4444' : '#0ea5e9';
+                const bg = isActive ? baseColor : (isDone ? 'rgba(34,197,94,.12)' : 'rgba(148,163,184,.12)');
+                const border = isActive ? baseColor : (isDone ? '#22c55e' : 'rgba(148,163,184,.5)');
+                const textColor = isActive ? '#fff' : '#e5e7eb';
+                return `
+                    <div style="flex:1 1 120px;min-width:120px;max-width:180px;border:1px solid ${border};border-radius:999px;padding:6px 10px;background:${bg};color:${textColor};font-size:12px;display:flex;align-items:center;gap:8px;">
+                        <span style="display:inline-block;width:16px;height:16px;border-radius:999px;border:2px solid ${border};background:${isDone ? '#22c55e' : (isActive ? baseColor : 'transparent')};"></span>
+                        <span>${step.label}</span>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+        <div style="font-size:12px;color:#e5e7eb;margin-bottom:10px;">
+            <div><strong>Current status:</strong> ${st.replace('_', ' ')}</div>
+        </div>
+    `;
+
+    let logs = await fetchDeliveryLogs(orderId);
+    let timelineHtml = '';
+    if (Array.isArray(logs)) {
+        const statusLabelMap = {
+            to_pay: { title: 'Order placed', detail: 'Your order has been created.' },
+            to_ship: { title: 'Preparing to ship', detail: 'Seller is preparing to ship your parcel.' },
+            to_receive: { title: 'Parcel in transit', detail: 'Parcel is on the way to you.' },
+            completed: { title: 'Delivered', detail: 'Parcel has been delivered.' },
+            cancelled: { title: 'Order cancelled', detail: 'Your order has been cancelled.' }
+        };
+        const cur = statusLabelMap[st];
+        if (cur) {
+            const hasCurrent = logs.some(r => {
+                const t = (r && r.status_text) ? String(r.status_text).toLowerCase() : '';
+                return t === cur.title.toLowerCase();
+            });
+            if (!hasCurrent) {
+                let ts = order.order_date || order.date || order.created_at || order.updated_at || null;
+                let displayTs = '';
+                if (ts) {
+                    const dt = new Date(typeof ts === 'string' ? String(ts).replace(' ', 'T') : ts);
+                    if (!isNaN(dt)) {
+                        displayTs = dt.toISOString().slice(0, 19).replace('T', ' ');
+                    }
+                }
+                if (!displayTs) {
+                    const now = new Date();
+                    displayTs = now.toISOString().slice(0, 19).replace('T', ' ');
+                }
+                logs.unshift({
+                    event_time: displayTs,
+                    status_text: cur.title,
+                    detail_text: cur.detail
+                });
+            }
+        }
+    }
+    if (Array.isArray(logs) && logs.length > 0) {
+        timelineHtml = `
+            <div style="margin-top:4px;font-size:12px;color:#e5e7eb;">
+                <div style="font-weight:600;margin-bottom:6px;">Tracking history</div>
+                <div style="max-height:260px;overflow:auto;padding-right:4px;">
+                    ${logs.map(row => `
+                        <div style="display:flex;gap:10px;margin-bottom:8px;align-items:flex-start;">
+                            <div style="width:10px;display:flex;justify-content:center;">
+                                <span style="display:inline-block;width:6px;height:6px;border-radius:999px;background:#facc15;margin-top:5px;"></span>
+                            </div>
+                            <div style="flex:1;">
+                                <div style="font-size:11px;color:#9ca3af;">${escapeHtml(row.event_time || '')}</div>
+                                <div style="font-weight:600;">${escapeHtml(row.status_text || '')}</div>
+                                ${row.detail_text ? `<div style="font-size:12px;color:#d1d5db;">${escapeHtml(row.detail_text)}</div>` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    } else if (logs && logs.error) {
+        timelineHtml = `<div style="margin-top:4px;font-size:12px;color:#fca5a5;">${escapeHtml(logs.error)}</div>`;
+    } else {
+        timelineHtml = `<div style="margin-top:4px;font-size:12px;color:#9ca3af;">No detailed tracking events yet for this order.</div>`;
+    }
+
+    const modal = document.getElementById('deliveryTrackerModal');
+    const body = document.getElementById('deliveryTrackerBody');
+    if (!modal || !body) return;
+    body.innerHTML = trackerHtml + timelineHtml;
+    modal.classList.remove('hidden');
+}
+
+async function openDeliveryTracker(orderId) {
+    if (deliveryTrackerTimer) {
+        clearInterval(deliveryTrackerTimer);
+        deliveryTrackerTimer = null;
+    }
+    await renderDeliveryTracker(orderId);
+    deliveryTrackerTimer = setInterval(() => {
+        renderDeliveryTracker(orderId);
+    }, 5000);
+}
+
+function closeDeliveryTracker() {
+    if (deliveryTrackerTimer) {
+        clearInterval(deliveryTrackerTimer);
+        deliveryTrackerTimer = null;
+    }
+    const modal = document.getElementById('deliveryTrackerModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
 // expose
 window.loadDelivery = loadDelivery;
-
-// Lightweight confirmation modal for status updates
-function openStatusModal(orderId, status){
-    const labels = { to_ship: 'Approved → To Ship', to_receive: 'Marked To Receive', completed: 'Completed' };
-    let modal = document.getElementById('admStatusModal');
-    if (!modal){
-        modal = document.createElement('div');
-        modal.id = 'admStatusModal';
-        // Toast container at bottom-right (no overlay)
-        modal.style.cssText = 'position:fixed;right:16px;bottom:16px;display:flex;align-items:center;justify-content:center;z-index:99999;background:transparent;pointer-events:none;';
-        document.body.appendChild(modal);
-    }
-    const panelStyle = 'pointer-events:auto;display:flex;gap:10px;align-items:center;background:#111;color:#fff;border-radius:10px;min-width:280px;max-width:360px;padding:10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-family:inherit;border:1px solid rgba(255,255,255,.08);';
-    modal.innerHTML = `
-      <div class="panel" style="${panelStyle}">
-        <div style="width:28px;height:28px;border-radius:8px;background:#1a73e8;display:flex;align-items:center;justify-content:center;flex:0 0 auto;">
-          <span style="display:block;width:12px;height:12px;border-radius:50%;background:#fff;"></span>
-        </div>
-        <div style="min-width:0;flex:1 1 auto;">
-          <div id="admStatusTitle" style="font-weight:700;font-size:13px;line-height:1.2;margin:0 0 2px;">Updating...</div>
-          <div id="admStatusMsg" style="opacity:.9;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Please wait while we update the order status.</div>
-        </div>
-      </div>`;
-    modal.style.display = 'flex';
-    const close = ()=>{ const m=document.getElementById('admStatusModal'); if (m) m.remove(); };
-
-    (async ()=>{
-      try{
-        await changeOrderStatus(orderId, status);
-        const t = document.getElementById('admStatusTitle');
-        const m = document.getElementById('admStatusMsg');
-        if (t) t.textContent = labels[status] || 'Updated';
-        if (m) m.textContent = 'Order status updated successfully.';
-      }catch(err){
-        const t = document.getElementById('admStatusTitle');
-        const m = document.getElementById('admStatusMsg');
-        if (t) t.textContent = 'Update Failed';
-        if (m) m.textContent = 'There was a problem updating the order. Please try again.';
-      }
-      setTimeout(close, 2000);
-    })();
-}
+window.closeDeliveryTracker = closeDeliveryTracker;
 
 // ---------------- ANALYTICS ----------------
 async function loadAnalytics(){
@@ -1220,7 +1846,7 @@ async function loadAnalytics(){
         var html = '<div class="analytics-wrap" style="color:#111">'
         + '<div class="inventory-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">'
         +   '<div><h2>Analytics</h2><div style="color:#6b7280;font-size:13px;margin-top:2px">View advanced analytics for your business</div></div>'
-        +   '<div><button class="btn" onclick="window.print()" style="padding:8px 12px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;cursor:pointer">Export CSV</button></div>'
+        +   '<div><button class="btn" onclick="window.print()" style="padding:8px 12px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;cursor:pointer">Download CSV</button></div>'
         + '</div>'
         + '<div class="dashboard-cards" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:10px;">'
         +   '<div class="card" style="padding:14px;border:1px solid #eee;border-radius:12px;background:#fff"><div style="font-size:12px;color:#6b7280">Orders this month</div><div style="font-size:24px;font-weight:700">' + fmtNumber(thisMonthCount) + '</div></div>'
@@ -1348,7 +1974,6 @@ async function loadReports(){
         +   '<div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff">'
         +     '<div style="font-size:12px;color:#6b7280;margin-bottom:6px">Net income</div>'
         +     '<div style="font-size:22px;font-weight:700">' + fmtCurrency(netIncome) + '</div>'
-        +     '<div style="font-size:12px;color:#16a34a;margin-top:6px">This month: ' + fmtCurrency(thisMonthRev) + '</div>'
         +   '</div>'
         +   '<div class="card" style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff">'
         +     '<div style="font-size:12px;color:#6b7280;margin-bottom:6px">Orders this month</div>'

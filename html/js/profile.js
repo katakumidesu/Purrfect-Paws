@@ -27,22 +27,39 @@
         if (accountToggle) accountToggle.setAttribute('aria-expanded','true');
       }
 
+  function goToOrderMainProduct(orderId){
+    const orders = getOrders();
+    const order = orders.find(o => String(o.order_id||o.date) === String(orderId));
+    if (!order || !order.items || !order.items.length) return;
+    const firstItem = order.items[0] || {};
+    const name = (firstItem.name||'').toString();
+    if (!name) return;
+    location.href = `../HTML/product-detail.php?name=${encodeURIComponent(name)}`;
+  }
+
+  window.goToOrderMainProduct = goToOrderMainProduct;
+
     }
 
     // Highlight the active menu item
     $$('.account-menu a').forEach(a=>a.classList.remove('active'));
     const selMap = {
-      profile: 'a[href=\"#profile\"]',
-      addresses: 'a[href=\"#addresses\"]',
-      purchases: '#link-purchases, a[href=\"#purchases\"]'
+      profile: 'a[href="#profile"]',
+      addresses: 'a[href="#addresses"]',
+      purchases: '#link-purchases, a[href="#purchases"]'
     };
     $$(selMap[name]).forEach(a=>a.classList.add('active'));
 
     // Initialize purchases tab handlers and render orders on first entry
     if (name === 'purchases'){
+      const tabsHead = document.querySelector('.p-head');
+      const searchWrap = document.querySelector('.p-search');
+      const activeTab = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
+      if (tabsHead) tabsHead.style.display = '';
+      if (searchWrap) searchWrap.style.display = (activeTab === 'all') ? '' : 'none';
+
       if (!purchasesInit){ initPurchases(); purchasesInit = true; }
-      const tab = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
-      renderPurchases(tab);
+      renderPurchases(activeTab);
     }
   };
   // Attach handlers to ALL matching links instead of just the first one
@@ -690,6 +707,21 @@
   // Store per-product reviews for Product Ratings section
   function getProductReviews(){ try { return JSON.parse(localStorage.getItem('pp_product_reviews')||'[]'); } catch(e){ return []; } }
   function saveProductReviews(list){ try { localStorage.setItem('pp_product_reviews', JSON.stringify(Array.isArray(list)? list : [])); } catch(e){} }
+
+  // --- Address helpers for Delivery Address in tracker ---
+  async function fetchProfileAddresses(){
+    try{
+      const r = await fetch('../profile_php/addresses.php?action=list');
+      const j = await r.json();
+      return Array.isArray(j) ? j : [];
+    }catch(_){ return []; }
+  }
+  async function fetchDefaultProfileAddress(){
+    const items = await fetchProfileAddresses();
+    if (!items.length) return null;
+    const def = items.find(a => String(a.is_default)==='1');
+    return def || items[0];
+  }
   function normalizeStatus(s){
     const raw = String(s||'to_pay').toLowerCase().trim();
     // replace any non-letters with underscore, then collapse repeats
@@ -767,7 +799,8 @@
           .filter(o => String(o.user_id||'') === String(window.PURR_USER_ID||''))
           .map(o=>({
           order_id: o.order_id,
-          date: o.date || o.created_at || Date.now(),
+          // Use only stored timestamps from backend; never regenerate with Date.now()
+          date: o.date || o.created_at || null,
           total: Number(o.total||0),
           status: normalizeStatus(o.status),
           items: Array.isArray(o.items)? o.items.map(it=>({
@@ -794,10 +827,13 @@
       to_pay: 'To Pay',
       to_ship: '<span style="color:#c92a2a;font-weight:700;">TO SHIP</span>',
       to_receive: '<span style="color:#c92a2a;font-weight:700;">TO RECEIVE</span>',
-      completed: '<span style="color:#2f9e44;font-weight:600;">ORDER HAS BEEN DELIVERED</span>',
+      completed: '<span style="color:#2f9e44;font-weight:600;cursor:pointer;">ORDER HAS BEEN DELIVERED</span>',
       cancelled: '<span style="color:#c92a2a;font-weight:700;">CANCELLED</span>'
     })[s]||'—';
     const ratedMap = getRatedMap();
+
+    const inCompletedTab = (tab === 'completed');
+    const inAllTab = (tab === 'all');
 
     wrap.innerHTML = orders.map((o,idx)=>{
       if (o.status === 'to_pay'){
@@ -834,7 +870,8 @@
           <div class="tr-head" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #f1f3f5;">
             <div style="display:flex;align-items:center;gap:8px;"></div>
             <div style="display:flex;align-items:center;gap:10px;">
-              <span style="color:#2f9e44;font-weight:600;">ORDER IS ON THE WAY</span>
+              <span data-track="${o.order_id}" style="color:#2f9e44;font-weight:600;cursor:pointer;">ORDER IS ON THE WAY</span>
+              <span style="color:#d4d4d4;">|</span>
               <span style="color:#c92a2a;font-weight:700;">TO RECEIVE</span>
             </div>
           </div>
@@ -862,12 +899,23 @@
       const normStatus = normalizeStatus(o.status);
       const isCompleted = normStatus === 'completed';
       const isToShip = normStatus === 'to_ship';
-      const rated = !!ratedMap[String(o.order_id||o.date)];
+      const isCancelled = normStatus === 'cancelled';
+      const ratedKey = String(o.order_id||o.date);
+      const isRated = !!ratedMap[ratedKey];
+      const rated = !!ratedMap[ratedKey];
+      const statusHtml = (isCompleted && (inCompletedTab || inAllTab))
+        ? `<span data-track="${o.order_id}" style="color:#2f9e44;font-weight:600;cursor:pointer;">ORDER HAS BEEN DELIVERED</span>` +
+          `<span style="color:#d4d4d4;margin:0 6px;">|</span>` +
+          `<span style="font-weight:700;color:#c92a2a;">${isRated ? 'RATED' : 'COMPLETED'}</span>`
+        : statusLabel(o.status);
+
+      const headerDate = o.date ? new Date(o.date).toLocaleString() : '';
+      const headerId = o.order_id != null ? o.order_id : (idx+1);
       return `
       <div class="order" style="border:1px solid #e9eef2;border-radius:8px;margin-bottom:12px;">
         <div class="order-h" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px dashed #e9eef2;background:#fff;">
-          <div><strong>Order #${idx+1}</strong> <span style="color:#9ab0bd;margin-left:8px">${new Date(o.date||Date.now()).toLocaleString()}</span></div>
-          <div class="status">${statusLabel(o.status)}</div>
+          <div><strong>Order #${headerId}</strong> <span style="color:#9ab0bd;margin-left:8px">${headerDate}</span></div>
+          <div class="status">${statusHtml}</div>
         </div>
         <div class="order-items" style="padding:10px 12px;">
           ${(o.items||[]).map(it=>`
@@ -882,13 +930,14 @@
         </div>
         <div class="order-f" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-top:1px solid #e9eef2;background:#fff;">
           <div class="order-total">Order Total: <strong>${money(o.total||0)}</strong></div>
-          <div class="actions">
-          ${isToShip
-            ? ''
-            : (isCompleted && !rated
-                ? `<button class="btn rate-btn" data-key="${o.order_id||o.date}" style="padding:6px 12px;border-radius:6px;border:1px solid #f97316;background:#f97316;color:#fff;">Rate</button>`
-                : `<button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(((o.items||[])[0]||{}).name||'')}'" style="padding:6px 10px;border:1px solid #1a73e8;color:#1a73e8;background:#fff;border-radius:6px;">Buy Again</button>`)}
-        </div>
+          <div class="actions" style="display:flex;gap:8px;align-items:center;">
+            ${(!isToShip && !isCompleted && !isCancelled) ? `<button class="btn outline" data-track="${o.order_id}" style="padding:6px 10px;border:1px solid #1a73e8;color:#1a73e8;background:#fff;border-radius:6px;">Track Order</button>` : ''}
+            ${isToShip
+              ? ''
+              : (isCompleted && !rated
+                  ? `<button class="btn rate-btn" data-key="${o.order_id||o.date}" style="padding:6px 12px;border-radius:6px;border:1px solid #f97316;background:#f97316;color:#fff;">Rate</button>`
+                  : `<button class="buy-again" onclick="location.href='../HTML/product-detail.php?name=${encodeURIComponent(((o.items||[])[0]||{}).name||'')}'" style="padding:6px 10px;border:1px solid #1a73e8;color:#1a73e8;background:#fff;border-radius:6px;">Buy Again</button>`)}
+          </div>
         </div>
       </div>`;
     }).join('');
@@ -898,6 +947,14 @@
       btn.addEventListener('click', ()=>{
         const oid = parseInt(btn.getAttribute('data-oid')||'0',10);
         openReceiveModal(oid);
+      });
+    });
+
+    // Wire up Track buttons
+    wrap.querySelectorAll('[data-track]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const oid = btn.getAttribute('data-track');
+        openOrderTracker(oid);
       });
     });
 
@@ -911,6 +968,191 @@
     });
     updatePurchaseTabCounts();
   }
+
+  let trackerInterval = null;
+
+  function openOrderTracker(orderId){
+    const orders = getOrders();
+    const order = orders.find(o => String(o.order_id||o.date) === String(orderId));
+    if (!order) return;
+
+    const status = normalizeStatus(order.status);
+    const steps = [
+      { key: 0, label: 'Order Placed', icon: 'fa-file-alt' },
+      { key: 1, label: 'Payment Info Confirmed', icon: 'fa-credit-card' },
+      { key: 2, label: 'Order Shipped Out', icon: 'fa-truck' },
+      { key: 3, label: 'Order Received', icon: 'fa-box-open' },
+      { key: 4, label: 'Order Rated', icon: 'fa-star' }
+    ];
+    const statusIndexMap = {
+      to_pay: 0,
+      to_ship: 2,
+      to_receive: 3,
+      completed: 4,
+      cancelled: -1
+    };
+    const currentIdx = statusIndexMap[status] != null ? statusIndexMap[status] : 0;
+
+    // Use the stored order date only so the displayed time does not keep updating
+    const dateStr = order.date ? new Date(order.date).toLocaleString() : '';
+    const firstItem = (order.items && order.items[0]) || {};
+    const ratedMap = getRatedMap();
+    const ratedKey = String(order.order_id || order.date || '');
+    const isRated = !!ratedMap[ratedKey];
+
+    const trackerHtml = `
+      <div class="ot-panel">
+        <div class="ot-header">
+          <div class="ot-order-id">Order #${order.order_id || ''}</div>
+          <div class="ot-order-meta">${dateStr} • ${money(order.total||0)}</div>
+        </div>
+        <div class="ot-steps">
+          ${steps.map((s,idx)=>{
+            const isActive = idx === currentIdx || (currentIdx === -1 && idx === 0);
+            const isDone = currentIdx !== -1 && idx < currentIdx && status !== 'cancelled';
+            const cls = isActive ? 'active' : (isDone ? 'done' : '');
+            return `
+              <div class="ot-step ${cls}">
+                <div class="circle"><i class="fa ${s.icon}"></i></div>
+                <div class="label">${s.label}</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        <div class="ot-actions-row">
+          <div class="ot-actions-left"></div>
+          <div class="ot-actions-right">
+            ${status === 'to_receive'
+              ? `<button type="button" class="ot-btn-primary" onclick="openReceiveModal(${order.order_id})">Order Received</button>`
+              : status === 'completed' && !isRated
+                ? `<button type="button" class="ot-btn-primary" onclick="openRateModal('${ratedKey}')">Rate</button>`
+                : `<button type="button" class="ot-btn-primary" onclick="goToOrderMainProduct(${order.order_id})" ${firstItem.name ? '' : 'disabled'}>Buy Again</button>`}
+          </div>
+        </div>
+        <div class="ot-body">
+          <div class="ot-address">
+            <div class="ot-section-title">Delivery Address</div>
+            <div class="ot-address-name">${window.PURR_USER_NAME || 'User'}</div>
+            <div class="ot-address-line">(Saved address will appear here)</div>
+          </div>
+          <div class="ot-timeline">
+            <div class="ot-section-title">Delivery Updates</div>
+            <ul class="ot-timeline-list">
+              <li class="current">
+                <div class="time">${dateStr}</div>
+                <div class="status">${status === 'completed' ? 'Delivered' : status === 'to_receive' ? 'In transit' : status === 'to_ship' ? 'Preparing to ship' : 'Order placed'}</div>
+              </li>
+              <li>
+                <div class="time">—</div>
+                <div class="status">${status === 'completed' ? 'Parcel has been delivered' : 'Parcel is being processed'}</div>
+              </li>
+              <li>
+                <div class="time">—</div>
+                <div class="status">Seller is preparing to ship your parcel</div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>`;
+    const wrap = document.getElementById('p-orders');
+    if (!wrap) return;
+
+    const tabsHead = document.querySelector('.p-head');
+    const searchWrap = document.querySelector('.p-search');
+    if (tabsHead) tabsHead.style.display = 'none';
+    if (searchWrap) searchWrap.style.display = 'none';
+
+    wrap.innerHTML = `
+      <div class="ot-wrapper">
+        <button type="button" class="ot-back" onclick="backToOrdersFromTracker()">← Back to orders</button>
+        ${trackerHtml}
+      </div>`;
+
+    // Load saved Delivery Address from profile addresses
+    (async ()=>{
+      const addr = await fetchDefaultProfileAddress();
+      const box = document.querySelector('.ot-address');
+      if (!box || !addr) return;
+      const nameEl = box.querySelector('.ot-address-name');
+      const lineEl = box.querySelector('.ot-address-line');
+      const fullname = addr.fullname || window.PURR_USER_NAME || 'User';
+      const phone = addr.phone ? ` (${escapeHtml(addr.phone)})` : '';
+      if (nameEl) nameEl.innerHTML = `${escapeHtml(fullname)}${phone}`;
+      if (lineEl) {
+        lineEl.innerHTML = `${escapeHtml(addr.address_line||'')}`+
+          (addr.barangay? ', '+escapeHtml(addr.barangay):'')+
+          (addr.city? ', '+escapeHtml(addr.city):'')+
+          (addr.province? ', '+escapeHtml(addr.province):'')+
+          (addr.postal_code? ' '+escapeHtml(addr.postal_code):'');
+      }
+    })();
+    // Start lightweight polling to refresh only Delivery Updates text & steps (no dates)
+    if (trackerInterval){ clearInterval(trackerInterval); trackerInterval = null; }
+    trackerInterval = setInterval(async ()=>{
+      try{
+        const res = await fetch(`../crud/crud.php?action=get_orders&user_id=${encodeURIComponent(String(window.PURR_USER_ID||''))}&_=${Date.now()}`);
+        const arr = await res.json();
+        if (!Array.isArray(arr)) return;
+        const hit = arr.find(o => String(o.order_id||'') === String(orderId));
+        if (!hit) return;
+        const latestStatus = normalizeStatus(hit.status);
+        const statusIdxMap2 = { to_pay:0, to_ship:2, to_receive:3, completed:4, cancelled:-1 };
+        const idx2 = statusIdxMap2[latestStatus] != null ? statusIdxMap2[latestStatus] : 0;
+
+        // Update steps bar (green progress)
+        const stepsEls = document.querySelectorAll('.ot-step');
+        stepsEls.forEach((el,i)=>{
+          el.classList.remove('active','done');
+          if (idx2 === -1 && i === 0) el.classList.add('active');
+          else if (i === idx2) el.classList.add('active');
+          else if (i < idx2 && idx2 !== -1 && latestStatus !== 'cancelled') el.classList.add('done');
+        });
+
+        // Update Delivery Updates text lines (keep dates as-is)
+        const cur = document.querySelector('.ot-timeline-list li.current .status');
+        const line2 = document.querySelector('.ot-timeline-list li:nth-child(2) .status');
+        const line3 = document.querySelector('.ot-timeline-list li:nth-child(3) .status');
+        if (cur){
+          cur.textContent = latestStatus === 'completed'
+            ? 'Delivered'
+            : latestStatus === 'to_receive'
+              ? 'In transit'
+              : latestStatus === 'to_ship'
+                ? 'Preparing to ship'
+                : 'Order placed';
+        }
+        if (line2){
+          line2.textContent = latestStatus === 'completed'
+            ? 'Parcel has been delivered'
+            : latestStatus === 'to_receive'
+              ? 'Parcel is on the way to you'
+              : latestStatus === 'to_ship'
+                ? 'Parcel is being processed'
+                : 'Parcel is being processed';
+        }
+        if (line3){
+          line3.textContent = latestStatus === 'to_ship'
+            ? 'Seller is preparing to ship your parcel'
+            : latestStatus === 'to_receive'
+              ? 'Parcel has left the sorting facility'
+              : latestStatus === 'completed'
+                ? 'Thank you for shopping with Purrfect Paws'
+                : 'Seller is preparing to ship your parcel';
+        }
+      }catch(_){ /* ignore polling errors */ }
+    }, 8000);
+  }
+
+  function backToOrdersFromTracker(){
+    const currentTab = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
+    const tabsHead = document.querySelector('.p-head');
+    const searchWrap = document.querySelector('.p-search');
+    if (tabsHead) tabsHead.style.display = '';
+    if (searchWrap) searchWrap.style.display = (currentTab === 'all') ? '' : 'none';
+    renderPurchases(currentTab);
+  }
+
+  window.backToOrdersFromTracker = backToOrdersFromTracker;
 
   // --- Cancel Order Modal (Shopee-like) ---
   function openCancelModal(orderKey){
@@ -1021,7 +1263,7 @@
     modal.innerHTML = `
       <div class="panel" style="${panelStyle}">
         <h3 style="margin:0 0 8px;">Confirm Receipt</h3>
-        <div class="note" style="${noteStyle}">Confirm receipt after you've checked the received items.</div>
+        <div class="note" style="${noteStyle}">Check that you received all items in satisfactory condition (no return/refund required) before confirming receipt. Once you confirm, the order is completed and we will release the payment to seller.</div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;">
           <button type="button" id="prNotNow" style="${btnBase}background:#f7f7f7;border:1px solid #dfe3e6;color:#444;">NOT NOW</button>
           <button type="button" id="prConfirm" style="${btnBase}background:#fff;border:1px solid #ff6b6b;color:#c92a2a;">ORDER RECEIVED</button>
@@ -1050,7 +1292,12 @@
           });
         }
       }catch(_){ }
-      // Switch to Completed tab
+      // Switch to Completed tab and ensure tabs/search are visible (in case we came from tracker view)
+      const tabsHead = document.querySelector('.p-head');
+      const searchWrap = document.querySelector('.p-search');
+      if (tabsHead) tabsHead.style.display = '';
+      if (searchWrap) searchWrap.style.display = '';
+
       const tabs = document.querySelectorAll('.p-head .tabs a');
       tabs.forEach(x=>x.classList.remove('active'));
       const t = document.querySelector('.p-head .tabs a[data-tab="completed"]');
@@ -1059,6 +1306,8 @@
       close();
     });
   }
+
+  window.openReceiveModal = openReceiveModal;
 
   // --- Product Rating Modal (Shopee-like) ---
   function openRateModal(orderKey){
@@ -1164,6 +1413,10 @@
 
       close();
       const currentTab = document.querySelector('.p-head .tabs a.active')?.dataset.tab || 'all';
+      const tabsHead = document.querySelector('.p-head');
+      const searchWrap = document.querySelector('.p-search');
+      if (tabsHead) tabsHead.style.display = '';
+      if (searchWrap) searchWrap.style.display = (currentTab === 'all') ? '' : 'none';
       renderPurchases(currentTab);
     });
   }

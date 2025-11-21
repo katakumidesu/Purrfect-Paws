@@ -11,8 +11,8 @@ session_start();
     <meta name="description" content="Purrfect Paws - Cat gallery.">
     <title>Gallery - Purrfect Paws</title>
     <link rel="stylesheet" href="css/kumi.css">
-    <script src="https://kit.fontawesome.com/df5d6157cf.js" crossorigin="anonymous"></script>
     <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="css/gallery.css">
        
 </head>
@@ -41,6 +41,28 @@ session_start();
                             <a href="../profile_php/profile.php#purchases">My Purchase</a>
                             <a href="../login_register/logout.php">Logout</a>
                         </div>
+
+    <?php if (isset($_SESSION['user_id'])): ?>
+    <div class="lightbox-overlay" id="galleryPostModal">
+        <div class="lightbox-content" style="max-width:420px;">
+            <form action="../crud/upload_gallery_post.php" method="POST" enctype="multipart/form-data" style="width:100%;">
+                <h3 style="margin-bottom:10px;">Add Gallery Post</h3>
+                <div class="form-group">
+                    <label for="galleryImage">Image</label>
+                    <input type="file" name="image" id="galleryImage" accept="image/*" required>
+                </div>
+                <div class="form-group" style="margin-top:10px;">
+                    <label for="galleryDescription">Description</label>
+                    <textarea name="description" id="galleryDescription" rows="3" placeholder="Say something about your cat..."></textarea>
+                </div>
+                <div style="margin-top:14px;display:flex;justify-content:flex-end;gap:8px;">
+                    <button type="button" onclick="document.getElementById('galleryPostModal').classList.remove('active');" style="padding:6px 12px;border-radius:6px;border:none;background:#4b5563;color:#fff;cursor:pointer;">Cancel</button>
+                    <button type="submit" style="padding:6px 14px;border-radius:6px;border:none;background:#16a34a;color:#fff;cursor:pointer;">Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <?php endif; ?>
                     </div>
                 <?php else: ?>
                     <a href="../login_register/purdex.php"><button><i class="fa-solid fa-cat"></i> Login</button></a>
@@ -57,6 +79,13 @@ session_start();
     <!-- Gallery Page -->
     <section class="gallery-page">
         <h2>Gallery</h2>
+        <?php if (isset($_SESSION['user_id'])): ?>
+            <div style="text-align:right;margin:10px 40px 0 40px;">
+                <button onclick="document.getElementById('galleryPostModal').classList.add('active');" class="btn-add-post" style="padding:8px 14px;border-radius:999px;border:none;background:#111827;color:#fff;font-size:14px;cursor:pointer;">
+                    <i class="fa fa-plus"></i> Add Post
+                </button>
+            </div>
+        <?php endif; ?>
          <div class="gallery-logo">
             <img src="images/cat_gallery-removebg-preview.png" alt="cat">
                 </div>
@@ -134,6 +163,45 @@ session_start();
                     </div>
                     <div class="gallery-caption">"German Cat"</div>
                 </div>
+
+                <?php
+                // Fetch approved user gallery posts and append them into the slider
+                try {
+                    require_once 'config.php';
+                    $conn->query("CREATE TABLE IF NOT EXISTS user_gallery_posts (
+                        post_id INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id INT NOT NULL,
+                        image_path VARCHAR(255) NOT NULL,
+                        description TEXT NULL,
+                        status ENUM('pending','approved','declined') NOT NULL DEFAULT 'pending',
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_status_created (status, created_at)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                    $res = $conn->query("SELECT p.post_id, p.image_path, p.description, p.created_at, COALESCE(u.name,'User') AS user_name
+                                          FROM user_gallery_posts p
+                                          LEFT JOIN users u ON u.user_id = p.user_id
+                                          WHERE p.status='approved'
+                                          ORDER BY p.created_at DESC, p.post_id DESC");
+                    $userPosts = [];
+                    if ($res) {
+                        while ($row = $res->fetch_assoc()) { $userPosts[] = $row; }
+                    }
+                } catch (Exception $e) {
+                    $userPosts = [];
+                }
+
+                if (!empty($userPosts)):
+                    foreach ($userPosts as $post): ?>
+                        <div class="gallery-card">
+                            <div class="gallery-card-inner">
+                                <img src="<?php echo htmlspecialchars($post['image_path']); ?>" alt="User Post" data-desc="<?php echo htmlspecialchars($post['description'] ?? ''); ?>">
+                            </div>
+                            <div class="gallery-caption"><?php echo htmlspecialchars($post['user_name']); ?></div>
+                        </div>
+                <?php
+                    endforeach;
+                endif;
+                ?>
             </div>
         </div>
     </section>

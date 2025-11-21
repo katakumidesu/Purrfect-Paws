@@ -40,12 +40,12 @@ $profileImage = (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_
   <link rel="stylesheet" href="../HTML/css/kumi.css">
   <link rel="stylesheet" href="../HTML/css/profile.css?v=to-pay-cancel">
   <link rel="stylesheet" href="../HTML/css/address-modal.css">
-  <script src="https://kit.fontawesome.com/df5d6157cf.js" crossorigin="anonymous"></script>
   <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <script>
     window.PURR_USER_ID = <?= json_encode((string)$user_id) ?>;
-    window.PURR_USER_NAME = <?= json_encode((string)($user['username'] ?? ($user['name'] ?? 'User'))) ?>;
+    // Use only the username for ratings/comments; fall back to generic label if missing
+    window.PURR_USER_NAME = <?= json_encode((string)($user['username'] !== '' ? $user['username'] : ($user['name'] ?? 'User'))) ?>;
   </script>
 
 </head>

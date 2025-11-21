@@ -13,10 +13,8 @@ session_start();
     <meta name="description" content="Purrfect Paws - Your one-stop shop for all things cat-related in Cagayan de Oro City.">
     <title>Purrfect Paws</title>
     <link rel="stylesheet" href="css/kumi.css">
-    <script src="https://kit.fontawesome.com/df5d6157cf.js" crossorigin="anonymous"></script>
     <link href="https://fonts.googleapis.com/css2?family=Kaushan+Script&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" integrity="sha512-2SwdPD6INVrV/
-    lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
 
 
@@ -31,7 +29,7 @@ session_start();
             font-size: 20px;
             font-family: "Times New Roman";
             font-weight: bold;
-        }
+        }`
     </style>
 </head>
 
@@ -271,56 +269,56 @@ session_start();
         </section>
     
 <div class="testimonial"> 
-    <h2>What Our Customers Say</h2>
-      <div class="testimonial-container">
-        <div class="testimonial-card">
-          <i class="fa-solid fa-quote-left"></i>
-          <p>Purrfect Paws has transformed my cat's life! The toys and accessories are top-notch, and the staff is incredibly knowledgeable and friendly. Highly recommend!</p>
-          
-          <div class="rating">
-                <i class="fa-solid fa-star"></i>
-                <i class="fa-solid fa-star"></i>
-                <i class="fa-solid fa-star"></i>
-                <i class="fa-solid fa-star"></i>
-                <i class="fa-regular fa-star"></i>
-            </div>
-              <img src="images/chaeyoung.jpg">
-              <h4>Son Chaeyoung</h4>
-        </div>
-        <div class="testimonial-card">
-          <i class="fa-solid fa-quote-left"></i>
-          <p>From toys to essentials, every product I bought at Purrfect Paws is high-quality and worth it. My kitty approves!</p>
-          
-          <div class="rating">
-                <i class="fa-solid fa-star"></i>
-                <i class="fa-solid fa-star"></i>
-                <i class="fa-solid fa-star"></i>
-                <i class="fa-solid fa-star"></i>
-                <i class="fa-solid fa-star"></i>
-      </div>
-      <img src="images/karina.jpg">
-      <h4>Yu Ji-min</h4>
-    </div>
+	<h2>What Our Customers Say</h2>
+	  <div class="testimonial-container">
+		<div class="testimonial-card">
+		  <i class="fa-solid fa-quote-left"></i>
+		  <p>Purrfect Paws has transformed my cat's life! The toys and accessories are top-notch, and the staff is incredibly knowledgeable and friendly. Highly recommend!</p>
+		  
+		  <div class="rating">
+				<i class="fa-solid fa-star"></i>
+				<i class="fa-solid fa-star"></i>
+				<i class="fa-solid fa-star"></i>
+				<i class="fa-solid fa-star"></i>
+				<i class="fa-regular fa-star"></i>
+			</div>
+			  <img src="images/chaeyoung.jpg">
+			  <h4>Son Chaeyoung</h4>
+		</div>
+		<div class="testimonial-card">
+		  <i class="fa-solid fa-quote-left"></i>
+		  <p>From toys to essentials, every product I bought at Purrfect Paws is high-quality and worth it. My kitty approves!</p>
+		  
+		  <div class="rating">
+				<i class="fa-solid fa-star"></i>
+				<i class="fa-solid fa-star"></i>
+				<i class="fa-solid fa-star"></i>
+				<i class="fa-solid fa-star"></i>
+				<i class="fa-solid fa-star"></i>
+		</div>
+		<img src="images/karina.jpg">
+		<h4>Yu Ji-min</h4>
+	  </div>
 
-        <div class="testimonial-card">
-          <i class="fa-solid fa-quote-left"></i>
-          <p>Shopping at Purrfect Paws feels personal — they really care about cats and it shows in their products and service</p>
-          
-          <div class="rating">
-                <i class="fa-solid fa-star"></i>
-                <i class="fa-solid fa-star"></i>
-                <i class="fa-solid fa-star"></i>
-                <i class="fa-solid fa-star"></i>
-                <i class="fa-solid fa-star"></i>
-      </div>
-      <img src="images/iu.jpg">
-      <h4>Lee Ji-eun</h4>
+		<div class="testimonial-card">
+		  <i class="fa-solid fa-quote-left"></i>
+		  <p>Shopping at Purrfect Paws feels personal — they really care about cats and it shows in their products and service</p>
+		  
+		  <div class="rating">
+				<i class="fa-solid fa-star"></i>
+				<i class="fa-solid fa-star"></i>
+				<i class="fa-solid fa-star"></i>
+				<i class="fa-solid fa-star"></i>
+				<i class="fa-solid fa-star"></i>
+		</div>
+		<img src="images/iu.jpg">
+		<h4>Lee Ji-eun</h4>
 
-      </div>
+		  </div>
 
-  </div>
+	  </div>
 
-</div>
+	</div>
 
 
 
@@ -369,9 +367,146 @@ session_start();
 </footer>
 <script>
   window.PURR_USER_ID = <?= json_encode((string)($_SESSION['user_id'] ?? 'anon')) ?>;
+
+  // Apply global ratings (from database) to static homepage product stars
+  document.addEventListener('DOMContentLoaded', async function () {
+    try {
+      const res = await fetch('../crud/crud.php?action=get_products&available_only=1&_=' + Date.now());
+      const data = await res.json();
+      if (!Array.isArray(data)) return;
+
+      const ratingByName = {};
+      const priceByName = {};
+      data.forEach(p => {
+        const name = (p.name || '').trim();
+        if (!name) return;
+        const key = name.toLowerCase();
+        const r = p.rating != null ? Number(p.rating) : 5;
+        if (isFinite(r) && r > 0) {
+          ratingByName[key] = Math.max(0, Math.min(5, r));
+        }
+        const price = p.price != null ? Number(p.price) : null;
+        if (isFinite(price) && price >= 0) {
+          priceByName[key] = price;
+        }
+      });
+
+      const cards = document.querySelectorAll('.shop-container > div');
+      cards.forEach(card => {
+        const titleEl = card.querySelector('h4');
+        const ratingEl = card.querySelector('.rating');
+        if (!titleEl || !ratingEl) return;
+        const name = titleEl.textContent.trim();
+        const key = name.toLowerCase();
+        const avg = ratingByName[key];
+        const price = priceByName[key];
+
+        // Apply rating stars if we have a rating from DB
+        if (avg != null) {
+          const stars = ratingEl.querySelectorAll('i');
+          stars.forEach((star, idx) => {
+            const i = idx + 1;
+            star.classList.remove('fa-solid', 'fa-regular', 'fa-star', 'fa-star-half-stroke');
+            if (avg >= i) {
+              star.classList.add('fa-solid', 'fa-star');
+            } else if (avg >= i - 0.5) {
+              star.classList.add('fa-solid', 'fa-star-half-stroke');
+            } else {
+              star.classList.add('fa-regular', 'fa-star');
+            }
+          });
+        }
+
+        // Apply price from DB if available
+        if (price != null) {
+          const priceEl = card.querySelector('p strong');
+          if (priceEl) {
+            priceEl.textContent = '\u20b1 ' + Number(price).toFixed(2);
+          }
+        }
+      });
+    } catch (e) {
+      console.error('Failed to apply homepage ratings', e);
+    }
+  });
+  // Click-to-expand testimonials (simple modal)
+  document.addEventListener('DOMContentLoaded', function(){
+    const cards = document.querySelectorAll('.testimonial-card');
+    if (!cards.length) return;
+
+    let modal = document.getElementById('testimonialModal');
+    if (!modal){
+      modal = document.createElement('div');
+      modal.id = 'testimonialModal';
+      modal.style.position = 'fixed';
+      modal.style.inset = '0';
+      modal.style.background = 'rgba(15,23,42,0.45)';
+      modal.style.backdropFilter = 'blur(6px)';
+      modal.style.webkitBackdropFilter = 'blur(6px)';
+      modal.style.display = 'none';
+      modal.style.alignItems = 'center';
+      modal.style.justifyContent = 'center';
+      modal.style.zIndex = '9999';
+      modal.setAttribute('role','dialog');
+      modal.setAttribute('aria-modal','true');
+      modal.setAttribute('aria-label','Testimonial details');
+      modal.innerHTML = `
+        <div style="background:#fff;border-radius:10px;max-width:360px;width:90%;padding:32px 28px;box-shadow:0 18px 45px rgba(15,23,42,.35);position:relative;text-align:center;">
+          <button type="button" id="tmClose" style="position:absolute;top:10px;right:12px;border:none;background:transparent;font-size:20px;cursor:pointer;line-height:1;">&times;</button>
+          <i class="fa-solid fa-quote-left" style="font-size:1.6rem;color:#FFD700;margin-bottom:14px;display:block;"></i>
+          <div id="tmQuote" style="font-size:14px;color:#333;margin-bottom:14px;min-height:80px;"></div>
+          <div id="tmRating" style="color:#facc15;margin-bottom:14px;font-size:18px;"></div>
+          <img id="tmAvatar" src="" alt="" style="width:70px;height:70px;border-radius:50%;object-fit:cover;margin-bottom:10px;display:none;">
+          <div id="tmName" style="font-weight:600;color:#111;font-size:15px;"></div>
+        </div>`;
+      document.body.appendChild(modal);
+      const closeBtn = modal.querySelector('#tmClose');
+      const closeModal = function(){
+        modal.style.display = 'none';
+        document.removeEventListener('keydown', onKey);
+      };
+      const onKey = function(e){
+        if (e.key === 'Escape') closeModal();
+      };
+      modal.addEventListener('click', function(e){ if (e.target === modal) closeModal(); });
+      if (closeBtn) closeBtn.addEventListener('click', function(){ closeModal(); });
+      modal._pp_closeModal = closeModal;
+      modal._pp_onKey = onKey;
+    }
+
+    const quoteEl = modal.querySelector('#tmQuote');
+    const nameEl = modal.querySelector('#tmName');
+    const ratingEl = modal.querySelector('#tmRating');
+    const avatarEl = modal.querySelector('#tmAvatar');
+
+    cards.forEach(card => {
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', function(){
+        const text = card.querySelector('p')?.textContent || '';
+        const name = card.querySelector('h4, h3')?.textContent || '';
+        const stars = card.querySelector('.rating')?.innerHTML || '';
+        const img = card.querySelector('img');
+        if (quoteEl) quoteEl.textContent = text;
+        if (nameEl) nameEl.textContent = name;
+        if (ratingEl) ratingEl.innerHTML = stars;
+        if (avatarEl){
+          if (img && img.src){
+            avatarEl.src = img.src;
+            avatarEl.style.display = 'inline-block';
+          } else {
+            avatarEl.style.display = 'none';
+          }
+        }
+        modal.style.display = 'flex';
+        if (typeof modal._pp_onKey === 'function'){
+          document.addEventListener('keydown', modal._pp_onKey);
+        }
+      });
+    });
+  });
+
 </script>
 <script src="../js/cart.js?v=user-ns"></script>
-<script src="../js/product-details.js"></script>
 </body>
 
 </html>
